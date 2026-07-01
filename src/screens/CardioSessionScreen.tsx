@@ -4,7 +4,14 @@ import { toast } from 'sonner'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useElapsedTimer } from '@/hooks/useElapsedTimer'
 import { useIntervalTimer } from '@/hooks/useIntervalTimer'
-import { addCardio, endSession, getSessionById, getTemplate, updateSession } from '@/db/helpers'
+import {
+  addCardio,
+  checkAndSavePR,
+  endSession,
+  getSessionById,
+  getTemplate,
+  updateSession,
+} from '@/db/helpers'
 import { SessionHeader } from '@/components/SessionHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -57,6 +64,31 @@ export default function CardioSessionScreen() {
         loggedAt: Date.now(),
       })
       if (notes.trim()) await updateSession(id, { notes: notes.trim() })
+
+      // PR checks (keyed by activity label). checkAndSavePR only persists a beat.
+      const label = ACTIVITY_LABELS[activity]
+      const validDistance = distanceKm != null && !Number.isNaN(distanceKm) ? distanceKm : undefined
+      if (validDistance != null) {
+        await checkAndSavePR({
+          exerciseName: label,
+          prType: 'distance',
+          value: validDistance,
+          unit: 'km',
+          sessionId: id,
+          achievedAt: Date.now(),
+        })
+      }
+      if (paceSecPerKm) {
+        await checkAndSavePR({
+          exerciseName: label,
+          prType: 'pace',
+          value: Math.round(paceSecPerKm),
+          unit: 's/km',
+          sessionId: id,
+          achievedAt: Date.now(),
+        })
+      }
+
       await endSession(id)
       navigate(`/session/${id}/summary`)
     } catch {

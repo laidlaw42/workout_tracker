@@ -14,6 +14,7 @@ import {
   getSetsForSession,
   getTemplate,
   updateSession,
+  upsertTemplate,
 } from '@/db/helpers'
 import { generateId } from '@/lib/id'
 import { SessionHeader } from '@/components/SessionHeader'
@@ -51,6 +52,7 @@ export default function StrengthSessionScreen() {
   const [modifyOpen, setModifyOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [confirmFinish, setConfirmFinish] = useState(false)
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
 
   const elapsed = useElapsedTimer(session?.startedAt ?? Date.now())
   const rest = useRestTimer()
@@ -194,13 +196,48 @@ export default function StrengthSessionScreen() {
     markModified()
   }
 
-  async function doFinish() {
+  async function endAndGo() {
     try {
       await endSession(id)
       navigate(`/session/${id}/summary`)
     } catch {
       toast.error('Could not finish workout')
     }
+  }
+
+  // If the workout diverged from its template, offer to persist the changes.
+  function proceedFinish() {
+    setConfirmFinish(false)
+    if (modified && session?.templateId) setSaveTemplateOpen(true)
+    else void endAndGo()
+  }
+
+  async function saveTemplateThenGo() {
+    if (session?.templateId) {
+      try {
+        await upsertTemplate({
+          id: session.templateId,
+          name: session.templateName,
+          type: 'strength',
+          tags: template?.tags ?? [],
+          exercises: work
+            .filter((e) => !e.skipped)
+            .map((e, i) => ({
+              exerciseId: e.exerciseId,
+              exerciseName: e.exerciseName,
+              order: i,
+              defaultSets: e.targetSets,
+              defaultReps: e.targetReps,
+              defaultRestSeconds: e.restSeconds,
+            })),
+          lastUsedAt: template?.lastUsedAt,
+        })
+      } catch {
+        toast.error('Could not update template')
+      }
+    }
+    setSaveTemplateOpen(false)
+    void endAndGo()
   }
 
   if (session === null) {
@@ -223,7 +260,7 @@ export default function StrengthSessionScreen() {
       <SessionHeader
         title={session?.templateName ?? 'Workout'}
         elapsedSeconds={elapsed}
-        onFinish={() => (allDone ? doFinish() : setConfirmFinish(true))}
+        onFinish={() => (allDone ? proceedFinish() : setConfirmFinish(true))}
       />
 
       <div className="space-y-3 p-4">
@@ -288,7 +325,22 @@ export default function StrengthSessionScreen() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep going</AlertDialogCancel>
-            <AlertDialogAction onClick={doFinish}>Finish</AlertDialogAction>
+            <AlertDialogAction onClick={proceedFinish}>Finish</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={saveTemplateOpen} onOpenChange={setSaveTemplateOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Save changes to template?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You modified this workout. Update “{session?.templateName}” to match?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => void endAndGo()}>No, keep it</AlertDialogCancel>
+            <AlertDialogAction onClick={saveTemplateThenGo}>Save changes</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

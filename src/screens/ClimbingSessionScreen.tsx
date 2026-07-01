@@ -4,7 +4,15 @@ import { toast } from 'sonner'
 import { Mountain, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useElapsedTimer } from '@/hooks/useElapsedTimer'
-import { endSession, getRoutesForSession, getSessionById, updateSession } from '@/db/helpers'
+import {
+  checkAndSavePR,
+  endSession,
+  getRoutesForSession,
+  getSessionById,
+  updateSession,
+} from '@/db/helpers'
+import { STYLE_LABELS, isCleanTick, vGradeIndex } from '@/lib/climbing'
+import type { ClimbingStyle } from '@/types'
 import { SessionHeader } from '@/components/SessionHeader'
 import { RouteCard } from '@/components/RouteCard'
 import { LogRouteSheet } from '@/components/LogRouteSheet'
@@ -52,8 +60,32 @@ export default function ClimbingSessionScreen() {
     setSheetOpen(true)
   }
 
+  async function saveGradePRs() {
+    // Hardest clean send per style: bouldering by V-index, roped by Ewbanks.
+    const cleanRoutes = routes.filter((r) => isCleanTick(r.tick))
+    const styles: ClimbingStyle[] = ['bouldering', 'top_rope', 'lead']
+    for (const style of styles) {
+      const inStyle = cleanRoutes.filter((r) => r.style === style)
+      if (inStyle.length === 0) continue
+      const value =
+        style === 'bouldering'
+          ? Math.max(...inStyle.map((r) => (r.vGrade ? vGradeIndex(r.vGrade) : -1)))
+          : Math.max(...inStyle.map((r) => r.ewbanksGrade ?? 0))
+      await checkAndSavePR({
+        exerciseName: STYLE_LABELS[style],
+        climbingStyle: style,
+        prType: 'grade',
+        value,
+        unit: style === 'bouldering' ? 'vgrade' : 'ewbanks',
+        sessionId: id,
+        achievedAt: Date.now(),
+      })
+    }
+  }
+
   async function finish() {
     try {
+      await saveGradePRs()
       await endSession(id)
       navigate(`/session/${id}/summary`)
     } catch {

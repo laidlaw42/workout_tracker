@@ -434,8 +434,8 @@ Strength summary:
 - Exercise breakdown: list each exercise with sets completed / total
 - PRs section: getPRsForSession(id), show each as a PRBadge (gold highlight, trophy icon,
   "New PR: Squat 85kg × 5")
-- If session.modifiedFromTemplate: show card "Save changes to template?" with Yes / No
-  buttons (call upsertTemplate on Yes)
+- Note: the "Save changes to template?" prompt fires at Finish on the strength session
+  screen (where the modified working list lives), not here — the summary is read-only
 
 Cardio summary:
 - Duration, distance, avg pace

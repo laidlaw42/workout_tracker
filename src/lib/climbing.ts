@@ -14,6 +14,10 @@ export function vGradeIndex(grade: string): number {
   return Number.isNaN(n) ? -1 : n
 }
 
+export function vGradeFromIndex(index: number): string {
+  return index === -1 ? 'VB' : `V${index}`
+}
+
 // Typical gym range for the Ewbanks picker.
 export const EWBANKS_GRADES = Array.from({ length: 26 }, (_, i) => 10 + i) // 10..35
 
