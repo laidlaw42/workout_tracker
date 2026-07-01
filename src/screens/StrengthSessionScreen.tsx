@@ -3,11 +3,12 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { SlidersHorizontal } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
-import { useElapsedTimer } from '@/hooks/useElapsedTimer'
+import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { useRestTimer } from '@/hooks/useRestTimer'
 import {
   addSet,
   checkAndSavePR,
+  deleteSession,
   endSession,
   getLastSetForExercise,
   getSessionById,
@@ -53,9 +54,10 @@ export default function StrengthSessionScreen() {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [pickerMode, setPickerMode] = useState<'swap' | 'add'>('swap')
   const [confirmFinish, setConfirmFinish] = useState(false)
+  const [confirmCancel, setConfirmCancel] = useState(false)
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
 
-  const elapsed = useElapsedTimer(session?.startedAt ?? Date.now())
+  const timer = useSessionTimer(session?.startedAt ?? Date.now())
   const rest = useRestTimer()
 
   // Build the working list from the template once.
@@ -230,6 +232,15 @@ export default function StrengthSessionScreen() {
     }
   }
 
+  async function handleCancel() {
+    try {
+      await deleteSession(id)
+      navigate('/home')
+    } catch {
+      toast.error('Could not cancel workout')
+    }
+  }
+
   // If the workout diverged from its template, offer to persist the changes.
   function proceedFinish() {
     setConfirmFinish(false)
@@ -284,7 +295,11 @@ export default function StrengthSessionScreen() {
     <div className="min-h-dvh pb-32">
       <SessionHeader
         title={session?.templateName ?? 'Workout'}
-        elapsedSeconds={elapsed}
+        elapsedSeconds={timer.elapsed}
+        paused={timer.paused}
+        onPause={timer.pause}
+        onResume={timer.resume}
+        onCancel={() => setConfirmCancel(true)}
         onFinish={() => (allDone ? proceedFinish() : setConfirmFinish(true))}
       />
 
@@ -357,6 +372,19 @@ export default function StrengthSessionScreen() {
           <AlertDialogFooter>
             <AlertDialogCancel>Keep going</AlertDialogCancel>
             <AlertDialogAction onClick={proceedFinish}>Finish</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel this workout?</AlertDialogTitle>
+            <AlertDialogDescription>All progress will be lost.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep workout</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCancel}>Discard workout</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

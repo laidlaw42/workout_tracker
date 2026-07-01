@@ -2,16 +2,27 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useLiveQuery } from '@/hooks/useDb'
-import { useElapsedTimer } from '@/hooks/useElapsedTimer'
+import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { useIntervalTimer } from '@/hooks/useIntervalTimer'
 import {
   addCardio,
   checkAndSavePR,
+  deleteSession,
   endSession,
   getSessionById,
   getTemplate,
   updateSession,
 } from '@/db/helpers'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { SessionHeader } from '@/components/SessionHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -40,9 +51,11 @@ export default function CardioSessionScreen() {
 
   const [distance, setDistance] = useState('')
   const [notes, setNotes] = useState('')
+  const [confirmCancel, setConfirmCancel] = useState(false)
 
-  const elapsed = useElapsedTimer(session?.startedAt ?? Date.now())
-  const timer = useIntervalTimer(template?.intervals ?? [])
+  const clock = useSessionTimer(session?.startedAt ?? Date.now())
+  const elapsed = clock.elapsed
+  const timer = useIntervalTimer(template?.intervals ?? [], elapsed)
 
   const activity: CardioActivityType = template?.cardioActivity ?? 'other'
   const distanceKm = distance.trim() === '' ? undefined : Number(distance)
@@ -96,6 +109,15 @@ export default function CardioSessionScreen() {
     }
   }
 
+  async function handleCancel() {
+    try {
+      await deleteSession(id)
+      navigate('/home')
+    } catch {
+      toast.error('Could not cancel session')
+    }
+  }
+
   if (session === null) {
     return (
       <div className="p-4">
@@ -112,6 +134,10 @@ export default function CardioSessionScreen() {
       <SessionHeader
         title={session?.templateName ?? ACTIVITY_LABELS[activity]}
         elapsedSeconds={elapsed}
+        paused={clock.paused}
+        onPause={clock.pause}
+        onResume={clock.resume}
+        onCancel={() => setConfirmCancel(true)}
         onFinish={finish}
       />
 
@@ -189,6 +215,19 @@ export default function CardioSessionScreen() {
           Finish session
         </Button>
       </div>
+
+      <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel this workout?</AlertDialogTitle>
+            <AlertDialogDescription>All progress will be lost.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep workout</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCancel}>Discard workout</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

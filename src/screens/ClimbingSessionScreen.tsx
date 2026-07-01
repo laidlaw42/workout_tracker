@@ -3,9 +3,10 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Mountain, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
-import { useElapsedTimer } from '@/hooks/useElapsedTimer'
+import { useSessionTimer } from '@/hooks/useSessionTimer'
 import {
   checkAndSavePR,
+  deleteSession,
   endSession,
   getRoutesForSession,
   getSessionById,
@@ -20,6 +21,16 @@ import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import type { ClimbingRoute } from '@/types'
 
 export default function ClimbingSessionScreen() {
@@ -34,8 +45,10 @@ export default function ClimbingSessionScreen() {
   const [inited, setInited] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editing, setEditing] = useState<ClimbingRoute | null>(null)
+  const [confirmCancel, setConfirmCancel] = useState(false)
 
-  const elapsed = useElapsedTimer(session?.startedAt ?? Date.now())
+  const clock = useSessionTimer(session?.startedAt ?? Date.now())
+  const elapsed = clock.elapsed
 
   useEffect(() => {
     if (session && !inited) {
@@ -93,6 +106,15 @@ export default function ClimbingSessionScreen() {
     }
   }
 
+  async function handleCancel() {
+    try {
+      await deleteSession(id)
+      navigate('/home')
+    } catch {
+      toast.error('Could not cancel session')
+    }
+  }
+
   if (session === null) {
     return (
       <div className="p-4">
@@ -106,7 +128,15 @@ export default function ClimbingSessionScreen() {
 
   return (
     <div className="min-h-dvh pb-24">
-      <SessionHeader title="Climbing session" elapsedSeconds={elapsed} onFinish={finish} />
+      <SessionHeader
+        title="Climbing session"
+        elapsedSeconds={elapsed}
+        paused={clock.paused}
+        onPause={clock.pause}
+        onResume={clock.resume}
+        onCancel={() => setConfirmCancel(true)}
+        onFinish={finish}
+      />
 
       <div className="space-y-4 p-4">
         <div className="grid grid-cols-2 gap-3">
@@ -161,6 +191,19 @@ export default function ClimbingSessionScreen() {
         editing={editing}
         onSaved={() => setEditing(null)}
       />
+
+      <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel this workout?</AlertDialogTitle>
+            <AlertDialogDescription>All progress will be lost.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep workout</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCancel}>Discard workout</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
