@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from '@/hooks/useDb'
 import {
@@ -14,6 +14,7 @@ import { PRBadge } from '@/components/PRBadge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatPace, formatWorkoutLength } from '@/lib/formatDuration'
+import { randomPhrase, randomQuote } from '@/lib/completionMessages'
 import {
   isCleanTick,
   tickBadgeClass,
@@ -27,6 +28,10 @@ import type { ClimbingRoute, LoggedCardio, LoggedSet, PersonalRecord } from '@/t
 export default function SessionSummaryScreen() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
+
+  // Re-randomised on each mount (i.e. each time the summary is shown).
+  const [phrase] = useState(randomPhrase)
+  const [quote] = useState(randomQuote)
 
   const session = useLiveQuery(() => getSessionById(id).then((s) => s ?? null), [id])
   const sets = useLiveQuery(() => getSetsForSession(id), [id]) ?? []
@@ -59,13 +64,14 @@ export default function SessionSummaryScreen() {
     <div className="flex min-h-dvh flex-col p-4 pt-[calc(env(safe-area-inset-top)+1.5rem)]">
       <div className="flex-1 space-y-6">
         <div className="space-y-2 text-center">
-          <p className="text-3xl font-bold">Nice work! 🎉</p>
+          <p className="text-3xl font-bold">{phrase}</p>
           <div className="flex items-center justify-center gap-2">
             <DisciplineBadge type={session.type} />
             <span className="text-sm text-muted-foreground">
               {formatWorkoutLength(durationSeconds)}
             </span>
           </div>
+          <p className="mx-auto max-w-xs text-sm italic text-muted-foreground">“{quote}”</p>
         </div>
 
         {prs.length > 0 && (

@@ -3,8 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Download, Upload } from 'lucide-react'
 import { exportAllData, importAllData } from '@/db/helpers'
+import { getUserName, setUserName } from '@/lib/userName'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,6 +25,7 @@ export default function SettingsScreen() {
   const navigate = useNavigate()
   const fileRef = useRef<HTMLInputElement>(null)
   const [confirmImport, setConfirmImport] = useState(false)
+  const [name, setName] = useState(getUserName())
 
   async function handleExport() {
     try {
@@ -54,6 +58,21 @@ export default function SettingsScreen() {
     <div className="min-h-dvh">
       <PageHeader title="Settings" onBack={() => navigate('/home')} />
       <div className="space-y-6 p-4">
+        <section className="space-y-2">
+          <h2 className="text-sm font-medium text-muted-foreground">You</h2>
+          <Label htmlFor="user-name">Name</Label>
+          <Input
+            id="user-name"
+            value={name}
+            placeholder="optional"
+            onChange={(e) => {
+              setName(e.target.value)
+              setUserName(e.target.value)
+            }}
+          />
+          <p className="px-1 text-xs text-muted-foreground">Used in your home greeting.</p>
+        </section>
+
         <section className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground">Data</h2>
           <div className="space-y-2">

@@ -4,6 +4,7 @@ import { useLiveQuery } from '@/hooks/useDb'
 import { getAllSessions } from '@/db/helpers'
 import { computeStreak } from '@/lib/streak'
 import { formatLongDate, greeting } from '@/lib/date'
+import { getUserName } from '@/lib/userName'
 import { cn } from '@/lib/utils'
 import { SessionCard } from '@/components/SessionCard'
 import { EmptyState } from '@/components/EmptyState'
@@ -21,7 +22,10 @@ export default function HomeScreen() {
       <header className="flex items-start justify-between">
         <div>
           <p className="text-sm text-muted-foreground">{formatLongDate()}</p>
-          <h1 className="text-2xl font-bold">{greeting()}</h1>
+          <h1 className="text-2xl font-bold">
+            {greeting()}
+            {getUserName() ? `, ${getUserName()}` : ''}
+          </h1>
         </div>
         <Link
           to="/settings"

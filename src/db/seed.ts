@@ -11,7 +11,35 @@ import type {
 // time: new built-ins are added on upgrade, user-deleted ones are not
 // resurrected, and user-created templates (uuid ids) are never touched.
 
-const BUILTIN_SET_VERSION = 2
+const BUILTIN_SET_VERSION = 3
+
+// Evidence-based rest defaults. Heavy compound lifts at low reps need long rests
+// for full neuromuscular recovery and to preserve subsequent-set volume; longer
+// rests also favour hypertrophy over very short rests (Grgic et al. 2018,
+// systematic review; Schoenfeld et al. 2016, JSCR — 3 min > 1 min for strength
+// and volume). Accessory work ~90s; small-muscle isolation ~60s.
+const COMPOUND_180 = new Set([
+  'ex_squat',
+  'ex_front_squat',
+  'ex_deadlift',
+  'ex_romanian_deadlift',
+  'ex_bench_press',
+  'ex_overhead_press',
+  'ex_pull_up',
+  'ex_barbell_row',
+])
+const ISOLATION_60 = new Set([
+  'ex_lateral_raise',
+  'ex_face_pull',
+  'ex_tricep_pushdown',
+  'ex_bicep_curl',
+])
+
+function restForExercise(exId: string, reps: number): number {
+  if (COMPOUND_180.has(exId) && reps <= 6) return 180 // heavy compound, 4–6 reps
+  if (ISOLATION_60.has(exId)) return 60 // isolation, 15+ reps
+  return 90 // accessory, 8–12 reps
+}
 
 interface ExerciseSeed {
   id: string
@@ -246,7 +274,7 @@ function buildTemplate(seed: StrengthSeed | CardioSeed, now: number): WorkoutTem
       tags: seed.tags,
       createdAt: now,
       exercises: seed.rows.map<TemplateExercise>((row, order) => {
-        const [exId, sets, reps, rest, duration] = row
+        const [exId, sets, reps, , duration] = row
         return {
           exerciseId: exId,
           exerciseName: EXERCISE_NAME.get(exId) ?? exId,
@@ -254,7 +282,7 @@ function buildTemplate(seed: StrengthSeed | CardioSeed, now: number): WorkoutTem
           defaultSets: sets,
           defaultReps: duration != null ? undefined : reps,
           defaultDuration: duration,
-          defaultRestSeconds: rest,
+          defaultRestSeconds: restForExercise(exId, reps),
         }
       }),
     }
@@ -321,6 +349,21 @@ export async function seedIfNeeded(): Promise<void> {
       await db.templates.bulkPut(toAdd.map((s) => buildTemplate(s, now)))
       for (const s of toAdd) seededSet.add(s.id)
       await db.meta.put({ key: 'seededTemplateIds', value: [...seededSet] })
+    }
+
+    // Refresh existing built-in template definitions once per version bump (e.g.
+    // updated rest times), preserving createdAt/lastUsedAt. User templates are
+    // untouched; a built-in the user deleted is not resurrected.
+    const refreshedVer = (await getMeta<number>('builtinRefreshVersion')) ?? 0
+    if (refreshedVer < BUILTIN_SET_VERSION) {
+      for (const seed of ALL_TEMPLATE_SEEDS) {
+        const existing = await db.templates.get(seed.id)
+        if (existing) {
+          const fresh = buildTemplate(seed, existing.createdAt)
+          await db.templates.put({ ...fresh, lastUsedAt: existing.lastUsedAt })
+        }
+      }
+      await db.meta.put({ key: 'builtinRefreshVersion', value: BUILTIN_SET_VERSION })
     }
 
     await db.meta.put({ key: 'builtinSetVersion', value: BUILTIN_SET_VERSION })
