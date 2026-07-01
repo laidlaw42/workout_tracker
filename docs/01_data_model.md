@@ -255,11 +255,13 @@ export async function getLastSetForExercise(exerciseId: string): Promise<LoggedS
 // Cardio
 export async function addCardio(c: Omit<LoggedCardio, 'id'>): Promise<string>
 export async function getCardioForSession(sessionId: string): Promise<LoggedCardio | undefined>
+export async function getCardioByActivity(activity: CardioActivityType): Promise<LoggedCardio[]>  // Progress charts
 
 // Climbing routes (a climbing session is just a WorkoutSession with type 'climbing')
 export async function addRoute(r: Omit<ClimbingRoute, 'id'>): Promise<string>
 export async function updateRoute(id: string, updates: Partial<ClimbingRoute>): Promise<void>
 export async function getRoutesForSession(sessionId: string): Promise<ClimbingRoute[]>
+export async function getAllRoutes(): Promise<ClimbingRoute[]>  // Progress grade pyramid
 
 // PRs
 export async function checkAndSavePR(candidate: Omit<PersonalRecord, 'id'>): Promise<boolean>

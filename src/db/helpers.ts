@@ -2,6 +2,7 @@ import Dexie from 'dexie'
 import { db } from './db'
 import { generateId } from '@/lib/id'
 import type {
+  CardioActivityType,
   ClimbingRoute,
   ClimbingStyle,
   DisciplineType,
@@ -226,6 +227,17 @@ export async function getCardioForSession(
   )
 }
 
+export async function getCardioByActivity(
+  activity: CardioActivityType,
+): Promise<LoggedCardio[]> {
+  return run('getCardioByActivity', async () => {
+    const all = await db.cardio.toArray()
+    return all
+      .filter((c) => c.activityType === activity)
+      .sort((a, b) => a.loggedAt - b.loggedAt)
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Climbing routes
 // ---------------------------------------------------------------------------
@@ -256,6 +268,10 @@ export async function getRoutesForSession(sessionId: string): Promise<ClimbingRo
       .reverse()
       .toArray(),
   )
+}
+
+export async function getAllRoutes(): Promise<ClimbingRoute[]> {
+  return run('getAllRoutes', () => db.routes.toArray())
 }
 
 // ---------------------------------------------------------------------------
