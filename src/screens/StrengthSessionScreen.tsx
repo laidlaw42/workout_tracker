@@ -186,10 +186,10 @@ export default function StrengthSessionScreen() {
     setPickerOpen(false)
   }
 
-  function addNewExercise(ex: Exercise) {
+  function addNewExercises(exs: Exercise[]) {
     setWork((w) => [
       ...w,
-      {
+      ...exs.map((ex) => ({
         uid: generateId(),
         exerciseId: ex.id,
         exerciseName: ex.name,
@@ -199,15 +199,15 @@ export default function StrengthSessionScreen() {
         targetReps: undefined,
         restSeconds: 90,
         skipped: false,
-      },
+      })),
     ])
     markModified()
     setPickerOpen(false)
   }
 
-  function onPickerSelect(ex: Exercise) {
-    if (pickerMode === 'add') addNewExercise(ex)
-    else swapCurrent(ex)
+  function onPickerSelect(exs: Exercise[]) {
+    if (pickerMode === 'add') addNewExercises(exs)
+    else if (exs[0]) swapCurrent(exs[0])
   }
 
   function move(uid: string, dir: -1 | 1) {
@@ -359,7 +359,12 @@ export default function StrengthSessionScreen() {
         onMove={move}
       />
 
-      <ExercisePicker open={pickerOpen} onOpenChange={setPickerOpen} onSelect={onPickerSelect} />
+      <ExercisePicker
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        multiple={pickerMode === 'add'}
+        onSelect={onPickerSelect}
+      />
 
       <AlertDialog open={confirmFinish} onOpenChange={setConfirmFinish}>
         <AlertDialogContent>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Plus } from 'lucide-react'
+import { Check, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { getAllExercises, upsertExercise } from '@/db/helpers'
 import { SegmentedControl } from '@/components/SegmentedControl'
@@ -14,12 +14,15 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { cn } from '@/lib/utils'
 import type { Exercise, TrackingType } from '@/types'
 
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onSelect: (exercise: Exercise) => void
+  /** Multi-select with checkboxes + confirm; otherwise tap-to-add one. */
+  multiple?: boolean
+  onSelect: (exercises: Exercise[]) => void
 }
 
 const TRACKING: { value: TrackingType; label: string }[] = [
@@ -28,9 +31,10 @@ const TRACKING: { value: TrackingType; label: string }[] = [
   { value: 'distance', label: 'Distance' },
 ]
 
-export function ExercisePicker({ open, onOpenChange, onSelect }: Props) {
+export function ExercisePicker({ open, onOpenChange, multiple = false, onSelect }: Props) {
   const exercises = useLiveQuery(() => getAllExercises(), [])
   const [query, setQuery] = useState('')
+  const [selected, setSelected] = useState<string[]>([]) // ids, in selection order
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
   const [muscles, setMuscles] = useState('')
@@ -38,16 +42,33 @@ export function ExercisePicker({ open, onOpenChange, onSelect }: Props) {
 
   function reset() {
     setQuery('')
+    setSelected([])
     setCreating(false)
     setName('')
     setMuscles('')
     setTracking('reps')
   }
 
-  function choose(e: Exercise) {
-    onSelect(e)
+  function finish(chosen: Exercise[]) {
+    onSelect(chosen)
     onOpenChange(false)
     reset()
+  }
+
+  function onRow(e: Exercise) {
+    if (multiple) {
+      setSelected((cur) => (cur.includes(e.id) ? cur.filter((x) => x !== e.id) : [...cur, e.id]))
+    } else {
+      finish([e])
+    }
+  }
+
+  function confirmMulti() {
+    const all = exercises ?? []
+    const chosen = selected
+      .map((id) => all.find((e) => e.id === id))
+      .filter((e): e is Exercise => e != null)
+    if (chosen.length) finish(chosen)
   }
 
   async function createNew() {
@@ -59,7 +80,7 @@ export function ExercisePicker({ open, onOpenChange, onSelect }: Props) {
       .filter(Boolean)
     try {
       const id = await upsertExercise({ name: trimmed, muscleGroups, trackingType: tracking, tags: [] })
-      choose({ id, name: trimmed, muscleGroups, trackingType: tracking, tags: [], createdAt: Date.now() })
+      finish([{ id, name: trimmed, muscleGroups, trackingType: tracking, tags: [], createdAt: Date.now() }])
     } catch {
       toast.error('Could not create exercise')
     }
@@ -130,28 +151,48 @@ export function ExercisePicker({ open, onOpenChange, onSelect }: Props) {
               />
             </div>
             <div className="flex-1 overflow-y-auto p-2">
-              {filtered.map((e) => (
-                <button
-                  key={e.id}
-                  type="button"
-                  onClick={() => choose(e)}
-                  className="flex w-full flex-col items-start gap-0.5 rounded-lg px-3 py-2.5 text-left transition-colors active:bg-accent"
-                >
-                  <span className="font-medium">{e.name}</span>
-                  {e.muscleGroups.length > 0 && (
-                    <span className="text-xs text-muted-foreground">
-                      {e.muscleGroups.join(', ')}
+              {filtered.map((e) => {
+                const isSelected = selected.includes(e.id)
+                return (
+                  <button
+                    key={e.id}
+                    type="button"
+                    onClick={() => onRow(e)}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors active:bg-accent"
+                  >
+                    {multiple && (
+                      <span
+                        className={cn(
+                          'flex size-5 shrink-0 items-center justify-center rounded border',
+                          isSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-input',
+                        )}
+                      >
+                        {isSelected && <Check className="size-3.5" />}
+                      </span>
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-medium">{e.name}</span>
+                      {e.muscleGroups.length > 0 && (
+                        <span className="block text-xs text-muted-foreground">
+                          {e.muscleGroups.join(', ')}
+                        </span>
+                      )}
                     </span>
-                  )}
-                </button>
-              ))}
+                  </button>
+                )
+              })}
               {filtered.length === 0 && (
                 <p className="px-3 py-6 text-center text-sm text-muted-foreground">
                   No matching exercises.
                 </p>
               )}
             </div>
-            <div className="border-t border-border p-4">
+            <div className="space-y-2 border-t border-border p-4">
+              {multiple && selected.length > 0 && (
+                <Button className="w-full" onClick={confirmMulti}>
+                  Add {selected.length} exercise{selected.length === 1 ? '' : 's'}
+                </Button>
+              )}
               <Button
                 variant="outline"
                 className="w-full"

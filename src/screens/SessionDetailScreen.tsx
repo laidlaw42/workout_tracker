@@ -93,15 +93,17 @@ export default function SessionDetailScreen() {
     })
   }
 
-  async function handleAddExercise(ex: Exercise) {
-    await addSet({
-      sessionId: id,
-      exerciseId: ex.id,
-      exerciseName: ex.name,
-      setNumber: 1,
-      skipped: false,
-      loggedAt: Date.now(),
-    })
+  async function handleAddExercises(exs: Exercise[]) {
+    for (const ex of exs) {
+      await addSet({
+        sessionId: id,
+        exerciseId: ex.id,
+        exerciseName: ex.name,
+        setNumber: 1,
+        skipped: false,
+        loggedAt: Date.now(),
+      })
+    }
   }
 
   async function handleDeleteSession() {
@@ -215,7 +217,12 @@ export default function SessionDetailScreen() {
         </div>
       </div>
 
-      <ExercisePicker open={pickerOpen} onOpenChange={setPickerOpen} onSelect={handleAddExercise} />
+      <ExercisePicker
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        multiple
+        onSelect={handleAddExercises}
+      />
       <LogRouteSheet
         open={routeSheetOpen}
         onOpenChange={setRouteSheetOpen}

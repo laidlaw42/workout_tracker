@@ -116,18 +116,18 @@ export default function TemplateEditScreen() {
     setDirty(true)
   }
 
-  function addExercise(ex: Exercise) {
+  function addExercises(exs: Exercise[]) {
     setRows((rs) => [
       ...rs,
-      {
+      ...exs.map((ex, i) => ({
         uid: generateId(),
         exerciseId: ex.id,
         exerciseName: ex.name,
-        order: rs.length,
+        order: rs.length + i,
         defaultSets: 3,
         defaultReps: 10,
         defaultRestSeconds: 90,
-      },
+      })),
     ])
     setDirty(true)
   }
@@ -332,7 +332,12 @@ export default function TemplateEditScreen() {
         )}
       </div>
 
-      <ExercisePicker open={pickerOpen} onOpenChange={setPickerOpen} onSelect={addExercise} />
+      <ExercisePicker
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        multiple
+        onSelect={addExercises}
+      />
 
       <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
         <AlertDialogContent>
