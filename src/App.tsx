@@ -8,6 +8,8 @@ import TemplateEditScreen from '@/screens/TemplateEditScreen'
 import StrengthSessionScreen from '@/screens/StrengthSessionScreen'
 import CardioSessionScreen from '@/screens/CardioSessionScreen'
 import ClimbingSessionScreen from '@/screens/ClimbingSessionScreen'
+import SessionSummaryScreen from '@/screens/SessionSummaryScreen'
+import SessionDetailScreen from '@/screens/SessionDetailScreen'
 import HistoryScreen from '@/screens/HistoryScreen'
 import ProgressScreen from '@/screens/ProgressScreen'
 import SettingsScreen from '@/screens/SettingsScreen'
@@ -33,7 +35,9 @@ export default function App() {
           <Route path="/session/strength/:id" element={<StrengthSessionScreen />} />
           <Route path="/session/cardio/:id" element={<CardioSessionScreen />} />
           <Route path="/session/climbing/:id" element={<ClimbingSessionScreen />} />
+          <Route path="/session/:id/summary" element={<SessionSummaryScreen />} />
           <Route path="/history" element={<HistoryScreen />} />
+          <Route path="/history/:id" element={<SessionDetailScreen />} />
           <Route path="/progress" element={<ProgressScreen />} />
           <Route path="/settings" element={<SettingsScreen />} />
           <Route path="*" element={<Navigate to="/home" replace />} />
