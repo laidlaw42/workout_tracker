@@ -192,7 +192,9 @@ export default function StrengthSessionScreen() {
         exerciseId: ex.id,
         exerciseName: ex.name,
         targetSets: 3,
-        targetReps: 10,
+        // No target reps for a mid-session add — the reps field starts blank
+        // rather than pre-filling a template/default value.
+        targetReps: undefined,
         restSeconds: 90,
         skipped: false,
       },

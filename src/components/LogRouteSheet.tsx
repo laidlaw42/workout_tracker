@@ -53,13 +53,11 @@ export function LogRouteSheet({ open, onOpenChange, sessionId, editing, onSaved 
   const [colour, setColour] = useState('')
   const [attempts, setAttempts] = useState('')
   const [notes, setNotes] = useState('')
-  const [showDetails, setShowDetails] = useState(false)
 
   // Initialise each time the sheet opens (fresh for new, populated for edit).
   useEffect(() => {
     if (!open) return
     setStep(1)
-    setShowDetails(false)
     if (editing) {
       setStyle(editing.style)
       setVGrade(editing.vGrade ?? null)
@@ -204,54 +202,45 @@ export function LogRouteSheet({ open, onOpenChange, sessionId, editing, onSaved 
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setShowDetails((s) => !s)}
-                className="text-sm font-medium text-primary"
-              >
-                {showDetails ? 'Hide details' : 'Add details'}
-              </button>
-
-              {showDetails && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="route-name">Route name</Label>
-                      <Input
-                        id="route-name"
-                        value={routeName}
-                        onChange={(e) => setRouteName(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="route-colour">Colour</Label>
-                      <Input
-                        id="route-colour"
-                        value={colour}
-                        onChange={(e) => setColour(e.target.value)}
-                      />
-                    </div>
-                  </div>
+              <div className="space-y-4 border-t border-border pt-4">
+                <p className="text-sm font-medium text-muted-foreground">Details</p>
+                <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
-                    <Label htmlFor="route-attempts">Attempts</Label>
+                    <Label htmlFor="route-name">Route name</Label>
                     <Input
-                      id="route-attempts"
-                      inputMode="numeric"
-                      value={attempts}
-                      onChange={(e) => setAttempts(e.target.value.replace(/[^0-9]/g, ''))}
+                      id="route-name"
+                      value={routeName}
+                      onChange={(e) => setRouteName(e.target.value)}
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="route-notes">Notes</Label>
-                    <Textarea
-                      id="route-notes"
-                      rows={2}
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
+                    <Label htmlFor="route-colour">Colour</Label>
+                    <Input
+                      id="route-colour"
+                      value={colour}
+                      onChange={(e) => setColour(e.target.value)}
                     />
                   </div>
                 </div>
-              )}
+                <div className="space-y-1.5">
+                  <Label htmlFor="route-attempts">Attempts</Label>
+                  <Input
+                    id="route-attempts"
+                    inputMode="numeric"
+                    value={attempts}
+                    onChange={(e) => setAttempts(e.target.value.replace(/[^0-9]/g, ''))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="route-notes">Notes</Label>
+                  <Textarea
+                    id="route-notes"
+                    rows={2}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                  />
+                </div>
+              </div>
             </div>
           )}
         </div>
