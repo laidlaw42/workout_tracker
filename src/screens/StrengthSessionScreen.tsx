@@ -55,6 +55,7 @@ export default function StrengthSessionScreen() {
   const [pickerMode, setPickerMode] = useState<'swap' | 'add'>('swap')
   const [confirmFinish, setConfirmFinish] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
+  const [confirmRemove, setConfirmRemove] = useState(false)
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
 
   const timer = useSessionTimer(session?.startedAt ?? Date.now())
@@ -63,23 +64,27 @@ export default function StrengthSessionScreen() {
   // Build the working list once, from the linked template or (for a repeat
   // session) the plan snapshotted onto the session.
   useEffect(() => {
-    if (session && template !== undefined && !inited) {
-      const plan = template?.exercises ?? session.plannedExercises ?? []
-      setWork(
-        [...plan]
-          .sort((a, b) => a.order - b.order)
-          .map((e) => ({
-            uid: generateId(),
-            exerciseId: e.exerciseId,
-            exerciseName: e.exerciseName,
-            targetSets: e.defaultSets,
-            targetReps: e.defaultReps,
-            restSeconds: e.defaultRestSeconds,
-            skipped: false,
-          })),
-      )
-      setInited(true)
-    }
+    if (inited || !session) return
+    // When the session references a template, wait for it to actually load
+    // before seeding the working list. `template` is transiently null while the
+    // templateId-keyed query re-subscribes; seeding then would build an empty
+    // list and the `inited` guard would prevent it from ever recovering.
+    if (session.templateId && !template) return
+    const plan = template?.exercises ?? session.plannedExercises ?? []
+    setWork(
+      [...plan]
+        .sort((a, b) => a.order - b.order)
+        .map((e) => ({
+          uid: generateId(),
+          exerciseId: e.exerciseId,
+          exerciseName: e.exerciseName,
+          targetSets: e.defaultSets,
+          targetReps: e.defaultReps,
+          restSeconds: e.defaultRestSeconds,
+          skipped: false,
+        })),
+    )
+    setInited(true)
   }, [session, template, inited])
 
   const setsByExercise = useMemo(() => {
@@ -212,17 +217,24 @@ export default function StrengthSessionScreen() {
     else if (exs[0]) swapCurrent(exs[0])
   }
 
-  function move(uid: string, dir: -1 | 1) {
+  function reorderRemaining(uids: string[]) {
     setWork((w) => {
-      const from = w.findIndex((e) => e.uid === uid)
-      const to = from + dir
-      if (from < 0 || to < 0 || to >= w.length) return w
-      const next = [...w]
-      const [item] = next.splice(from, 1)
-      next.splice(to, 0, item)
-      return next
+      const completed = w.filter((e) => isComplete(e))
+      const byUid = new Map(w.map((e) => [e.uid, e]))
+      const reordered = uids
+        .map((u) => byUid.get(u))
+        .filter((e): e is WorkExercise => e != null)
+      return [...completed, ...reordered]
     })
     markModified()
+  }
+
+  // Removes the current exercise from the queue; logged sets stay in the DB.
+  function removeCurrent() {
+    if (!currentEx) return
+    setWork((w) => w.filter((e) => e.uid !== currentEx.uid))
+    markModified()
+    setConfirmRemove(false)
   }
 
   async function endAndGo() {
@@ -353,12 +365,16 @@ export default function StrengthSessionScreen() {
           setPickerMode('swap')
           setPickerOpen(true)
         }}
+        onRemove={() => {
+          setModifyOpen(false)
+          setConfirmRemove(true)
+        }}
         onAddExercise={() => {
           setModifyOpen(false)
           setPickerMode('add')
           setPickerOpen(true)
         }}
-        onMove={move}
+        onReorder={reorderRemaining}
       />
 
       <ExercisePicker
@@ -392,6 +408,19 @@ export default function StrengthSessionScreen() {
           <AlertDialogFooter>
             <AlertDialogCancel>Keep workout</AlertDialogCancel>
             <AlertDialogAction onClick={handleCancel}>Discard workout</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove “{currentEx?.exerciseName}” from this workout?</AlertDialogTitle>
+            <AlertDialogDescription>Logged sets will be kept.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep it</AlertDialogCancel>
+            <AlertDialogAction onClick={removeCurrent}>Remove</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

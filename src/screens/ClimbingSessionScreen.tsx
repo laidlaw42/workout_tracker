@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Mountain, Plus } from 'lucide-react'
+import { Mountain, Plus, SlidersHorizontal } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useSessionTimer } from '@/hooks/useSessionTimer'
+import { generateId } from '@/lib/id'
 import {
   addHang,
   addSet,
@@ -24,6 +25,8 @@ import { RouteCard } from '@/components/RouteCard'
 import { LogRouteSheet } from '@/components/LogRouteSheet'
 import { ExerciseCard, type LoggedSetInput, type WorkExercise } from '@/components/ExerciseCard'
 import { HangCard } from '@/components/HangCard'
+import { ModifySheet } from '@/components/ModifySheet'
+import { ExercisePicker } from '@/components/ExercisePicker'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -38,7 +41,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import type { ClimbingRoute, ClimbingStyle, HangboardSet, LoggedSet } from '@/types'
+import type { ClimbingRoute, ClimbingStyle, Exercise, HangboardSet, LoggedSet } from '@/types'
 
 export default function ClimbingSessionScreen() {
   const { id = '' } = useParams()
@@ -79,7 +82,7 @@ export default function ClimbingSessionScreen() {
   const planExercises =
     template?.climbingKind === 'workout' ? template.exercises : session?.plannedExercises
   const planHangs = template?.hangboardSets ?? session?.plannedHangs
-  const exercises = useMemo<WorkExercise[]>(
+  const basePlanExercises = useMemo<WorkExercise[]>(
     () =>
       [...(planExercises ?? [])]
         .sort((a, b) => a.order - b.order)
@@ -99,10 +102,25 @@ export default function ClimbingSessionScreen() {
     [planHangs],
   )
 
-  const showExercises = exercises.length > 0
+  const [work, setWork] = useState<WorkExercise[]>([])
+  const [workInited, setWorkInited] = useState(false)
+  const [modifyOpen, setModifyOpen] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerMode, setPickerMode] = useState<'swap' | 'add'>('add')
+  const [confirmRemove, setConfirmRemove] = useState(false)
+
+  useEffect(() => {
+    if (!workInited && template !== undefined && basePlanExercises.length > 0) {
+      setWork(basePlanExercises)
+      setWorkInited(true)
+    }
+  }, [basePlanExercises, workInited, template])
+
+  const hasExercises = (planExercises?.length ?? 0) > 0
+  const showExercises = hasExercises
   const showHangs = hangSets.length > 0
   // Routes for plain (no plan) or workout (has exercises); hangboard-only hides them.
-  const showRoutes = !showHangs || showExercises
+  const showRoutes = !showHangs || hasExercises
 
   // Exercise logging (climbing-workout kind)
   const setsByExercise = useMemo(() => {
@@ -116,12 +134,70 @@ export default function ClimbingSessionScreen() {
     return map
   }, [loggedSets])
   const loggedForEx = (ex: WorkExercise) => setsByExercise.get(ex.exerciseId) ?? []
-  const currentExIndex = exercises.findIndex((ex) => loggedForEx(ex).length < ex.targetSets)
-  const currentEx = currentExIndex >= 0 ? exercises[currentExIndex] : undefined
+  const isComplete = (ex: WorkExercise) => ex.skipped || loggedForEx(ex).length >= ex.targetSets
+  const currentExIndex = work.findIndex((ex) => !isComplete(ex))
+  const currentEx = currentExIndex >= 0 ? work[currentExIndex] : undefined
   const prefill = useLiveQuery(
     () => (currentEx ? getLastSetForExercise(currentEx.exerciseId) : undefined),
     [currentEx?.exerciseId],
   )
+
+  function addSetToCurrent() {
+    if (!currentEx) return
+    setWork((w) => w.map((e) => (e.uid === currentEx.uid ? { ...e, targetSets: e.targetSets + 1 } : e)))
+    setModifyOpen(false)
+  }
+  function skipCurrent() {
+    if (!currentEx) return
+    setWork((w) => w.map((e) => (e.uid === currentEx.uid ? { ...e, skipped: true } : e)))
+    setModifyOpen(false)
+  }
+  function swapCurrent(ex: Exercise) {
+    if (!currentEx) return
+    setWork((w) =>
+      w.map((e) =>
+        e.uid === currentEx.uid
+          ? { ...e, exerciseId: ex.id, exerciseName: ex.name, swappedFrom: e.exerciseName }
+          : e,
+      ),
+    )
+    setPickerOpen(false)
+  }
+  function addNewExercises(exs: Exercise[]) {
+    setWork((w) => [
+      ...w,
+      ...exs.map((ex) => ({
+        uid: generateId(),
+        exerciseId: ex.id,
+        exerciseName: ex.name,
+        targetSets: 3,
+        targetReps: undefined,
+        restSeconds: 90,
+        skipped: false,
+      })),
+    ])
+    setPickerOpen(false)
+  }
+  function onPickerSelect(exs: Exercise[]) {
+    if (pickerMode === 'add') addNewExercises(exs)
+    else if (exs[0]) swapCurrent(exs[0])
+  }
+  function reorderRemaining(uids: string[]) {
+    setWork((w) => {
+      const completed = w.filter((e) => isComplete(e))
+      const byUid = new Map(w.map((e) => [e.uid, e]))
+      const reordered = uids.map((u) => byUid.get(u)).filter((e): e is WorkExercise => e != null)
+      return [...completed, ...reordered]
+    })
+  }
+  function removeCurrent() {
+    if (!currentEx) return
+    setWork((w) => w.filter((e) => e.uid !== currentEx.uid))
+    setConfirmRemove(false)
+  }
+  const remainingItems = work
+    .filter((ex) => !isComplete(ex) || ex.uid === currentEx?.uid)
+    .map((ex) => ({ uid: ex.uid, name: ex.exerciseName, isCurrent: ex.uid === currentEx?.uid }))
 
   async function logExerciseSet(ex: WorkExercise, data: LoggedSetInput) {
     const setNumber = loggedForEx(ex).length + 1
@@ -283,8 +359,18 @@ export default function ClimbingSessionScreen() {
 
         {showExercises && (
           <div className="space-y-3">
-            <p className="text-sm font-medium text-muted-foreground">Exercises</p>
-            {exercises.map((ex) => (
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-muted-foreground">Exercises</p>
+              <button
+                type="button"
+                onClick={() => setModifyOpen(true)}
+                aria-label="Modify exercises"
+                className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground"
+              >
+                <SlidersHorizontal className="size-4" />
+              </button>
+            </div>
+            {work.map((ex) => (
               <ExerciseCard
                 key={ex.uid}
                 exercise={ex}
@@ -345,6 +431,54 @@ export default function ClimbingSessionScreen() {
         editing={editing}
         onSaved={() => setEditing(null)}
       />
+
+      {showExercises && (
+        <>
+          <ModifySheet
+            open={modifyOpen}
+            onOpenChange={setModifyOpen}
+            currentName={currentEx?.exerciseName}
+            remaining={remainingItems}
+            onAddSet={addSetToCurrent}
+            onSkip={skipCurrent}
+            onSwap={() => {
+              setModifyOpen(false)
+              setPickerMode('swap')
+              setPickerOpen(true)
+            }}
+            onRemove={() => {
+              setModifyOpen(false)
+              setConfirmRemove(true)
+            }}
+            onAddExercise={() => {
+              setModifyOpen(false)
+              setPickerMode('add')
+              setPickerOpen(true)
+            }}
+            onReorder={reorderRemaining}
+          />
+          <ExercisePicker
+            open={pickerOpen}
+            onOpenChange={setPickerOpen}
+            multiple={pickerMode === 'add'}
+            onSelect={onPickerSelect}
+          />
+          <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Remove “{currentEx?.exerciseName}” from this workout?
+                </AlertDialogTitle>
+                <AlertDialogDescription>Logged sets will be kept.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Keep it</AlertDialogCancel>
+                <AlertDialogAction onClick={removeCurrent}>Remove</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
+      )}
 
       <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
         <AlertDialogContent>
