@@ -9,9 +9,14 @@ import type {
   PersonalRecord,
 } from '@/types'
 
-// Seven tables. Compound indexes back the hot read paths — "last set for an
-// exercise" and "sets/routes for a session ordered by time" — so they never
-// sort in memory.
+export interface MetaRow {
+  key: string
+  value: unknown
+}
+
+// Compound indexes back the hot read paths — "last set for an exercise" and
+// "sets/routes for a session ordered by time" — so they never sort in memory.
+// v2 adds a small key/value `meta` table used to track built-in seed provenance.
 export class WorkoutDB extends Dexie {
   exercises!: Table<Exercise, string>
   templates!: Table<WorkoutTemplate, string>
@@ -20,6 +25,7 @@ export class WorkoutDB extends Dexie {
   cardio!: Table<LoggedCardio, string>
   routes!: Table<ClimbingRoute, string>
   prs!: Table<PersonalRecord, string>
+  meta!: Table<MetaRow, string>
 
   constructor() {
     super('WorkoutTrackerDB')
@@ -31,6 +37,9 @@ export class WorkoutDB extends Dexie {
       cardio: '&id, sessionId',
       routes: '&id, [sessionId+loggedAt], style',
       prs: '&id, sessionId, [climbingStyle+prType], exerciseName, prType, achievedAt',
+    })
+    this.version(2).stores({
+      meta: '&key',
     })
   }
 }

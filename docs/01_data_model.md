@@ -210,6 +210,8 @@ export class WorkoutDB extends Dexie {
       routes:    '&id, [sessionId+loggedAt], style',
       prs:       '&id, sessionId, [climbingStyle+prType], exerciseName, prType, achievedAt',
     })
+    // v2 adds a small key/value meta table for built-in seed provenance.
+    this.version(2).stores({ meta: '&key' })
   }
 }
 
@@ -293,7 +295,13 @@ export function generateId(): string {
 
 ## Seed data — `src/db/seed.ts`
 
-Pre-built exercise library and workout templates loaded on first run. First run is detected by **`await db.templates.count() === 0`**, not a `localStorage` flag — IndexedDB is the source of truth, so seeding stays correct even if site storage is partially cleared, and an import (which populates templates) never triggers a re-seed. The whole seed runs inside one `db.transaction('rw', …)`.
+Built-in exercises and templates use **stable slug ids** (`ex_*`, `tpl_*`) so the starter library can grow over time. `seedIfNeeded()` is idempotent, additive, and respects user curation, all inside one `db.transaction('rw', …)`:
+
+- **Exercises** are ensured present by id every startup (safe — there is no delete-exercise UI).
+- **Templates** are seeded once each: the `meta` key `seededTemplateIds` records every built-in ever seeded, so a new build adds only the new ids and a user-deleted starter is never resurrected.
+- A one-time **legacy migration** (`meta.legacyMigrated`) removes the original uuid-id starter set, replaced by the stable-id set. User-created templates (uuid ids, non-starter names) are untouched.
+
+The built-in set is science-based / proven splits: Push/Pull/Legs A+B, Upper/Lower, Full Body A/B, plus Easy run, Tempo run, Zone 2 ride, Interval ride, and Rowing intervals.
 
 **Exercise library to seed** (minimum viable set):
 
