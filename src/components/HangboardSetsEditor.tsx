@@ -35,7 +35,8 @@ export function HangboardSetsEditor({ value, onChange }: Props) {
         durationSeconds: 7,
         weightKg: 0,
         sets: 5,
-        restSeconds: 60,
+        // Repeater-protocol default (3 min); see hangboard rest notes in seed.ts.
+        restSeconds: 180,
         order: value.length,
       },
     ])

@@ -11,7 +11,7 @@ import type {
 // time: new built-ins are added on upgrade, user-deleted ones are not
 // resurrected, and user-created templates (uuid ids) are never touched.
 
-const BUILTIN_SET_VERSION = 3
+const BUILTIN_SET_VERSION = 4
 
 // Evidence-based rest defaults. Heavy compound lifts at low reps need long rests
 // for full neuromuscular recovery and to preserve subsequent-set volume; longer
@@ -265,7 +265,77 @@ const CARDIO: CardioSeed[] = [
   { id: 'tpl_row_intervals', name: 'Rowing intervals', tags: ['intervals'], activity: 'row', intervals: ROW_INTERVALS },
 ]
 
-function buildTemplate(seed: StrengthSeed | CardioSeed, now: number): WorkoutTemplate {
+// Hangboard rest defaults follow finger-tendon recovery guidance from the
+// Anderson brothers ("The Rock Climber's Training Manual") and Lattice Training:
+// ~180s (3 min) between repeater sets, ~300s (5 min) between max-recruitment /
+// max-weight hangs, and ~480s (8 min) when changing grip position, to let the
+// finger pulleys and connective tissue recover fully before reloading.
+const HANGBOARD_REPEATER_REST = 180
+const HANGBOARD_MAX_REST = 300
+
+interface HangboardRow {
+  grip: string
+  edgeMm: number
+  durationSeconds: number
+  weightKg: number
+  sets: number
+  restSeconds: number
+}
+
+interface HangboardSeed {
+  id: string
+  name: string
+  tags: string[]
+  hangs: HangboardRow[]
+}
+
+const HANGBOARD: HangboardSeed[] = [
+  {
+    id: 'tpl_hangboard_repeaters',
+    name: 'Repeaters',
+    tags: ['hangboard', 'endurance'],
+    hangs: [
+      { grip: 'Half crimp', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 6, restSeconds: HANGBOARD_REPEATER_REST },
+      { grip: 'Open hand', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 6, restSeconds: HANGBOARD_REPEATER_REST },
+      { grip: 'Front three', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 6, restSeconds: HANGBOARD_REPEATER_REST },
+    ],
+  },
+  {
+    id: 'tpl_hangboard_maxhangs',
+    name: 'Max hangs',
+    tags: ['hangboard', 'strength'],
+    hangs: [
+      { grip: 'Half crimp', edgeMm: 20, durationSeconds: 10, weightKg: 0, sets: 5, restSeconds: HANGBOARD_MAX_REST },
+      { grip: 'Open hand', edgeMm: 20, durationSeconds: 10, weightKg: 0, sets: 5, restSeconds: HANGBOARD_MAX_REST },
+    ],
+  },
+]
+
+function buildTemplate(
+  seed: StrengthSeed | CardioSeed | HangboardSeed,
+  now: number,
+): WorkoutTemplate {
+  if ('hangs' in seed) {
+    return {
+      id: seed.id,
+      name: seed.name,
+      type: 'climbing',
+      tags: seed.tags,
+      createdAt: now,
+      exercises: [],
+      climbingKind: 'hangboard',
+      hangboardSets: seed.hangs.map((h, order) => ({
+        id: `${seed.id}_h${order}`, // stable across refreshes
+        gripType: h.grip,
+        edgeDepthMm: h.edgeMm,
+        durationSeconds: h.durationSeconds,
+        weightKg: h.weightKg,
+        sets: h.sets,
+        restSeconds: h.restSeconds,
+        order,
+      })),
+    }
+  }
   if ('rows' in seed) {
     return {
       id: seed.id,
@@ -300,7 +370,11 @@ function buildTemplate(seed: StrengthSeed | CardioSeed, now: number): WorkoutTem
   }
 }
 
-const ALL_TEMPLATE_SEEDS: (StrengthSeed | CardioSeed)[] = [...STRENGTH, ...CARDIO]
+const ALL_TEMPLATE_SEEDS: (StrengthSeed | CardioSeed | HangboardSeed)[] = [
+  ...STRENGTH,
+  ...CARDIO,
+  ...HANGBOARD,
+]
 const LEGACY_TEMPLATE_NAMES = new Set(['Push A', 'Pull A', 'Legs A', 'Easy run', 'Interval ride'])
 const BUILTIN_EXERCISE_NAMES = new Set(EXERCISES.map((e) => e.name))
 
