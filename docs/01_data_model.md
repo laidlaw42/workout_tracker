@@ -235,6 +235,7 @@ export async function getTemplatesByType(type?: 'strength' | 'cardio'): Promise<
 export async function getTemplate(id: string): Promise<WorkoutTemplate | undefined>
 export async function upsertTemplate(t: Omit<WorkoutTemplate, 'id' | 'createdAt'> & { id?: string }): Promise<string>
 export async function deleteTemplate(id: string): Promise<void>
+export async function markTemplateUsed(id: string): Promise<void>  // bump lastUsedAt on start
 
 // Sessions
 export async function createSession(s: Omit<WorkoutSession, 'id'>): Promise<string>

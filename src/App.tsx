@@ -3,15 +3,19 @@ import { BottomNav } from '@/components/BottomNav'
 import { Toaster } from '@/components/ui/sonner'
 import HomeScreen from '@/screens/HomeScreen'
 import LibraryScreen from '@/screens/LibraryScreen'
+import TemplateDetailScreen from '@/screens/TemplateDetailScreen'
+import TemplateEditScreen from '@/screens/TemplateEditScreen'
+import StrengthSessionScreen from '@/screens/StrengthSessionScreen'
+import CardioSessionScreen from '@/screens/CardioSessionScreen'
+import ClimbingSessionScreen from '@/screens/ClimbingSessionScreen'
 import HistoryScreen from '@/screens/HistoryScreen'
 import ProgressScreen from '@/screens/ProgressScreen'
 import SettingsScreen from '@/screens/SettingsScreen'
-import ClimbingSessionScreen from '@/screens/ClimbingSessionScreen'
 
-// Immersive flows (active sessions, template editing) hide the bottom nav.
+// Immersive flows (active sessions, template detail/edit) hide the bottom nav.
 function useHideNav() {
   const { pathname } = useLocation()
-  return /^\/session\//.test(pathname) || pathname.endsWith('/edit')
+  return /^\/session\//.test(pathname) || /^\/library\/[^/]+/.test(pathname)
 }
 
 export default function App() {
@@ -24,6 +28,10 @@ export default function App() {
           <Route path="/" element={<Navigate to="/home" replace />} />
           <Route path="/home" element={<HomeScreen />} />
           <Route path="/library" element={<LibraryScreen />} />
+          <Route path="/library/:id" element={<TemplateDetailScreen />} />
+          <Route path="/library/:id/edit" element={<TemplateEditScreen />} />
+          <Route path="/session/strength/:id" element={<StrengthSessionScreen />} />
+          <Route path="/session/cardio/:id" element={<CardioSessionScreen />} />
           <Route path="/session/climbing/:id" element={<ClimbingSessionScreen />} />
           <Route path="/history" element={<HistoryScreen />} />
           <Route path="/progress" element={<ProgressScreen />} />

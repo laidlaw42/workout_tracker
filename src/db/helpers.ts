@@ -102,6 +102,12 @@ export async function deleteTemplate(id: string): Promise<void> {
   return run('deleteTemplate', () => db.templates.delete(id))
 }
 
+export async function markTemplateUsed(id: string): Promise<void> {
+  return run('markTemplateUsed', async () => {
+    await db.templates.update(id, { lastUsedAt: Date.now() })
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Sessions
 // ---------------------------------------------------------------------------
