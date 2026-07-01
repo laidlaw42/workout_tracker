@@ -1,12 +1,15 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Dumbbell } from 'lucide-react'
+import { Dumbbell, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
-import { deleteTemplate, getTemplatesByType } from '@/db/helpers'
+import { deleteTemplate, getTemplatesByType, upsertTemplate } from '@/db/helpers'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { TemplateCard } from '@/components/TemplateCard'
 import { EmptyState } from '@/components/EmptyState'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   AlertDialog,
@@ -18,6 +21,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import type { WorkoutTemplate } from '@/types'
 
 type Filter = 'all' | 'strength' | 'cardio'
@@ -36,11 +46,32 @@ export default function LibraryScreen() {
     initial === 'strength' || initial === 'cardio' ? initial : 'all',
   )
   const [toDelete, setToDelete] = useState<WorkoutTemplate | null>(null)
+  const [newOpen, setNewOpen] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newType, setNewType] = useState<'strength' | 'cardio'>('strength')
 
   const templates = useLiveQuery(
     () => getTemplatesByType(filter === 'all' ? undefined : filter),
     [filter],
   )
+
+  async function createTemplate() {
+    try {
+      const id = await upsertTemplate({
+        name: newName.trim() || 'New workout',
+        type: newType,
+        tags: [],
+        exercises: [],
+        cardioActivity: newType === 'cardio' ? 'run' : undefined,
+      })
+      setNewOpen(false)
+      setNewName('')
+      setNewType('strength')
+      navigate(`/library/${id}/edit`)
+    } catch {
+      toast.error('Could not create template')
+    }
+  }
 
   async function confirmDelete() {
     if (!toDelete) return
@@ -56,7 +87,12 @@ export default function LibraryScreen() {
 
   return (
     <div className="space-y-4 p-4 pt-[calc(env(safe-area-inset-top)+1rem)]">
-      <h1 className="text-2xl font-bold">Library</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Library</h1>
+        <Button size="sm" onClick={() => setNewOpen(true)}>
+          <Plus className="size-4" /> New
+        </Button>
+      </div>
       <SegmentedControl options={OPTIONS} value={filter} onChange={setFilter} />
 
       {templates === undefined ? (
@@ -87,6 +123,43 @@ export default function LibraryScreen() {
       <p className="px-1 text-center text-xs text-muted-foreground">
         Tip: press and hold a template to delete it.
       </p>
+
+      <Dialog open={newOpen} onOpenChange={setNewOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New workout</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-name">Name</Label>
+              <Input
+                id="new-name"
+                value={newName}
+                placeholder="e.g. Upper B"
+                autoFocus
+                onChange={(e) => setNewName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Type</Label>
+              <SegmentedControl
+                options={[
+                  { value: 'strength', label: 'Strength' },
+                  { value: 'cardio', label: 'Cardio' },
+                ]}
+                value={newType}
+                onChange={setNewType}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={createTemplate}>Create</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={toDelete !== null} onOpenChange={(o) => !o && setToDelete(null)}>
         <AlertDialogContent>

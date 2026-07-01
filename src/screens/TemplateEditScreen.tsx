@@ -21,7 +21,9 @@ import { useLiveQuery } from '@/hooks/useDb'
 import { getTemplate, upsertTemplate } from '@/db/helpers'
 import { generateId } from '@/lib/id'
 import { ExercisePicker } from '@/components/ExercisePicker'
+import { IntervalsEditor } from '@/components/IntervalsEditor'
 import { PageHeader } from '@/components/PageHeader'
+import { SegmentedControl } from '@/components/SegmentedControl'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -35,9 +37,21 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import type { Exercise, TemplateExercise } from '@/types'
+import type {
+  CardioActivityType,
+  Exercise,
+  IntervalBlock,
+  TemplateExercise,
+} from '@/types'
 
 type Row = TemplateExercise & { uid: string }
+
+const ACTIVITIES: { value: CardioActivityType; label: string }[] = [
+  { value: 'run', label: 'Run' },
+  { value: 'ride', label: 'Ride' },
+  { value: 'row', label: 'Row' },
+  { value: 'other', label: 'Other' },
+]
 
 export default function TemplateEditScreen() {
   const { id = '' } = useParams()
@@ -46,6 +60,10 @@ export default function TemplateEditScreen() {
 
   const [name, setName] = useState('')
   const [rows, setRows] = useState<Row[]>([])
+  const [activity, setActivity] = useState<CardioActivityType>('run')
+  const [durationMin, setDurationMin] = useState('')
+  const [distanceKm, setDistanceKm] = useState('')
+  const [intervals, setIntervals] = useState<IntervalBlock[]>([])
   const [inited, setInited] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -56,6 +74,14 @@ export default function TemplateEditScreen() {
     if (template && !inited) {
       setName(template.name)
       setRows(template.exercises.map((e) => ({ ...e, uid: generateId() })))
+      setActivity(template.cardioActivity ?? 'run')
+      setDurationMin(
+        template.targetDurationSeconds != null
+          ? String(Math.round(template.targetDurationSeconds / 60))
+          : '',
+      )
+      setDistanceKm(template.targetDistanceKm != null ? String(template.targetDistanceKm) : '')
+      setIntervals(template.intervals ?? [])
       setInited(true)
     }
   }, [template, inited])
@@ -101,27 +127,31 @@ export default function TemplateEditScreen() {
 
   async function save() {
     if (!template) return
+    const isCardio = template.type === 'cardio'
     try {
       await upsertTemplate({
         id: template.id,
         name: name.trim() || template.name,
         type: template.type,
         tags: template.tags,
-        exercises: rows.map((r, i) => ({
-          exerciseId: r.exerciseId,
-          exerciseName: r.exerciseName,
-          order: i,
-          defaultSets: r.defaultSets,
-          defaultReps: r.defaultReps,
-          defaultDuration: r.defaultDuration,
-          defaultWeight: r.defaultWeight,
-          defaultRestSeconds: r.defaultRestSeconds,
-          notes: r.notes,
-        })),
-        cardioActivity: template.cardioActivity,
-        targetDurationSeconds: template.targetDurationSeconds,
-        targetDistanceKm: template.targetDistanceKm,
-        intervals: template.intervals,
+        exercises: isCardio
+          ? []
+          : rows.map((r, i) => ({
+              exerciseId: r.exerciseId,
+              exerciseName: r.exerciseName,
+              order: i,
+              defaultSets: r.defaultSets,
+              defaultReps: r.defaultReps,
+              defaultDuration: r.defaultDuration,
+              defaultWeight: r.defaultWeight,
+              defaultRestSeconds: r.defaultRestSeconds,
+              notes: r.notes,
+            })),
+        cardioActivity: isCardio ? activity : undefined,
+        targetDurationSeconds:
+          isCardio && durationMin.trim() ? Number(durationMin) * 60 : undefined,
+        targetDistanceKm: isCardio && distanceKm.trim() ? Number(distanceKm) : undefined,
+        intervals: isCardio && intervals.length > 0 ? intervals : undefined,
         lastUsedAt: template.lastUsedAt,
       })
       toast.success('Saved')
@@ -195,9 +225,64 @@ export default function TemplateEditScreen() {
             </Button>
           </div>
         ) : (
-          <p className="rounded-xl border border-border bg-card p-3 text-sm text-muted-foreground">
-            Cardio targets and intervals aren’t editable in v1 — name and tags are saved.
-          </p>
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <Label>Activity</Label>
+              <SegmentedControl
+                options={ACTIVITIES}
+                value={activity}
+                onChange={(v) => {
+                  setActivity(v)
+                  setDirty(true)
+                }}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="target-duration">Target duration (min)</Label>
+                <Input
+                  id="target-duration"
+                  inputMode="numeric"
+                  value={durationMin}
+                  placeholder="optional"
+                  onChange={(e) => {
+                    setDurationMin(e.target.value.replace(/[^0-9]/g, ''))
+                    setDirty(true)
+                  }}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="target-distance">Target distance (km)</Label>
+                <Input
+                  id="target-distance"
+                  inputMode="decimal"
+                  value={distanceKm}
+                  placeholder="optional"
+                  onChange={(e) => {
+                    setDistanceKm(e.target.value.replace(/[^0-9.]/g, ''))
+                    setDirty(true)
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">Intervals</p>
+              {intervals.length === 0 && (
+                <p className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+                  No intervals — add rounds for a structured session.
+                </p>
+              )}
+              <IntervalsEditor
+                value={intervals}
+                onChange={(v) => {
+                  setIntervals(v)
+                  setDirty(true)
+                }}
+              />
+            </div>
+          </div>
         )}
       </div>
 

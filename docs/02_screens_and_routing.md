@@ -48,10 +48,11 @@ All routes are client-side (React Router). GitHub Pages needs a `404.html` redir
 **Shows:**
 - Filter tabs: All / Strength / Cardio
 - Template cards: name, type badge, exercise count or activity, last used date
-- FAB: not needed (library is pre-built; editing happens on detail screen)
+- "New" button (header): opens a dialog for name + type, creates an empty template, and opens its editor
 
 **Actions:**
 - Tap card → TemplateDetailScreen
+- New → create-workout dialog → TemplateEditScreen
 - Long-press card → delete confirmation
 
 ---
@@ -74,14 +75,19 @@ All routes are client-side (React Router). GitHub Pages needs a `404.html` redir
 
 ### TemplateEditScreen `/library/:id/edit`
 
-**Purpose:** Modify a template's exercise list, order, sets, reps, and rest times.
+**Purpose:** Create or modify a template. Strength templates edit the exercise list; cardio templates edit activity, targets, and intervals.
 
-**Shows:**
+**Shows (strength):**
 - Editable template name field
 - Drag-reorderable exercise list (each row: name, sets, reps, rest — all editable inline)
 - "Add exercise" button → opens exercise picker sheet
-- "Remove" swipe action on each row
-- "Save" and "Cancel" in header
+- Delete button on each row
+- "Save" (header) and back = Cancel (with discard confirm)
+
+**Shows (cardio):**
+- Editable name, activity (Run / Ride / Row / Other)
+- Target duration (min) and/or distance (km)
+- Intervals builder — rounds of steps (label + min:sec), add/remove step and round
 
 **Actions:**
 - Save → upsertTemplate, navigate back to TemplateDetailScreen
