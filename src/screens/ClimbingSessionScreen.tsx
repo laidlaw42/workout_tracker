@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Mountain, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useSessionTimer } from '@/hooks/useSessionTimer'
+import { useRestTimer } from '@/hooks/useRestTimer'
 import { generateId } from '@/lib/id'
 import {
   addHang,
@@ -26,6 +27,7 @@ import { LogRouteSheet } from '@/components/LogRouteSheet'
 import { ExerciseCard, type LoggedSetInput, type WorkExercise } from '@/components/ExerciseCard'
 import { HangCard } from '@/components/HangCard'
 import { ModifyFab } from '@/components/ModifyFab'
+import { RestTimer } from '@/components/RestTimer'
 import { ModifySheet } from '@/components/ModifySheet'
 import { ExercisePicker } from '@/components/ExercisePicker'
 import { EmptyState } from '@/components/EmptyState'
@@ -65,6 +67,23 @@ export default function ClimbingSessionScreen() {
   const [confirmCancel, setConfirmCancel] = useState(false)
 
   const clock = useSessionTimer(session?.startedAt ?? Date.now())
+  const rest = useRestTimer()
+
+  // Rest-timer completion: haptic (no-op on iOS) + auto-dismiss. Mirrors the
+  // strength screen so logging a climbing-workout set shows the same rest bar.
+  const firedRef = useRef(false)
+  useEffect(() => {
+    if (rest.isRunning && rest.remaining === 0) {
+      if (!firedRef.current) {
+        firedRef.current = true
+        navigator.vibrate?.([200, 100, 200])
+        const t = setTimeout(() => rest.skip(), 2000)
+        return () => clearTimeout(t)
+      }
+    } else {
+      firedRef.current = false
+    }
+  }, [rest.isRunning, rest.remaining, rest.skip])
 
   useEffect(() => {
     if (session && !inited) {
@@ -151,6 +170,7 @@ export default function ClimbingSessionScreen() {
   function skipCurrent() {
     if (!currentEx) return
     setWork((w) => w.map((e) => (e.uid === currentEx.uid ? { ...e, skipped: true } : e)))
+    rest.skip()
     setModifyOpen(false)
   }
   function swapCurrent(ex: Exercise) {
@@ -226,6 +246,7 @@ export default function ClimbingSessionScreen() {
           achievedAt: Date.now(),
         })
       }
+      rest.start(ex.restSeconds)
     } catch {
       toast.error('Could not log set')
     }
@@ -317,7 +338,7 @@ export default function ClimbingSessionScreen() {
   }
 
   return (
-    <div className="min-h-dvh pb-24">
+    <div className="min-h-dvh pb-32">
       <SessionHeader
         title={session?.templateName ?? 'Climbing session'}
         elapsedSeconds={clock.elapsed}
@@ -419,9 +440,13 @@ export default function ClimbingSessionScreen() {
         onSaved={() => setEditing(null)}
       />
 
+      {rest.isRunning && (
+        <RestTimer remaining={rest.remaining} duration={rest.duration} onSkip={rest.skip} />
+      )}
+
       {showExercises && (
         <>
-          <ModifyFab onClick={() => setModifyOpen(true)} />
+          <ModifyFab onClick={() => setModifyOpen(true)} raised={rest.isRunning} />
           <ModifySheet
             open={modifyOpen}
             onOpenChange={setModifyOpen}
