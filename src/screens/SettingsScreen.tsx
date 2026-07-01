@@ -4,6 +4,8 @@ import { toast } from 'sonner'
 import { Download, Upload } from 'lucide-react'
 import { exportAllData, importAllData } from '@/db/helpers'
 import { getUserName, setUserName } from '@/lib/userName'
+import { THEMES, applyTheme, getTheme } from '@/lib/theme'
+import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -26,6 +28,7 @@ export default function SettingsScreen() {
   const fileRef = useRef<HTMLInputElement>(null)
   const [confirmImport, setConfirmImport] = useState(false)
   const [name, setName] = useState(getUserName())
+  const [theme, setTheme] = useState(getTheme())
 
   async function handleExport() {
     try {
@@ -71,6 +74,34 @@ export default function SettingsScreen() {
             }}
           />
           <p className="px-1 text-xs text-muted-foreground">Used in your home greeting.</p>
+        </section>
+
+        <section className="space-y-2">
+          <h2 className="text-sm font-medium text-muted-foreground">Theme</h2>
+          <div className="grid grid-cols-2 gap-2">
+            {THEMES.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                data-theme={t.id}
+                onClick={() => {
+                  applyTheme(t.id)
+                  setTheme(t.id)
+                }}
+                className={cn(
+                  'flex items-center gap-2 rounded-lg border border-border bg-background p-3 text-left transition-shadow',
+                  theme === t.id && 'ring-2 ring-primary',
+                )}
+              >
+                <span className="flex gap-1">
+                  <span className="size-4 rounded-full border border-border bg-card" />
+                  <span className="size-4 rounded-full bg-primary" />
+                  <span className="size-4 rounded-full bg-accent" />
+                </span>
+                <span className="text-sm font-medium text-foreground">{t.label}</span>
+              </button>
+            ))}
+          </div>
         </section>
 
         <section className="space-y-3">

@@ -7,6 +7,19 @@
     <meta name="theme-color" content="#0f172a" />
     <title>Workout Tracker</title>
 
+    <!-- Apply the saved theme before paint to avoid a flash of the default. -->
+    <script>
+      ;(function () {
+        try {
+          var t = localStorage.getItem('theme') || 'dark'
+          var el = document.documentElement
+          el.setAttribute('data-theme', t)
+          var darkThemes = ['dark', 'solarized-dark', 'forest-dark', 'darcula', 'nord']
+          el.classList.toggle('dark', darkThemes.indexOf(t) !== -1)
+        } catch (e) {}
+      })()
+    </script>
+
     <!-- Apple PWA meta -->
     <link rel="apple-touch-icon" href="%BASE_URL%icons/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
