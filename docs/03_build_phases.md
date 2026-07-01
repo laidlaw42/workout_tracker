@@ -2,6 +2,8 @@
 
 Each phase ends with a working, committable, installable app state. Run `npm run dev` and verify on iPhone via local network before closing each phase.
 
+> **Secure context is required for on-device testing.** The service worker and `crypto.randomUUID()` only work over HTTPS or `localhost` — plain `http://192.168.x.x` will not register the SW and would crash ID generation (mitigated by the `generateId()` fallback). Run the dev server with a trusted local cert (`vite-plugin-mkcert`, or `@vitejs/plugin-basic-ssl` and accept the warning on the phone) so LAN testing exercises the real PWA path.
+
 ---
 
 ## Phase 1 — Scaffold & PWA shell
@@ -12,42 +14,64 @@ Each phase ends with a working, committable, installable app state. Run `npm run
 
 ```
 Set up a new Vite + React + TypeScript project at the current working directory.
+Pin React 18 explicitly (the latest Vite template scaffolds React 19).
 
 Install these packages:
-- tailwindcss @tailwindcss/vite
-- shadcn/ui (init with default style, slate base colour, CSS variables)
+- tailwindcss @tailwindcss/vite   (Tailwind v4 — CSS-first, no tailwind.config.ts)
+- shadcn/ui (init for Vite + Tailwind v4: writes components.json + CSS variables into
+  src/index.css; default style, slate base colour)
 - react-router-dom
 - dexie dexie-react-hooks
 - lucide-react
 - vite-plugin-pwa
 - @types/node (dev)
+- vite-plugin-mkcert (dev — trusted HTTPS for on-device LAN testing)
 
 Configure:
-1. tailwind.config.ts — enable dark mode via class strategy, add src/**/*.{ts,tsx} to content paths
-2. vite.config.ts — add @tailwindcss/vite plugin and vite-plugin-pwa with:
-   - registerType: 'autoUpdate'
-   - manifest: name 'Workout Tracker', short_name 'Workouts', theme_color '#0f172a',
-     background_color '#0f172a', display 'standalone', orientation 'portrait',
-     icons for 192x192 and 512x512 (maskable)
-   - workbox: globPatterns ['**/*.{js,css,html,ico,png,svg}']
-3. src/main.tsx — wrap app in <BrowserRouter>, set up dark mode class on <html>
-4. src/App.tsx — placeholder routes for /home, /library, /history, /progress, /settings
+1. Path alias @ → src, in BOTH tsconfig (compilerOptions.paths + baseUrl) and vite.config.ts
+   (resolve.alias). shadcn and the docs' `@/types` / `@/lib` imports depend on this.
+2. Tailwind v4 (CSS-first, no config file): in src/index.css add
+     @import "tailwindcss";
+     @custom-variant dark (&:where(.dark, .dark *));
+   plus the shadcn CSS-variable :root / .dark theme block. Do NOT create tailwind.config.ts.
+3. vite.config.ts:
+   - base: '/workout_tracker/'   (GitHub Pages project subpath — must match repo name)
+   - plugins: mkcert(), react(), @tailwindcss/vite, VitePWA
+   - define VITE_APP_VERSION from package.json version (read it and pass via `define`)
+   - VitePWA options:
+       registerType: 'autoUpdate'
+       manifest: name 'Workout Tracker', short_name 'Workouts', theme_color '#0f172a',
+         background_color '#0f172a', display 'standalone', orientation 'portrait',
+         icons for 192x192, 512x512, and 512x512 maskable — use RELATIVE src ('icons/…',
+         not '/icons/…') so they resolve under the /workout_tracker/ base
+       workbox: globPatterns ['**/*.{js,css,html,ico,png,svg}']
+       (scope/start_url are derived from `base` automatically — do not hardcode '/')
+4. src/main.tsx — wrap app in <BrowserRouter basename={import.meta.env.BASE_URL}>, set the
+   dark-mode class on <html> (default to dark)
+5. src/App.tsx — placeholder routes for /home, /library, /history, /progress, /settings
    each rendering a minimal screen component that just shows the route name
-5. src/components/BottomNav.tsx — 4-tab bottom navigation:
-   tabs: Home (ti-home), Library (ti-list), History (ti-clock), Progress (ti-chart-bar)
+6. src/components/BottomNav.tsx — 4-tab bottom navigation using lucide-react icons:
+   Home (Home), Library (List), History (Clock), Progress (BarChart3)
    active tab highlighted, links to correct routes
-   safe area padding bottom for iPhone notch (pb-safe)
-6. public/icons/ — generate placeholder 192x192 and 512x512 PNG icons (solid #3b82f6
-   background with white 'W' text centred) using a small Node script run at build time
-7. .github/workflows/deploy.yml — GitHub Actions workflow:
-   triggers on push to main
-   runs: npm ci, npm run build
-   deploys dist/ to gh-pages branch using peaceiris/actions-gh-pages
-8. Add a 404.html to public/ that redirects to index.html for client-side routing on
-   GitHub Pages (standard SPA redirect script)
+   safe-area padding: className includes pb-[env(safe-area-inset-bottom)] (no plugin)
+7. public/icons/ — generate placeholder icons with a small Node script run at build time
+   (solid #3b82f6 background, white 'W' centred): pwa-192.png, pwa-512.png,
+   pwa-512-maskable.png, and apple-touch-icon.png (180x180). apple-touch-icon is linked
+   from index.html in Phase 12, so it must exist now.
+8. .github/workflows/deploy.yml — GitHub Actions using the official Pages pipeline:
+   - trigger on push to main; permissions: contents:read, pages:write, id-token:write;
+     concurrency group 'pages'
+   - build job: npm ci, npm run build, actions/upload-pages-artifact with path './dist'
+   - deploy job: actions/deploy-pages
+   - (repo Settings → Pages → Source must be set to 'GitHub Actions')
+9. Add public/404.html with the SPA redirect script from docs/05_reference.md, configured
+   for a project subpath (pathSegmentsToKeep = 1), and the matching restore script in
+   index.html <head>.
+10. package.json dev script serves over HTTPS via mkcert and binds --host so the phone on
+    the LAN can reach it.
 
-Deliverable: `npm run build` succeeds, `npm run dev` shows bottom nav with placeholder
-screens, app is installable as PWA when served over HTTPS.
+Deliverable: `npm run build` succeeds, `npm run dev` (HTTPS) shows the bottom nav with
+placeholder screens, and the app is installable as a PWA on iPhone over the LAN.
 ```
 
 ---
@@ -61,33 +85,44 @@ screens, app is installable as PWA when served over HTTPS.
 ```
 Implement the full database layer as specified in docs/01_data_model.md.
 
-1. Create src/db/db.ts — WorkoutDB class extending Dexie with all 8 tables and version 1
-   schema as documented. Export singleton `db` instance.
+1. Create src/db/db.ts — WorkoutDB class extending Dexie with all 7 tables and version 1
+   schema as documented (compound indexes included). Export singleton `db` instance.
 
-2. Create src/db/helpers.ts — implement every function listed in the helpers section of
+2. Create src/lib/id.ts — generateId() with the secure-context fallback from
+   docs/01_data_model.md.
+
+3. Create src/db/helpers.ts — implement every function listed in the helpers section of
    docs/01_data_model.md. Use these patterns:
-   - Always use crypto.randomUUID() for id generation
+   - Always use generateId() for ids (never a bare crypto.randomUUID())
    - Always use Date.now() for timestamps
-   - getLastSetForExercise: query sets table ordered by loggedAt desc, limit 1
-   - checkAndSavePR: query existing PRs for exerciseName + prType, compare value,
-     save and return true only if new value beats existing best
+   - getLastSetForExercise: use the [exerciseId+loggedAt] index — .where('[exerciseId+loggedAt]')
+     .between([id, -Infinity], [id, Infinity]).last()
+   - getSetsForExercise / getRoutesForSession / getSetsForSession: use the compound
+     indexes, never a full-table scan + in-memory filter
+   - checkAndSavePR: query existing PRs for the same key (exerciseName+prType, or
+     climbingStyle+prType for grades), compare value, save and return true only if the
+     new value beats the existing best
    - exportAllData: read all tables via Promise.all, return JSON.stringify of the object
-   - importAllData: parse JSON, clear all tables, bulk-insert each table in order
+   - importAllData: parse JSON, then inside ONE db.transaction('rw', …all tables…):
+     clear every table and bulk-insert each in order (atomic — a bad file never leaves a
+     half-wiped DB)
 
-3. Create src/db/seed.ts — implement seedIfNeeded():
-   - Check localStorage.getItem('db_seeded') — if truthy, return early
+4. Create src/db/seed.ts — implement seedIfNeeded():
+   - Run inside db.transaction('rw', …). If (await db.templates.count()) > 0, return early
+     (do NOT use a localStorage flag — IndexedDB is the source of truth, so an import
+     never triggers a re-seed)
    - Insert all exercises from the list in docs/01_data_model.md
    - Insert all 5 templates from docs/01_data_model.md with correct TemplateExercise
      arrays referencing the seeded exercise IDs
-   - Set localStorage.setItem('db_seeded', '1')
 
-4. Call seedIfNeeded() in src/main.tsx before rendering the app (await it inside an
+5. Call seedIfNeeded() in src/main.tsx before rendering the app (await it inside an
    async IIFE, show a brief loading state while it runs).
 
-5. Create src/hooks/useDb.ts — thin hook that re-exports useLiveQuery from
+6. Create src/hooks/useDb.ts — thin hook that re-exports useLiveQuery from
    dexie-react-hooks for use across the app.
 
-Deliverable: open browser console, run `import('./src/db/db').then(m => m.db.templates.toArray()).then(console.log)` — should log 5 seeded templates.
+Deliverable: open browser console, run `getAllTemplates().then(console.log)` (or the DB
+helper equivalent) — should log 5 seeded templates.
 ```
 
 ---
@@ -106,12 +141,15 @@ HomeScreen layout (mobile-first, dark-mode-ready Tailwind):
   hour), today's date formatted as "Wednesday, 1 July"
 - Streak card: query sessions table, compute consecutive days with at least one session
   ending today or yesterday, display count with a flame icon
-- Quick start row: three equal-width buttons side by side
-    Strength (dumbbell icon, teal) → navigate to /library?type=strength
-    Cardio (activity icon, coral) → navigate to /library?type=cardio
-    Climbing (mountain icon, green) → navigate to /session/climbing/new
-- Recent sessions section: useLiveQuery to fetch last 5 sessions ordered by startedAt
-  desc, render as a list of SessionCard components
+- Quick start row: three equal-width buttons side by side (lucide icons: Dumbbell,
+  Activity, Mountain)
+    Strength (teal) → navigate to /library?type=strength
+    Cardio (coral) → navigate to /library?type=cardio
+    Climbing (green) → await createSession({ type: 'climbing', templateName: 'Climbing
+      session', startedAt: Date.now(), modifiedFromTemplate: false }), then navigate to
+      /session/climbing/:newId  (create first, no 'new' sentinel)
+- Recent sessions section: useLiveQuery(() => getRecentSessions(5)) — via the helper,
+  never db directly — render as a list of SessionCard components
   SessionCard shows: discipline badge, session name, date (relative: "today", "yesterday",
   "3 days ago"), duration, primary stat
   Tap → /history/:id
@@ -145,7 +183,8 @@ Implement LibraryScreen and TemplateDetailScreen.
 LibraryScreen (src/screens/LibraryScreen.tsx):
 - Read ?type= query param from URL to set initial filter tab
 - Filter tabs: All / Strength / Cardio (pill-style segmented control)
-- useLiveQuery on templates table filtered by selected type
+- useLiveQuery(() => getTemplatesByType(selectedType)) — pass undefined for "All"; the
+  query re-runs when selectedType changes (pass it in the deps array)
 - Render TemplateCard for each result:
     name, type badge, exercise count (e.g. "5 exercises"), last used date or "Never used"
     tap → /library/:id
@@ -243,7 +282,10 @@ RestTimer component (src/components/RestTimer.tsx):
 - Counts down from defaultRestSeconds
 - Shows current count in large text, progress ring around it
 - "Skip rest" button dismisses early
-- At 0: call window.navigator.vibrate([200, 100, 200]) for haptic feedback (where supported)
+- At 0: call navigator.vibrate?.([200, 100, 200]) for haptics WHERE SUPPORTED. Note: iOS
+  Safari does not implement the Vibration API, so this is a silent no-op on the target
+  device — treat haptics as progressive enhancement, never as required feedback. The
+  visual countdown + auto-dismiss is the real signal.
 - Auto-dismisses after 2s at 0
 
 Modify button (FAB, bottom right):
@@ -262,8 +304,12 @@ Finish button:
 - Navigate to /session/:id/summary
 
 Hooks to create:
-- src/hooks/useElapsedTimer.ts — setInterval incrementing seconds since startedAt
-- src/hooks/useRestTimer.ts — countdown timer, returns { remaining, isRunning, start, skip }
+- src/hooks/useElapsedTimer.ts — derive elapsed as Math.floor((Date.now() - startedAt)/1000)
+  on each tick; do NOT accumulate a counter (setInterval is throttled/paused when the
+  screen locks or the tab is backgrounded, so an accumulator drifts badly)
+- src/hooks/useRestTimer.ts — countdown timer; also derive remaining from a target
+  timestamp (endsAt = start + restSeconds*1000), not by decrementing. Returns
+  { remaining, isRunning, start, skip }
 
 Deliverable: full strength session — log sets, rest timer fires, modify mid-session, finish
 and land on summary. Check sets are persisted in DB.
@@ -296,9 +342,11 @@ Layout:
 
 src/hooks/useIntervalTimer.ts:
 - Takes IntervalBlock[] expanded into a flat sequence
-- Tracks current interval index, time remaining in interval
+- Tracks current interval index, time remaining in interval — derive from timestamps
+  (per-interval endsAt), not by decrementing a counter, so lock/background doesn't drift
 - Returns: currentInterval, remaining, totalElapsed, isRunning, advance, reset
-- Calls vibrate([200]) on each interval change
+- Calls navigator.vibrate?.([200]) on each interval change (no-op on iOS Safari — the
+  visual interval change is the primary cue)
 
 On finish: call addCardio() with all data, endSession(), navigate to /session/:id/summary
 
@@ -316,16 +364,20 @@ Deliverable: cardio session runs, intervals advance automatically, finish saves 
 ```
 Implement ClimbingSessionScreen at src/screens/ClimbingSessionScreen.tsx.
 
+The WorkoutSession (type 'climbing') was already created on Home before navigating here,
+so :id is a real session id. There is NO separate climbing-session record — routes link
+to the session directly via sessionId.
+
 On mount:
-- Load session by :id
-- Call createClimbingSession({ sessionId: id }) to get climbingSessionId
-- Store climbingSessionId in component state
+- Load session by :id via getSessionById (useLiveQuery(() => getSessionById(id)))
+- If it's missing or not type 'climbing', redirect home (guards a stale/hand-typed URL)
 
 Layout:
 1. SessionHeader: "Climbing session", elapsed timer, Finish button
-2. "Log a route" button (full width, prominent, at top of content area)
-3. useLiveQuery on routes table filtered by climbingSessionId, ordered by loggedAt desc
-4. RouteCard for each logged route:
+2. Optional gym/crag inputs → saved onto the session (updateSession helper)
+3. "Log a route" button (full width, prominent, at top of content area)
+4. useLiveQuery(() => getRoutesForSession(id)) — ordered by loggedAt desc
+5. RouteCard for each logged route:
    - Grade pill (V-grade or Ewbanks number)
    - Style badge (Bouldering / Top rope / Lead)
    - Tick badge (colour-coded: green for clean sends, amber for working, grey for attempts)
@@ -353,7 +405,8 @@ Step 3 — Tick & details:
     Route name (text), Colour (text), Attempts (number), Notes (text)
   "Save" button, "Back" button
 
-On Save: call addRoute() or updateRoute() depending on edit vs new, sheet closes.
+On Save: for a new route call addRoute({ sessionId: id, … }); for an edit call
+updateRoute(routeId, updates). Then the sheet closes.
 
 Finish session: endSession(), navigate to /session/:id/summary
 
@@ -379,8 +432,8 @@ Strength summary:
 - Total sets logged (count non-skipped sets)
 - Total volume (sum of weightKg * actualReps across all sets, show in kg)
 - Exercise breakdown: list each exercise with sets completed / total
-- PRs section: query prs table for achievedAt within session window, show each as a
-  PRBadge (gold highlight, trophy icon, "New PR: Squat 85kg × 5")
+- PRs section: getPRsForSession(id), show each as a PRBadge (gold highlight, trophy icon,
+  "New PR: Squat 85kg × 5")
 - If session.modifiedFromTemplate: show card "Save changes to template?" with Yes / No
   buttons (call upsertTemplate on Yes)
 
@@ -388,10 +441,11 @@ Cardio summary:
 - Duration, distance, avg pace
 - Interval splits: list each interval with its duration
 
-Climbing summary:
+Climbing summary (routes via getRoutesForSession(id)):
 - Total routes logged
-- Hardest clean send (filter routes by tick in ['onsight','flash','send','clean',
-  'redpoint','pink_point'], sort by grade, show top result)
+- Hardest clean send, computed SEPARATELY for bouldering (by vGrade sort index) and
+  roped (by ewbanksGrade), using CLEAN_TICKS from docs/05_reference.md — don't sort V and
+  Ewbanks grades against each other
 - Tick breakdown: count by tick type, show as a small grid of pills with counts
 - Duration
 
@@ -420,13 +474,15 @@ Implement HistoryScreen and SessionDetailScreen.
 
 HistoryScreen (src/screens/HistoryScreen.tsx):
 - Filter pills: All / Strength / Cardio / Climbing
-- useLiveQuery on sessions ordered by startedAt desc
+- useLiveQuery(() => getAllSessions(filter)) — ordered by startedAt desc, filter is the
+  selected discipline or undefined for All (pass filter in deps)
 - SessionCard for each (same component as HomeScreen)
 - Group by month: show month/year headers between groups ("June 2025", "May 2025")
 - EmptyState if no sessions
 
 SessionDetailScreen (src/screens/SessionDetailScreen.tsx):
-- Load session, then branch on type to load associated data
+- Load session via getSessionById, then branch on type to load associated data via the
+  matching helper: getSetsForSession / getCardioForSession / getRoutesForSession
 
 Strength detail:
 - Header: name, date, duration, total volume
@@ -459,9 +515,10 @@ Install recharts. Implement ProgressScreen at src/screens/ProgressScreen.tsx.
 Three tabs (shadcn Tabs component): Strength | Cardio | Climbing
 
 Strength tab:
-- Exercise picker dropdown (shadcn Select) populated from exercises table
-- On selection: query sets table for that exerciseName, group by date, take best weight
-  per session, render LineChart (recharts):
+- Exercise picker dropdown (shadcn Select) populated via getAllExercises()
+- On selection: getSetsForExercise(exerciseId) (queried by id, not name — sets store a
+  denormalised exerciseName only for display), group by date, take best weight per
+  session, render LineChart (recharts):
     x-axis: date, y-axis: weight (kg)
     Dots on each data point, responsive container
 - Below chart: PR history list for selected exercise from prs table
@@ -494,7 +551,7 @@ verify line chart shows upward trend. Verify climbing pyramid renders correctly.
 
 ## Phase 12 — Settings, export/import, polish
 
-**Goal:** Data backup, unit toggle, and final iOS PWA polish.
+**Goal:** Data backup and final iOS PWA polish (no unit toggle in v1 — kg only).
 
 ### Claude instructions
 
@@ -502,10 +559,7 @@ verify line chart shows upward trend. Verify climbing pyramid renders correctly.
 Implement SettingsScreen and apply final iOS polish across the app.
 
 SettingsScreen (src/screens/SettingsScreen.tsx):
-- Units section:
-    Toggle: kg / lbs (store in localStorage key 'units', default 'kg')
-    When lbs selected, all weight display and input throughout app converts
-    (create src/lib/units.ts with toDisplay(kg, units) and toKg(val, units) helpers)
+- (No units toggle in v1 — weights are kg-only throughout.)
 - Data section:
     "Export data" button:
       call exportAllData(), create Blob with type 'application/json'
@@ -523,10 +577,11 @@ iOS PWA polish — apply these across the whole app:
 2. Prevent double-tap zoom: add touch-action: manipulation to all buttons and inputs
 3. Prevent pull-to-refresh interfering with scroll: add overscroll-behavior-y: contain to main content containers
 4. Viewport meta in index.html: viewport-fit=cover in the content attribute
-5. Apple-specific PWA meta tags in index.html:
+5. Apple-specific PWA meta tags in index.html (use %BASE_URL% so paths resolve under the
+   /workout_tracker/ base — a leading-slash '/icons/…' would 404 on GitHub Pages):
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="apple-touch-icon" href="%BASE_URL%icons/apple-touch-icon.png">
 6. Numeric inputs on iOS: use inputMode="decimal" not type="number" to avoid the
    increment/decrement spinner
 7. Keyboard avoiding: when an input is focused inside a bottom sheet, ensure the sheet

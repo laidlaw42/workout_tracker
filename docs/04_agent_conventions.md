@@ -19,20 +19,21 @@ Standing instructions for Claude when working on this project. Apply these acros
 
 - Components: PascalCase — `ExerciseCard.tsx`
 - Hooks: camelCase with `use` prefix — `useRestTimer.ts`
-- Utilities: camelCase — `units.ts`, `formatDuration.ts`
+- Utilities: camelCase — `id.ts`, `formatDuration.ts`
 - Screens: PascalCase with `Screen` suffix — `HomeScreen.tsx`
 
 ## Database rules
 
-- All Dexie operations go through `src/db/helpers.ts` — never import `db` directly into a component
-- All live queries use `useLiveQuery` from `dexie-react-hooks`
-- All IDs generated with `crypto.randomUUID()`
-- All timestamps in milliseconds via `Date.now()`
+- All Dexie operations — reads and writes — go through `src/db/helpers.ts`; never import `db` directly into a component
+- Live queries use `useLiveQuery` from `dexie-react-hooks`, always wrapping a helper: `useLiveQuery(() => getRecentSessions(5), [deps])` — the querier calls a helper, never `db`
+- Every read a screen needs has a corresponding helper; if one is missing, add it to `helpers.ts` rather than reaching into `db`
+- All IDs generated via `generateId()` from `src/lib/id.ts` (wraps `crypto.randomUUID()` with a fallback for non-secure contexts) — never call `crypto.randomUUID()` directly
+- All timestamps in milliseconds via `Date.now()`; countdown/elapsed timers derive from timestamp deltas, never an accumulated counter (setInterval is throttled when backgrounded)
 
 ## Error handling
 
-- Wrap all DB helper functions in try/catch; re-throw with descriptive message
-- Show shadcn `toast` (sonner) on DB errors — never silent failures
+- Wrap DB helper functions in try/catch; re-throw with a descriptive message. Helpers stay UI-agnostic — they do NOT show toasts.
+- Show shadcn `toast` (sonner) at the **call site** (the component/event handler) when a helper rejects — never silent failures
 - Loading states: use `useLiveQuery`'s undefined return to show a `<Skeleton>` placeholder
 
 ## Commits
@@ -57,8 +58,9 @@ Examples:
 ## What not to do
 
 - Do not install or use: Redux, MobX, Zustand, or any global state library — React state + Dexie live queries are sufficient
-- Do not use `useEffect` to fetch data — use `useLiveQuery` instead
-- Do not use `localStorage` for anything except `units` preference and `db_seeded` flag
+- Do not use `useEffect` to fetch data — use `useLiveQuery(() => helper())` instead (fine for one-shot loads too, e.g. loading a session by id)
+- Do not use `localStorage` as a data store; v1 has no persistent UI prefs, and first-run seeding is detected from IndexedDB (`db.templates.count()`), not a flag
+- Do not rely on `navigator.vibrate` for required feedback — it is a no-op on iOS Safari; haptics are progressive enhancement only
 - Do not add authentication, user accounts, or any network calls in v1
 - Do not use `any` as a TypeScript escape hatch — define the type properly
 - Do not leave console.log statements in committed code

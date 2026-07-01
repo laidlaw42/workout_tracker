@@ -35,7 +35,8 @@ All routes are client-side (React Router). GitHub Pages needs a `404.html` redir
 - Streak counter (consecutive days with a session)
 
 **Actions:**
-- Tap discipline button → LibraryScreen (filtered) or direct to session start for climbing
+- Tap Strength/Cardio → LibraryScreen filtered by type
+- Tap Climbing → create a `WorkoutSession` (`type: 'climbing'`) via `createSession`, then navigate to `/session/climbing/:newId` (no template involved)
 - Tap recent session → SessionDetailScreen
 
 ---
@@ -136,10 +137,13 @@ All routes are client-side (React Router). GitHub Pages needs a `404.html` redir
 
 **Purpose:** Log individual route attempts throughout a climbing session.
 
+The `WorkoutSession` (`type: 'climbing'`) already exists before this screen loads — it is created when the user taps *Climbing* on Home (see Phase 3). Routes link to it directly via `sessionId`; there is no separate climbing-session record. Optional `gym`/`crag` are edited on the session itself.
+
 **Layout:**
 1. Header: "Climbing session", elapsed timer, "Finish" button
-2. "Log a route" button → opens LogRouteSheet
-3. Scrollable list of routes logged this session (most recent first):
+2. Optional gym/crag field (saved onto the session)
+3. "Log a route" button → opens LogRouteSheet
+4. Scrollable list of routes logged this session (most recent first):
    - Grade + style badge + tick type badge
    - Route name/colour if set
    - Tap to edit
@@ -171,7 +175,7 @@ All routes are client-side (React Router). GitHub Pages needs a `404.html` redir
 - Total duration
 - Exercises completed
 - Total sets logged
-- Total volume (sum of weight × reps across all sets)
+- Total volume (sum of weight × reps across all sets, kg)
 - Any PRs achieved (highlighted)
 - "Save edits to template?" prompt if session was modified (yes → upsertTemplate)
 
@@ -181,7 +185,7 @@ All routes are client-side (React Router). GitHub Pages needs a `404.html` redir
 
 **Climbing summary shows:**
 - Routes logged count
-- Hardest send (highest grade with clean tick)
+- Hardest clean send, reported **separately for bouldering (V) and roped (Ewbanks)** since the two grade systems aren't comparable
 - Tick type breakdown (e.g. 2 flashes, 3 sends, 1 working)
 - Duration
 
@@ -217,7 +221,7 @@ All routes are client-side (React Router). GitHub Pages needs a `404.html` redir
 **Purpose:** Charts and PRs.
 
 **Tabs:**
-1. **Strength** — exercise picker → line chart of best weight over time + PR history
+1. **Strength** — exercise picker → line chart of best weight over time + PR history (queried by `exerciseId` via `getSetsForExercise`, not by name)
 2. **Cardio** — activity picker → pace over time, distance over time
 3. **Climbing** — grade pyramid (bar chart, sends per grade, V and Ewbanks separately), hardest grade per month
 
@@ -230,8 +234,7 @@ All routes are client-side (React Router). GitHub Pages needs a `404.html` redir
 **Shows:**
 - Export data → triggers exportAllData(), downloads JSON file
 - Import data → file picker, triggers importAllData()
-- Units toggle: kg / lbs (stored in localStorage)
-- "About" section with version number
+- "About" section with version number (weights are kg-only in v1)
 
 ---
 

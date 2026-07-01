@@ -84,6 +84,8 @@ Top rope: onsight > flash > clean > hang_dog > attempt
 | working | blue-400 | blue-900 |
 | hang_dog / attempt / retreat / dab | slate-400 | slate-900 |
 
+> Map each tick to a **complete, static** class string (e.g. `onsight: 'bg-amber-400 text-amber-900'`) in a lookup object. Never build class names dynamically (`bg-${x}-400`) — Tailwind's compiler can't see those and will purge them from the build.
+
 ---
 
 ## Duration formatting
@@ -114,63 +116,53 @@ A new PR is detected when:
 - **Reps PR**: `weightKg >= previousBestWeightKg && actualReps > previousBestReps`
 - **Pace PR**: `avgPaceSecondsPerKm < previousBestPace` (lower is better)
 - **Distance PR**: `distanceKm > previousBestDistance`
-- **Grade PR (climbing)**: a clean tick at a grade higher than any previous clean tick for the same style
+- **Grade PR (climbing)**: a clean tick (see `CLEAN_TICKS`) at a grade higher than any previous clean tick **for the same `climbingStyle`**
 
-Only check PRs on logged sets / sessions immediately after saving, before navigating away.
+Grade PRs are stored keyed by `climbingStyle` (not exercise): `value` is the numeric grade — V-grade sort index (VB = -1 … V17 = 17) with `unit: 'vgrade'` for bouldering, or the Ewbanks number with `unit: 'ewbanks'` for top_rope/lead. Bouldering and roped PRs are therefore never compared against each other.
 
----
-
-## Unit conversion
-
-```ts
-// src/lib/units.ts
-export type Units = 'kg' | 'lbs'
-
-const KG_TO_LBS = 2.20462
-
-export function toDisplay(kg: number, units: Units): number {
-  return units === 'lbs' ? Math.round(kg * KG_TO_LBS * 10) / 10 : kg
-}
-
-export function toKg(val: number, units: Units): number {
-  return units === 'lbs' ? Math.round((val / KG_TO_LBS) * 10) / 10 : val
-}
-
-export function unitLabel(units: Units): string {
-  return units === 'lbs' ? 'lbs' : 'kg'
-}
-```
+The caller (the session/summary flow) evaluates these conditions and calls `checkAndSavePR` with the resulting candidate; the helper only persists it if it still beats the stored best for that key. Only check PRs on logged sets / sessions immediately after saving, before navigating away.
 
 ---
 
-## Key localStorage keys
+## Units
 
-| Key | Value | Purpose |
-|---|---|---|
-| `db_seeded` | `'1'` | Prevents re-seeding on every load |
-| `units` | `'kg'` \| `'lbs'` | Weight unit preference |
+Weights are stored and displayed in **kg only** in v1 — there is no unit conversion layer and no `lbs` toggle. (Distances are km, pace is seconds/km.) A kg↔lbs toggle is deferred to a later version; if added, weights stay stored in kg and only display/input convert.
+
+---
+
+## Persistent state
+
+v1 stores no UI preferences in `localStorage`. All persistent data lives in IndexedDB (Dexie), and first-run seeding is detected via `await db.templates.count() === 0` — there is no `db_seeded` flag. Import restores data into the same tables, so it never triggers a re-seed.
 
 ---
 
 ## GitHub Pages SPA redirect
 
-`public/404.html` must contain this script to support client-side routing:
+This is the rafgraph/spa-github-pages technique. Because the app is served from the project subpath `/workout_tracker/`, **`pathSegmentsToKeep = 1`** (keep the repo-name segment). If the app were ever moved to a root/custom domain, set it to `0`.
+
+`public/404.html` must contain:
 
 ```html
 <!DOCTYPE html>
 <html>
 <head>
   <script>
-    const l = window.location;
-    l.replace(l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
-      l.pathname.split('/').slice(0, 1).join('/') + '/?/' +
-      l.pathname.slice(1) + (l.search ? '&' + l.search.slice(1) : '') + l.hash);
+    // Single Page Apps for GitHub Pages
+    var pathSegmentsToKeep = 1; // /workout_tracker/ subpath
+    var l = window.location;
+    l.replace(
+      l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+      l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/?/' +
+      l.pathname.slice(1).split('/').slice(pathSegmentsToKeep).join('/').replace(/&/g, '~and~') +
+      (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
+      l.hash
+    );
   </script>
 </head>
 </html>
 ```
 
-And `index.html` needs a matching script in `<head>` to reconstruct the URL:
+And `index.html` needs the matching restore script in `<head>`, **before** the app bundle loads:
 
 ```html
 <script>
@@ -184,3 +176,5 @@ And `index.html` needs a matching script in `<head>` to reconstruct the URL:
   }(window.location))
 </script>
 ```
+
+React Router's `<BrowserRouter basename={import.meta.env.BASE_URL}>` (Phase 1) then resolves the restored path correctly.
