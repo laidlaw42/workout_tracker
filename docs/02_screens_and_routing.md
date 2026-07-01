@@ -214,11 +214,18 @@ The `WorkoutSession` (`type: 'climbing'`) already exists before this screen load
 
 ### SessionDetailScreen `/history/:id`
 
-**Purpose:** Full read-only view of a completed session.
+**Purpose:** View — and edit or delete — a completed session.
 
 **Strength:** Full set log with weight × reps per exercise.
 **Cardio:** Duration, distance, pace, interval splits.
 **Climbing:** Full route list with grade, tick, notes.
+
+**Edit mode** (header Edit toggle):
+- Strength: edit each set's weight/reps, delete sets, add sets, add an exercise
+- Cardio: edit distance and duration (pace recomputed)
+- Climbing: tap a route to edit, delete routes, add routes
+- Notes editable for all types
+- Header trash icon deletes the whole session (confirm) → cascades to its sets/cardio/routes/PRs
 
 ---
 

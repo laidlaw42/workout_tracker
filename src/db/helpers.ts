@@ -136,6 +136,23 @@ export async function endSession(id: string): Promise<void> {
   })
 }
 
+// Deletes a session and everything logged under it.
+export async function deleteSession(id: string): Promise<void> {
+  return run('deleteSession', async () => {
+    await db.transaction(
+      'rw',
+      [db.sessions, db.sets, db.cardio, db.routes, db.prs],
+      async () => {
+        await db.sessions.delete(id)
+        await db.sets.where('sessionId').equals(id).delete()
+        await db.cardio.where('sessionId').equals(id).delete()
+        await db.routes.filter((r) => r.sessionId === id).delete()
+        await db.prs.where('sessionId').equals(id).delete()
+      },
+    )
+  })
+}
+
 export async function getRecentSessions(limit = 5): Promise<WorkoutSession[]> {
   return run('getRecentSessions', () =>
     db.sessions.orderBy('startedAt').reverse().limit(limit).toArray(),
@@ -171,6 +188,10 @@ export async function updateSet(id: string, updates: Partial<LoggedSet>): Promis
   return run('updateSet', async () => {
     await db.sets.update(id, updates)
   })
+}
+
+export async function deleteSet(id: string): Promise<void> {
+  return run('deleteSet', () => db.sets.delete(id))
 }
 
 export async function getSetsForSession(sessionId: string): Promise<LoggedSet[]> {
@@ -227,6 +248,15 @@ export async function getCardioForSession(
   )
 }
 
+export async function updateCardio(
+  id: string,
+  updates: Partial<LoggedCardio>,
+): Promise<void> {
+  return run('updateCardio', async () => {
+    await db.cardio.update(id, updates)
+  })
+}
+
 export async function getCardioByActivity(
   activity: CardioActivityType,
 ): Promise<LoggedCardio[]> {
@@ -257,6 +287,10 @@ export async function updateRoute(
   return run('updateRoute', async () => {
     await db.routes.update(id, updates)
   })
+}
+
+export async function deleteRoute(id: string): Promise<void> {
+  return run('deleteRoute', () => db.routes.delete(id))
 }
 
 export async function getRoutesForSession(sessionId: string): Promise<ClimbingRoute[]> {

@@ -243,6 +243,7 @@ export async function markTemplateUsed(id: string): Promise<void>  // bump lastU
 export async function createSession(s: Omit<WorkoutSession, 'id'>): Promise<string>
 export async function updateSession(id: string, updates: Partial<WorkoutSession>): Promise<void>  // notes, gym, crag
 export async function endSession(id: string): Promise<void>
+export async function deleteSession(id: string): Promise<void>  // cascades to sets/cardio/routes/prs
 export async function getRecentSessions(limit?: number): Promise<WorkoutSession[]>
 export async function getAllSessions(type?: DisciplineType): Promise<WorkoutSession[]>  // ordered by startedAt desc; for History
 export async function getSessionById(id: string): Promise<WorkoutSession | undefined>
@@ -250,18 +251,21 @@ export async function getSessionById(id: string): Promise<WorkoutSession | undef
 // Sets
 export async function addSet(s: Omit<LoggedSet, 'id'>): Promise<string>
 export async function updateSet(id: string, updates: Partial<LoggedSet>): Promise<void>
+export async function deleteSet(id: string): Promise<void>
 export async function getSetsForSession(sessionId: string): Promise<LoggedSet[]>
 export async function getSetsForExercise(exerciseId: string): Promise<LoggedSet[]>  // all sessions, for Progress charts
 export async function getLastSetForExercise(exerciseId: string): Promise<LoggedSet | undefined>
 
 // Cardio
 export async function addCardio(c: Omit<LoggedCardio, 'id'>): Promise<string>
+export async function updateCardio(id: string, updates: Partial<LoggedCardio>): Promise<void>
 export async function getCardioForSession(sessionId: string): Promise<LoggedCardio | undefined>
 export async function getCardioByActivity(activity: CardioActivityType): Promise<LoggedCardio[]>  // Progress charts
 
 // Climbing routes (a climbing session is just a WorkoutSession with type 'climbing')
 export async function addRoute(r: Omit<ClimbingRoute, 'id'>): Promise<string>
 export async function updateRoute(id: string, updates: Partial<ClimbingRoute>): Promise<void>
+export async function deleteRoute(id: string): Promise<void>
 export async function getRoutesForSession(sessionId: string): Promise<ClimbingRoute[]>
 export async function getAllRoutes(): Promise<ClimbingRoute[]>  // Progress grade pyramid
 

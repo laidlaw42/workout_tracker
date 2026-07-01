@@ -1,15 +1,30 @@
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { toast } from 'sonner'
+import { Check, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import {
+  addSet,
+  deleteRoute,
+  deleteSession,
+  deleteSet,
   getCardioForSession,
   getRoutesForSession,
   getSessionById,
   getSetsForSession,
+  updateCardio,
+  updateSession,
+  updateSet,
 } from '@/db/helpers'
+import { ExercisePicker } from '@/components/ExercisePicker'
+import { LogRouteSheet } from '@/components/LogRouteSheet'
 import { PageHeader } from '@/components/PageHeader'
 import { RouteCard } from '@/components/RouteCard'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Accordion,
@@ -17,8 +32,18 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { formatPace, formatWorkoutLength } from '@/lib/formatDuration'
-import type { ClimbingRoute, LoggedCardio, LoggedSet, WorkoutSession } from '@/types'
+import type { ClimbingRoute, Exercise, LoggedCardio, LoggedSet } from '@/types'
 
 function fullDate(ts: number): string {
   return new Date(ts).toLocaleDateString(undefined, {
@@ -37,6 +62,55 @@ export default function SessionDetailScreen() {
   const sets = useLiveQuery(() => getSetsForSession(id), [id]) ?? []
   const cardio = useLiveQuery(() => getCardioForSession(id), [id])
   const routes = useLiveQuery(() => getRoutesForSession(id), [id]) ?? []
+
+  const [editing, setEditing] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [routeSheetOpen, setRouteSheetOpen] = useState(false)
+  const [editingRoute, setEditingRoute] = useState<ClimbingRoute | null>(null)
+  const [notes, setNotes] = useState('')
+  const [notesInited, setNotesInited] = useState(false)
+
+  useEffect(() => {
+    if (session && !notesInited) {
+      setNotes(session.notes ?? '')
+      setNotesInited(true)
+    }
+  }, [session, notesInited])
+
+  async function addSetToExercise(exerciseId: string, exerciseName: string) {
+    const group = sets.filter((s) => s.exerciseId === exerciseId)
+    const nextNum = group.length ? Math.max(...group.map((s) => s.setNumber)) + 1 : 1
+    await addSet({
+      sessionId: id,
+      exerciseId,
+      exerciseName,
+      setNumber: nextNum,
+      skipped: false,
+      loggedAt: Date.now(),
+    })
+  }
+
+  async function handleAddExercise(ex: Exercise) {
+    await addSet({
+      sessionId: id,
+      exerciseId: ex.id,
+      exerciseName: ex.name,
+      setNumber: 1,
+      skipped: false,
+      loggedAt: Date.now(),
+    })
+  }
+
+  async function handleDeleteSession() {
+    try {
+      await deleteSession(id)
+      toast.success('Workout deleted')
+      navigate('/history')
+    } catch {
+      toast.error('Could not delete workout')
+    }
+  }
 
   if (session === undefined) {
     return (
@@ -63,7 +137,30 @@ export default function SessionDetailScreen() {
 
   return (
     <div className="min-h-dvh pb-6">
-      <PageHeader title={session.templateName} onBack={() => navigate('/history')} />
+      <PageHeader
+        title={session.templateName}
+        onBack={() => navigate('/history')}
+        right={
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant={editing ? 'default' : 'ghost'}
+              onClick={() => setEditing((e) => !e)}
+            >
+              {editing ? <Check className="size-4" /> : <Pencil className="size-4" />}
+              {editing ? 'Done' : 'Edit'}
+            </Button>
+            <button
+              type="button"
+              aria-label="Delete workout"
+              onClick={() => setConfirmDelete(true)}
+              className="flex size-9 items-center justify-center rounded-md text-muted-foreground active:bg-accent"
+            >
+              <Trash2 className="size-4" />
+            </button>
+          </div>
+        }
+      />
       <div className="space-y-5 p-4">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <DisciplineBadge type={session.type} />
@@ -71,32 +168,129 @@ export default function SessionDetailScreen() {
           <span>· {formatWorkoutLength(durationSeconds)}</span>
         </div>
 
-        {session.type === 'strength' && <StrengthDetail sets={sets} />}
-        {session.type === 'cardio' && <CardioDetail cardio={cardio} />}
-        {session.type === 'climbing' && <ClimbingDetail session={session} routes={routes} />}
-
-        {session.notes && (
-          <div className="rounded-xl border border-border bg-card p-3">
-            <p className="text-sm font-medium text-muted-foreground">Notes</p>
-            <p className="text-sm">{session.notes}</p>
-          </div>
+        {session.type === 'strength' && (
+          <StrengthDetail
+            sets={sets}
+            editing={editing}
+            onAddExercise={() => setPickerOpen(true)}
+            onAddSet={addSetToExercise}
+          />
         )}
+        {session.type === 'cardio' && <CardioDetail cardio={cardio} editing={editing} />}
+        {session.type === 'climbing' && (
+          <ClimbingDetail
+            routes={routes}
+            editing={editing}
+            onEditRoute={(r) => {
+              setEditingRoute(r)
+              setRouteSheetOpen(true)
+            }}
+            onNewRoute={() => {
+              setEditingRoute(null)
+              setRouteSheetOpen(true)
+            }}
+            onDeleteRoute={(rid) => void deleteRoute(rid)}
+          />
+        )}
+
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-muted-foreground">Notes</p>
+          {editing ? (
+            <Textarea
+              value={notes}
+              rows={2}
+              placeholder="Add notes…"
+              onChange={(e) => setNotes(e.target.value)}
+              onBlur={() => void updateSession(id, { notes: notes.trim() || undefined })}
+            />
+          ) : session.notes ? (
+            <p className="rounded-xl border border-border bg-card p-3 text-sm">{session.notes}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground">No notes.</p>
+          )}
+        </div>
       </div>
+
+      <ExercisePicker open={pickerOpen} onOpenChange={setPickerOpen} onSelect={handleAddExercise} />
+      <LogRouteSheet
+        open={routeSheetOpen}
+        onOpenChange={setRouteSheetOpen}
+        sessionId={id}
+        editing={editingRoute}
+        onSaved={() => setEditingRoute(null)}
+      />
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this workout?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the session and everything logged in it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteSession}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
 
-function StrengthDetail({ sets }: { sets: LoggedSet[] }) {
-  const volume = sets.reduce((sum, s) => sum + (s.weightKg ?? 0) * (s.actualReps ?? 0), 0)
-  const groups = new Map<string, LoggedSet[]>()
+// --- Strength ---------------------------------------------------------------
+
+function groupByExercise(sets: LoggedSet[]): [string, string, LoggedSet[]][] {
+  const map = new Map<string, { name: string; sets: LoggedSet[] }>()
   for (const s of sets) {
-    const arr = groups.get(s.exerciseName) ?? []
-    arr.push(s)
-    groups.set(s.exerciseName, arr)
+    const g = map.get(s.exerciseId) ?? { name: s.exerciseName, sets: [] }
+    g.sets.push(s)
+    map.set(s.exerciseId, g)
+  }
+  return [...map.entries()].map(([exId, g]) => [
+    exId,
+    g.name,
+    g.sets.sort((a, b) => a.setNumber - b.setNumber),
+  ])
+}
+
+function StrengthDetail({
+  sets,
+  editing,
+  onAddExercise,
+  onAddSet,
+}: {
+  sets: LoggedSet[]
+  editing: boolean
+  onAddExercise: () => void
+  onAddSet: (exerciseId: string, exerciseName: string) => void
+}) {
+  const volume = sets.reduce((sum, s) => sum + (s.weightKg ?? 0) * (s.actualReps ?? 0), 0)
+  const groups = groupByExercise(sets)
+
+  if (sets.length === 0 && !editing) {
+    return <p className="text-sm text-muted-foreground">No sets were logged.</p>
   }
 
-  if (sets.length === 0) {
-    return <p className="text-sm text-muted-foreground">No sets were logged.</p>
+  if (editing) {
+    return (
+      <div className="space-y-3">
+        {groups.map(([exId, name, exSets]) => (
+          <div key={exId} className="space-y-2 rounded-xl border border-border bg-card p-3">
+            <p className="font-medium">{name}</p>
+            {exSets.map((s) => (
+              <EditableSetRow key={s.id} set={s} />
+            ))}
+            <Button variant="ghost" size="sm" onClick={() => onAddSet(exId, name)}>
+              <Plus className="size-4" /> Add set
+            </Button>
+          </div>
+        ))}
+        <Button variant="outline" className="w-full" onClick={onAddExercise}>
+          <Plus className="size-4" /> Add exercise
+        </Button>
+      </div>
+    )
   }
 
   return (
@@ -106,8 +300,8 @@ function StrengthDetail({ sets }: { sets: LoggedSet[] }) {
         <Stat label="Volume" value={`${Math.round(volume)} kg`} />
       </div>
       <Accordion type="multiple" className="w-full">
-        {[...groups.entries()].map(([name, exSets]) => (
-          <AccordionItem key={name} value={name}>
+        {groups.map(([exId, name, exSets]) => (
+          <AccordionItem key={exId} value={exId}>
             <AccordionTrigger className="text-sm">
               <span className="flex-1 text-left">{name}</span>
               <span className="mr-2 text-muted-foreground">{exSets.length} sets</span>
@@ -139,8 +333,107 @@ function StrengthDetail({ sets }: { sets: LoggedSet[] }) {
   )
 }
 
-function CardioDetail({ cardio }: { cardio: LoggedCardio | undefined }) {
+function EditableSetRow({ set }: { set: LoggedSet }) {
+  const [weight, setWeight] = useState(set.weightKg != null ? String(set.weightKg) : '')
+  const [reps, setReps] = useState(set.actualReps != null ? String(set.actualReps) : '')
+
+  const num = (v: string) => (v.trim() === '' ? undefined : Number(v))
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-10 shrink-0 text-sm text-muted-foreground">Set {set.setNumber}</span>
+      <Input
+        inputMode="decimal"
+        className="h-9"
+        placeholder="kg"
+        value={weight}
+        onChange={(e) => {
+          const v = e.target.value.replace(/[^0-9.]/g, '')
+          setWeight(v)
+          void updateSet(set.id, { weightKg: num(v) })
+        }}
+      />
+      <Input
+        inputMode="numeric"
+        className="h-9"
+        placeholder="reps"
+        value={reps}
+        onChange={(e) => {
+          const v = e.target.value.replace(/[^0-9]/g, '')
+          setReps(v)
+          void updateSet(set.id, { actualReps: num(v) })
+        }}
+      />
+      <button
+        type="button"
+        aria-label="Delete set"
+        onClick={() => void deleteSet(set.id)}
+        className="flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground active:bg-accent"
+      >
+        <Trash2 className="size-4" />
+      </button>
+    </div>
+  )
+}
+
+// --- Cardio -----------------------------------------------------------------
+
+function CardioDetail({ cardio, editing }: { cardio: LoggedCardio | undefined; editing: boolean }) {
+  const [distance, setDistance] = useState('')
+  const [durationMin, setDurationMin] = useState('')
+  const [inited, setInited] = useState(false)
+
+  useEffect(() => {
+    if (cardio && !inited) {
+      setDistance(cardio.distanceKm != null ? String(cardio.distanceKm) : '')
+      setDurationMin(String(Math.round(cardio.durationSeconds / 60)))
+      setInited(true)
+    }
+  }, [cardio, inited])
+
   if (!cardio) return <p className="text-sm text-muted-foreground">No cardio was recorded.</p>
+
+  function persist(km: string, durMin: string) {
+    if (!cardio) return
+    const kmNum = km.trim() === '' ? undefined : Number(km)
+    const durationSeconds = durMin.trim() === '' ? cardio.durationSeconds : Number(durMin) * 60
+    const avgPaceSecondsPerKm = kmNum && kmNum > 0 ? Math.round(durationSeconds / kmNum) : undefined
+    void updateCardio(cardio.id, { distanceKm: kmNum, durationSeconds, avgPaceSecondsPerKm })
+  }
+
+  if (editing) {
+    return (
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-distance">Distance (km)</Label>
+          <Input
+            id="edit-distance"
+            inputMode="decimal"
+            value={distance}
+            onChange={(e) => {
+              const v = e.target.value.replace(/[^0-9.]/g, '')
+              setDistance(v)
+              persist(v, durationMin)
+            }}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-duration">Duration (min)</Label>
+          <Input
+            id="edit-duration"
+            inputMode="numeric"
+            value={durationMin}
+            onChange={(e) => {
+              const v = e.target.value.replace(/[^0-9]/g, '')
+              setDurationMin(v)
+              persist(distance, v)
+            }}
+          />
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-2">
@@ -172,29 +465,53 @@ function CardioDetail({ cardio }: { cardio: LoggedCardio | undefined }) {
   )
 }
 
+// --- Climbing ---------------------------------------------------------------
+
 function ClimbingDetail({
-  session,
   routes,
+  editing,
+  onEditRoute,
+  onNewRoute,
+  onDeleteRoute,
 }: {
-  session: WorkoutSession
   routes: ClimbingRoute[]
+  editing: boolean
+  onEditRoute: (r: ClimbingRoute) => void
+  onNewRoute: () => void
+  onDeleteRoute: (id: string) => void
 }) {
   return (
-    <div className="space-y-4">
-      {(session.gym || session.crag) && (
-        <p className="text-sm text-muted-foreground">
-          {[session.gym, session.crag].filter(Boolean).join(' · ')}
-        </p>
-      )}
+    <div className="space-y-3">
       <Stat label="Routes logged" value={routes.length} />
-      {routes.length === 0 ? (
+      {routes.length === 0 && !editing ? (
         <p className="text-sm text-muted-foreground">No routes were logged.</p>
       ) : (
         <div className="space-y-2">
-          {routes.map((r) => (
-            <RouteCard key={r.id} route={r} />
-          ))}
+          {routes.map((r) =>
+            editing ? (
+              <div key={r.id} className="flex items-center gap-2">
+                <div className="min-w-0 flex-1">
+                  <RouteCard route={r} onClick={() => onEditRoute(r)} />
+                </div>
+                <button
+                  type="button"
+                  aria-label="Delete route"
+                  onClick={() => onDeleteRoute(r.id)}
+                  className="flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground active:bg-accent"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              </div>
+            ) : (
+              <RouteCard key={r.id} route={r} />
+            ),
+          )}
         </div>
+      )}
+      {editing && (
+        <Button variant="outline" className="w-full" onClick={onNewRoute}>
+          <Plus className="size-4" /> Add route
+        </Button>
       )}
     </div>
   )
