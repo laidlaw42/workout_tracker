@@ -1,2 +1,4 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# Normalize all text files to LF in the repo (quiets CRLF warnings on Windows)
+* text=auto eol=lf
+*.png binary
+*.ico binary
