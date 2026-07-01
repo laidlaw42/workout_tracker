@@ -17,6 +17,16 @@ function summarise(t: WorkoutTemplate): string {
     const n = t.exercises.length
     return `${n} exercise${n === 1 ? '' : 's'}`
   }
+  if (t.type === 'climbing') {
+    const hangs = t.hangboardSets?.length ?? 0
+    const exs = t.exercises.length
+    if (t.climbingKind === 'hangboard') return `Hangboard · ${hangs} grip${hangs === 1 ? '' : 's'}`
+    const parts = [
+      exs ? `${exs} exercise${exs === 1 ? '' : 's'}` : null,
+      hangs ? `${hangs} hang${hangs === 1 ? '' : 's'}` : null,
+    ].filter(Boolean)
+    return parts.length ? `Climbing · ${parts.join(', ')}` : 'Climbing workout'
+  }
   const activity = ACTIVITY_LABELS[t.cardioActivity ?? 'other']
   if (t.intervals?.length) return `${activity} · intervals`
   if (t.targetDurationSeconds) return `${activity} · ${formatWorkoutLength(t.targetDurationSeconds)}`

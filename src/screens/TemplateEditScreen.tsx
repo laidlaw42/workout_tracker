@@ -22,6 +22,7 @@ import { getTemplate, upsertTemplate } from '@/db/helpers'
 import { generateId } from '@/lib/id'
 import { ExercisePicker } from '@/components/ExercisePicker'
 import { IntervalsEditor } from '@/components/IntervalsEditor'
+import { HangboardSetsEditor } from '@/components/HangboardSetsEditor'
 import { PageHeader } from '@/components/PageHeader'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { Button } from '@/components/ui/button'
@@ -40,6 +41,7 @@ import {
 import type {
   CardioActivityType,
   Exercise,
+  HangboardSet,
   IntervalBlock,
   TemplateExercise,
 } from '@/types'
@@ -64,6 +66,7 @@ export default function TemplateEditScreen() {
   const [durationMin, setDurationMin] = useState('')
   const [distanceKm, setDistanceKm] = useState('')
   const [intervals, setIntervals] = useState<IntervalBlock[]>([])
+  const [hangSets, setHangSets] = useState<HangboardSet[]>([])
   const [inited, setInited] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -82,6 +85,7 @@ export default function TemplateEditScreen() {
       )
       setDistanceKm(template.targetDistanceKm != null ? String(template.targetDistanceKm) : '')
       setIntervals(template.intervals ?? [])
+      setHangSets(template.hangboardSets ?? [])
       setInited(true)
     }
   }, [template, inited])
@@ -128,15 +132,17 @@ export default function TemplateEditScreen() {
   async function save() {
     if (!template) return
     const isCardio = template.type === 'cardio'
+    const isClimbing = template.type === 'climbing'
+    const showExercises =
+      template.type === 'strength' || (isClimbing && template.climbingKind === 'workout')
     try {
       await upsertTemplate({
         id: template.id,
         name: name.trim() || template.name,
         type: template.type,
         tags: template.tags,
-        exercises: isCardio
-          ? []
-          : rows.map((r, i) => ({
+        exercises: showExercises
+          ? rows.map((r, i) => ({
               exerciseId: r.exerciseId,
               exerciseName: r.exerciseName,
               order: i,
@@ -146,12 +152,15 @@ export default function TemplateEditScreen() {
               defaultWeight: r.defaultWeight,
               defaultRestSeconds: r.defaultRestSeconds,
               notes: r.notes,
-            })),
+            }))
+          : [],
         cardioActivity: isCardio ? activity : undefined,
         targetDurationSeconds:
           isCardio && durationMin.trim() ? Number(durationMin) * 60 : undefined,
         targetDistanceKm: isCardio && distanceKm.trim() ? Number(distanceKm) : undefined,
         intervals: isCardio && intervals.length > 0 ? intervals : undefined,
+        climbingKind: isClimbing ? template.climbingKind : undefined,
+        hangboardSets: isClimbing ? hangSets.map((h, i) => ({ ...h, order: i })) : undefined,
         lastUsedAt: template.lastUsedAt,
       })
       toast.success('Saved')
@@ -166,7 +175,10 @@ export default function TemplateEditScreen() {
     else navigate(`/library/${id}`)
   }
 
-  const isStrength = template?.type === 'strength'
+  const isCardio = template?.type === 'cardio'
+  const isClimbing = template?.type === 'climbing'
+  const showExercises =
+    template?.type === 'strength' || (isClimbing && template?.climbingKind === 'workout')
 
   return (
     <div className="min-h-dvh pb-24">
@@ -193,7 +205,7 @@ export default function TemplateEditScreen() {
           />
         </div>
 
-        {isStrength ? (
+        {showExercises && (
           <div className="space-y-3">
             <p className="text-sm font-medium text-muted-foreground">Exercises</p>
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
@@ -224,7 +236,9 @@ export default function TemplateEditScreen() {
               <Plus className="size-4" /> Add exercise
             </Button>
           </div>
-        ) : (
+        )}
+
+        {isCardio && (
           <div className="space-y-5">
             <div className="space-y-2">
               <Label>Activity</Label>
@@ -282,6 +296,24 @@ export default function TemplateEditScreen() {
                 }}
               />
             </div>
+          </div>
+        )}
+
+        {isClimbing && (
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-muted-foreground">Hangboard</p>
+            {hangSets.length === 0 && (
+              <p className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+                No hangs yet — add grip/edge/duration sets below.
+              </p>
+            )}
+            <HangboardSetsEditor
+              value={hangSets}
+              onChange={(v) => {
+                setHangSets(v)
+                setDirty(true)
+              }}
+            />
           </div>
         )}
       </div>

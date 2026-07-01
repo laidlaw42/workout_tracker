@@ -86,7 +86,8 @@ export default function TemplateDetailScreen() {
           ))}
         </div>
 
-        {template.type === 'strength' ? (
+        {(template.type === 'strength' ||
+          (template.type === 'climbing' && template.climbingKind === 'workout')) && (
           <ol className="space-y-2">
             {template.exercises.map((ex, i) => (
               <li
@@ -98,7 +99,9 @@ export default function TemplateDetailScreen() {
               </li>
             ))}
           </ol>
-        ) : (
+        )}
+
+        {template.type === 'cardio' && (
           <div className="space-y-3">
             <div className="rounded-xl border border-border bg-card p-3 text-sm">
               <p className="font-medium">{ACTIVITY_LABELS[template.cardioActivity ?? 'other']}</p>
@@ -130,6 +133,26 @@ export default function TemplateDetailScreen() {
                 ))}
               </div>
             ) : null}
+          </div>
+        )}
+
+        {template.type === 'climbing' && (template.hangboardSets?.length ?? 0) > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-muted-foreground">Hangboard</p>
+            {template.hangboardSets!.map((h) => (
+              <div key={h.id} className="rounded-xl border border-border bg-card p-3 text-sm">
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="font-medium">{h.gripType}</span>
+                  <span className="shrink-0 text-muted-foreground">
+                    {h.sets} × {h.durationSeconds}s
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {h.edgeDepthMm}mm edge · {h.weightKg >= 0 ? '+' : ''}
+                  {h.weightKg}kg · {h.restSeconds}s rest
+                </p>
+              </div>
+            ))}
           </div>
         )}
       </div>

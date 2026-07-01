@@ -7,6 +7,7 @@ import { deleteTemplate, getTemplatesByType, upsertTemplate } from '@/db/helpers
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { TemplateCard } from '@/components/TemplateCard'
 import { ExerciseLibrary } from '@/components/ExerciseLibrary'
+import { ClimbingQuickStarts } from '@/components/ClimbingQuickStarts'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -29,14 +30,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import type { WorkoutTemplate } from '@/types'
+import type { DisciplineType, WorkoutTemplate } from '@/types'
 
-type Filter = 'all' | 'strength' | 'cardio'
+type Filter = 'all' | DisciplineType
+type NewKind = 'strength' | 'cardio' | 'hangboard' | 'workout'
 
 const OPTIONS: { value: Filter; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'strength', label: 'Strength' },
   { value: 'cardio', label: 'Cardio' },
+  { value: 'climbing', label: 'Climbing' },
 ]
 
 export default function LibraryScreen() {
@@ -44,13 +47,13 @@ export default function LibraryScreen() {
   const [params] = useSearchParams()
   const initial = params.get('type')
   const [filter, setFilter] = useState<Filter>(
-    initial === 'strength' || initial === 'cardio' ? initial : 'all',
+    initial === 'strength' || initial === 'cardio' || initial === 'climbing' ? initial : 'all',
   )
   const [view, setView] = useState<'workouts' | 'exercises'>('workouts')
   const [toDelete, setToDelete] = useState<WorkoutTemplate | null>(null)
   const [newOpen, setNewOpen] = useState(false)
   const [newName, setNewName] = useState('')
-  const [newType, setNewType] = useState<'strength' | 'cardio'>('strength')
+  const [newType, setNewType] = useState<NewKind>('strength')
 
   const templates = useLiveQuery(
     () => getTemplatesByType(filter === 'all' ? undefined : filter),
@@ -58,21 +61,45 @@ export default function LibraryScreen() {
   )
 
   async function createTemplate() {
+    const name = newName.trim() || 'New workout'
+    const draft =
+      newType === 'strength'
+        ? { name, type: 'strength' as const, tags: [], exercises: [] }
+        : newType === 'cardio'
+          ? { name, type: 'cardio' as const, tags: [], exercises: [], cardioActivity: 'run' as const }
+          : {
+              name,
+              type: 'climbing' as const,
+              tags: [],
+              exercises: [],
+              climbingKind: newType === 'hangboard' ? ('hangboard' as const) : ('workout' as const),
+              hangboardSets: [],
+            }
     try {
-      const id = await upsertTemplate({
-        name: newName.trim() || 'New workout',
-        type: newType,
-        tags: [],
-        exercises: [],
-        cardioActivity: newType === 'cardio' ? 'run' : undefined,
-      })
+      const id = await upsertTemplate(draft)
       setNewOpen(false)
       setNewName('')
-      setNewType('strength')
       navigate(`/library/${id}/edit`)
     } catch {
       toast.error('Could not create template')
     }
+  }
+
+  const climbingCreate = newType === 'hangboard' || newType === 'workout'
+  const newTypeOptions: { value: NewKind; label: string }[] = climbingCreate
+    ? [
+        { value: 'hangboard', label: 'Hangboard' },
+        { value: 'workout', label: 'Climbing workout' },
+      ]
+    : [
+        { value: 'strength', label: 'Strength' },
+        { value: 'cardio', label: 'Cardio' },
+      ]
+
+  function openNew() {
+    setNewName('')
+    setNewType(filter === 'climbing' ? 'hangboard' : 'strength')
+    setNewOpen(true)
   }
 
   async function confirmDelete() {
@@ -92,7 +119,7 @@ export default function LibraryScreen() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Library</h1>
         {view === 'workouts' && (
-          <Button size="sm" onClick={() => setNewOpen(true)}>
+          <Button size="sm" onClick={openNew}>
             <Plus className="size-4" /> New
           </Button>
         )}
@@ -112,6 +139,8 @@ export default function LibraryScreen() {
       ) : (
         <>
           <SegmentedControl options={OPTIONS} value={filter} onChange={setFilter} />
+
+          {filter === 'climbing' && <ClimbingQuickStarts />}
 
           {templates === undefined ? (
             <div className="space-y-2">
@@ -147,7 +176,7 @@ export default function LibraryScreen() {
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>New workout</DialogTitle>
+            <DialogTitle>{climbingCreate ? 'New climbing workout' : 'New workout'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -162,14 +191,7 @@ export default function LibraryScreen() {
             </div>
             <div className="space-y-2">
               <Label>Type</Label>
-              <SegmentedControl
-                options={[
-                  { value: 'strength', label: 'Strength' },
-                  { value: 'cardio', label: 'Cardio' },
-                ]}
-                value={newType}
-                onChange={setNewType}
-              />
+              <SegmentedControl options={newTypeOptions} value={newType} onChange={setNewType} />
             </div>
           </div>
           <DialogFooter>

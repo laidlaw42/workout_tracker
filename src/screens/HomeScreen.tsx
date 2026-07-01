@@ -1,8 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { toast } from 'sonner'
 import { Activity, Dumbbell, Flame, Mountain, Settings } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
-import { createSession, getAllSessions } from '@/db/helpers'
+import { getAllSessions } from '@/db/helpers'
 import { computeStreak } from '@/lib/streak'
 import { formatLongDate, greeting } from '@/lib/date'
 import { cn } from '@/lib/utils'
@@ -16,20 +15,6 @@ export default function HomeScreen() {
   const loading = sessions === undefined
   const streak = sessions ? computeStreak(sessions) : 0
   const recent = sessions?.slice(0, 5) ?? []
-
-  async function startClimbing() {
-    try {
-      const id = await createSession({
-        type: 'climbing',
-        templateName: 'Climbing session',
-        startedAt: Date.now(),
-        modifiedFromTemplate: false,
-      })
-      navigate(`/session/climbing/${id}`)
-    } catch {
-      toast.error('Could not start climbing session')
-    }
-  }
 
   return (
     <div className="space-y-6 p-4 pt-[calc(env(safe-area-inset-top)+1rem)]">
@@ -80,7 +65,7 @@ export default function HomeScreen() {
             label="Climbing"
             icon={Mountain}
             className="bg-green-500/15 text-green-300"
-            onClick={startClimbing}
+            onClick={() => navigate('/library?type=climbing')}
           />
         </div>
       </section>
