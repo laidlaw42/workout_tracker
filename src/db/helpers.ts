@@ -8,11 +8,13 @@ import type {
   ClimbingStyle,
   DisciplineType,
   Exercise,
+  HangboardSet,
   LoggedCardio,
   LoggedHang,
   LoggedSet,
   PersonalRecord,
   PRType,
+  TemplateExercise,
   WorkoutSession,
   WorkoutTemplate,
 } from '@/types'
@@ -167,6 +169,100 @@ export async function updateSession(
 export async function endSession(id: string): Promise<void> {
   return run('endSession', async () => {
     await db.sessions.update(id, { endedAt: Date.now() })
+  })
+}
+
+// Reconstruct a workout "plan" from a past session's logged data.
+function planExercisesFromSets(sets: LoggedSet[]): TemplateExercise[] {
+  const order: string[] = []
+  const groups = new Map<string, LoggedSet[]>()
+  for (const s of [...sets].sort((a, b) => a.loggedAt - b.loggedAt)) {
+    if (!groups.has(s.exerciseId)) {
+      groups.set(s.exerciseId, [])
+      order.push(s.exerciseId)
+    }
+    groups.get(s.exerciseId)!.push(s)
+  }
+  return order.map((exId, i) => {
+    const g = groups.get(exId)!
+    return {
+      exerciseId: exId,
+      exerciseName: g[0].exerciseName,
+      order: i,
+      defaultSets: g.length,
+      defaultReps: g[0].targetReps ?? g[0].actualReps,
+      defaultRestSeconds: g[0].restTakenSeconds ?? 90,
+    }
+  })
+}
+
+function planHangsFromHangs(hangs: LoggedHang[]): HangboardSet[] {
+  const key = (h: LoggedHang) =>
+    `${h.gripType}|${h.edgeDepthMm}|${h.targetDurationSeconds}|${h.weightKg}`
+  const order: string[] = []
+  const groups = new Map<string, LoggedHang[]>()
+  for (const h of [...hangs].sort((a, b) => a.loggedAt - b.loggedAt)) {
+    const k = key(h)
+    if (!groups.has(k)) {
+      groups.set(k, [])
+      order.push(k)
+    }
+    groups.get(k)!.push(h)
+  }
+  return order.map((k, i) => {
+    const first = groups.get(k)![0]
+    return {
+      id: generateId(),
+      gripType: first.gripType,
+      edgeDepthMm: first.edgeDepthMm,
+      durationSeconds: first.targetDurationSeconds,
+      weightKg: first.weightKg,
+      sets: groups.get(k)!.length,
+      restSeconds: first.restTakenSeconds ?? 60,
+      order: i,
+    }
+  })
+}
+
+// Starts a fresh session pre-loaded from a past session (its plan is snapshotted
+// onto the new session). Does not modify the source or any template.
+export async function repeatSession(sourceId: string): Promise<string> {
+  return run('repeatSession', async () => {
+    const src = await db.sessions.get(sourceId)
+    if (!src) throw new Error('source session not found')
+    const base: Omit<WorkoutSession, 'id'> = {
+      type: src.type,
+      templateName: src.templateName,
+      startedAt: Date.now(),
+      modifiedFromTemplate: false,
+    }
+    if (src.type === 'strength') {
+      base.plannedExercises = planExercisesFromSets(await getSetsForSession(sourceId))
+    } else if (src.type === 'cardio') {
+      const c = await getCardioForSession(sourceId)
+      if (c) {
+        base.plannedActivity = c.activityType
+        if (c.intervals?.length) {
+          base.plannedIntervals = [
+            {
+              repeat: 1,
+              steps: c.intervals.map((iv) => ({
+                label: iv.label,
+                durationSeconds: iv.durationSeconds,
+              })),
+            },
+          ]
+        }
+      }
+    } else {
+      const pe = planExercisesFromSets(await getSetsForSession(sourceId))
+      const ph = planHangsFromHangs(await getHangsForSession(sourceId))
+      if (pe.length) base.plannedExercises = pe
+      if (ph.length) base.plannedHangs = ph
+    }
+    const id = generateId()
+    await db.sessions.put({ ...base, id })
+    return id
   })
 }
 

@@ -115,6 +115,12 @@ export interface WorkoutSession {
   // climbing-only metadata
   gym?: string
   crag?: string
+  // Plan snapshot for a "repeat" session (created from a past session, not a
+  // template). Session screens read these when there is no linked template.
+  plannedExercises?: TemplateExercise[]
+  plannedHangs?: HangboardSet[]
+  plannedIntervals?: IntervalBlock[]
+  plannedActivity?: CardioActivityType
 }
 
 // ---------------------------------------------------------------------------

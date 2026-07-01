@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Check, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Check, Pencil, Plus, Repeat, Trash2 } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import {
   addSet,
@@ -13,6 +13,7 @@ import {
   getRoutesForSession,
   getSessionById,
   getSetsForSession,
+  repeatSession,
   updateCardio,
   updateSession,
   updateSet,
@@ -106,6 +107,16 @@ export default function SessionDetailScreen() {
     }
   }
 
+  async function useAsWorkout() {
+    if (!session) return
+    try {
+      const newId = await repeatSession(id)
+      navigate(`/session/${session.type}/${newId}`)
+    } catch {
+      toast.error('Could not start workout')
+    }
+  }
+
   async function handleDeleteSession() {
     try {
       await deleteSession(id)
@@ -171,6 +182,12 @@ export default function SessionDetailScreen() {
           <span>{fullDate(session.startedAt)}</span>
           <span>· {formatWorkoutLength(durationSeconds)}</span>
         </div>
+
+        {!editing && (
+          <Button variant="outline" className="w-full" onClick={useAsWorkout}>
+            <Repeat className="size-4" /> Use as workout
+          </Button>
+        )}
 
         {session.type === 'strength' && (
           <StrengthDetail

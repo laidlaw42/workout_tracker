@@ -74,32 +74,35 @@ export default function ClimbingSessionScreen() {
     if (session && session.type !== 'climbing') navigate('/home', { replace: true })
   }, [session, navigate])
 
-  const kind = template?.climbingKind
+  // Plan comes from the linked template (workout kind) or, for a repeat session,
+  // the snapshot on the session itself.
+  const planExercises =
+    template?.climbingKind === 'workout' ? template.exercises : session?.plannedExercises
+  const planHangs = template?.hangboardSets ?? session?.plannedHangs
   const exercises = useMemo<WorkExercise[]>(
     () =>
-      kind === 'workout'
-        ? [...(template?.exercises ?? [])]
-            .sort((a, b) => a.order - b.order)
-            .map((e) => ({
-              uid: `${e.exerciseId}-${e.order}`,
-              exerciseId: e.exerciseId,
-              exerciseName: e.exerciseName,
-              targetSets: e.defaultSets,
-              targetReps: e.defaultReps,
-              restSeconds: e.defaultRestSeconds,
-              skipped: false,
-            }))
-        : [],
-    [kind, template?.exercises],
+      [...(planExercises ?? [])]
+        .sort((a, b) => a.order - b.order)
+        .map((e) => ({
+          uid: `${e.exerciseId}-${e.order}`,
+          exerciseId: e.exerciseId,
+          exerciseName: e.exerciseName,
+          targetSets: e.defaultSets,
+          targetReps: e.defaultReps,
+          restSeconds: e.defaultRestSeconds,
+          skipped: false,
+        })),
+    [planExercises],
   )
   const hangSets = useMemo<HangboardSet[]>(
-    () => [...(template?.hangboardSets ?? [])].sort((a, b) => a.order - b.order),
-    [template?.hangboardSets],
+    () => [...(planHangs ?? [])].sort((a, b) => a.order - b.order),
+    [planHangs],
   )
 
   const showExercises = exercises.length > 0
   const showHangs = hangSets.length > 0
-  const showRoutes = !template || kind === 'workout'
+  // Routes for plain (no plan) or workout (has exercises); hangboard-only hides them.
+  const showRoutes = !showHangs || showExercises
 
   // Exercise logging (climbing-workout kind)
   const setsByExercise = useMemo(() => {

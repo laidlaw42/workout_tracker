@@ -55,9 +55,10 @@ export default function CardioSessionScreen() {
 
   const clock = useSessionTimer(session?.startedAt ?? Date.now())
   const elapsed = clock.elapsed
-  const timer = useIntervalTimer(template?.intervals ?? [], elapsed)
+  const timer = useIntervalTimer(template?.intervals ?? session?.plannedIntervals ?? [], elapsed)
 
-  const activity: CardioActivityType = template?.cardioActivity ?? 'other'
+  const activity: CardioActivityType =
+    template?.cardioActivity ?? session?.plannedActivity ?? 'other'
   const distanceKm = distance.trim() === '' ? undefined : Number(distance)
   const paceSecPerKm =
     distanceKm && distanceKm > 0 && !Number.isNaN(distanceKm) ? elapsed / distanceKm : undefined

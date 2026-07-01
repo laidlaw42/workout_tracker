@@ -60,11 +60,13 @@ export default function StrengthSessionScreen() {
   const timer = useSessionTimer(session?.startedAt ?? Date.now())
   const rest = useRestTimer()
 
-  // Build the working list from the template once.
+  // Build the working list once, from the linked template or (for a repeat
+  // session) the plan snapshotted onto the session.
   useEffect(() => {
-    if (template && !inited) {
+    if (session && template !== undefined && !inited) {
+      const plan = template?.exercises ?? session.plannedExercises ?? []
       setWork(
-        [...template.exercises]
+        [...plan]
           .sort((a, b) => a.order - b.order)
           .map((e) => ({
             uid: generateId(),
@@ -78,7 +80,7 @@ export default function StrengthSessionScreen() {
       )
       setInited(true)
     }
-  }, [template, inited])
+  }, [session, template, inited])
 
   const setsByExercise = useMemo(() => {
     const map = new Map<string, LoggedSet[]>()
