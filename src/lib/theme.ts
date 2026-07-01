@@ -25,6 +25,16 @@ export const THEMES: ThemeOption[] = [
   { id: 'gruvbox-light', label: 'Gruvbox Light', dark: false },
   { id: 'emerald-dark', label: 'Emerald Dark', dark: true },
   { id: 'emerald-light', label: 'Emerald Light', dark: false },
+  { id: 'bubblegum-dark', label: 'Bubblegum Dark', dark: true },
+  { id: 'bubblegum-light', label: 'Bubblegum Light', dark: false },
+  { id: 'synthwave-dark', label: 'Synthwave Dark', dark: true },
+  { id: 'synthwave-light', label: 'Synthwave Light', dark: false },
+  { id: 'amethyst-dark', label: 'Amethyst Dark', dark: true },
+  { id: 'amethyst-light', label: 'Amethyst Light', dark: false },
+  { id: 'crimson-dark', label: 'Crimson Dark', dark: true },
+  { id: 'crimson-light', label: 'Crimson Light', dark: false },
+  { id: 'coral-dark', label: 'Coral Dark', dark: true },
+  { id: 'coral-light', label: 'Coral Light', dark: false },
 ]
 
 /** Theme ids whose `.dark` class should be toggled on. Kept in sync with the
