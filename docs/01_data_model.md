@@ -17,16 +17,19 @@ export type BoulderTick = 'onsight' | 'flash' | 'send' | 'working' | 'repeat' | 
 export type RopedTick = 'onsight' | 'flash' | 'clean' | 'redpoint' | 'pink_point' | 'hang_dog' | 'attempt' | 'retreat'
 
 export type ClimbingTick = BoulderTick | RopedTick
+
+export type ClimbingKind = 'hangboard' | 'workout'  // climbing template flavours
 ```
 
 ### Exercise library
 
 ```ts
 export interface Exercise {
-  id: string                        // uuid
+  id: string                        // uuid or stable slug (ex_*) for built-ins
   name: string
   muscleGroups: string[]            // e.g. ['chest', 'triceps']
   trackingType: 'reps' | 'duration' | 'distance'
+  tags: string[]                    // free-form, lower-cased on save
   notes?: string
   createdAt: number                 // timestamp ms
 }
@@ -48,9 +51,9 @@ export interface TemplateExercise {
 }
 
 export interface WorkoutTemplate {
-  id: string                        // uuid
+  id: string                        // uuid or stable slug (tpl_*) for built-ins
   name: string                      // e.g. 'Upper A'
-  type: 'strength' | 'cardio'
+  type: DisciplineType              // 'strength' | 'cardio' | 'climbing'
   tags: string[]                    // e.g. ['push', 'legs']
   exercises: TemplateExercise[]     // ordered array
   // cardio-only fields
@@ -58,8 +61,23 @@ export interface WorkoutTemplate {
   targetDurationSeconds?: number
   targetDistanceKm?: number
   intervals?: IntervalBlock[]
+  // climbing-only fields
+  climbingKind?: ClimbingKind       // 'hangboard' | 'workout'
+  hangboardSets?: HangboardSet[]
   lastUsedAt?: number
   createdAt: number
+}
+
+// A hangboard protocol row (one grip position × N hangs).
+export interface HangboardSet {
+  id: string
+  gripType: string                  // e.g. 'Half crimp'
+  edgeDepthMm: number
+  durationSeconds: number           // hang duration
+  weightKg: number                  // + added / - assisted
+  sets: number                      // number of hangs
+  restSeconds: number               // 180 repeaters / 300 max hangs (see 05_reference)
+  order: number
 }
 
 // An interval block = one round-group. Its steps run in order, repeated `repeat`
@@ -91,6 +109,13 @@ export interface WorkoutSession {
   // climbing-only metadata (kept on the session — no separate climbing table)
   gym?: string
   crag?: string
+  // Plan snapshot for a "repeat" session (created from a past session, not a
+  // template) and for mid-session cardio edits. Session screens read these when
+  // there is no linked template.
+  plannedExercises?: TemplateExercise[]
+  plannedHangs?: HangboardSet[]
+  plannedIntervals?: IntervalBlock[]
+  plannedActivity?: CardioActivityType
 }
 ```
 
@@ -176,18 +201,55 @@ export interface PersonalRecord {
 
 > Grade PRs are keyed by `climbingStyle` (bouldering uses `vgrade`, top_rope/lead use `ewbanks`), since V-grades and Ewbanks numbers are not comparable to each other.
 
+### Logged hangs (hangboard)
+
+```ts
+export interface LoggedHang {
+  id: string
+  sessionId: string
+  hangSetId?: string                // FK → the HangboardSet row this hang belongs to
+  gripType: string
+  edgeDepthMm: number
+  setNumber: number                 // 1-indexed
+  targetDurationSeconds: number
+  actualDurationSeconds?: number
+  weightKg: number
+  restTakenSeconds?: number
+  skipped: boolean
+  loggedAt: number
+}
+```
+
+> `hangSetId` scopes completion to a specific `HangboardSet` so two rows with identical grip/edge/duration advance independently.
+
+### Planned workouts (calendar)
+
+```ts
+export interface PlannedWorkout {
+  id: string
+  templateId: string
+  templateName: string              // denormalised for display
+  disciplineType: DisciplineType
+  plannedDate: string               // 'YYYY-MM-DD' (local) — sorts/range-queries as a string
+  plannedTimeOfDay?: number         // minutes since midnight
+  notes?: string
+  completedSessionId?: string       // set when a matching session is logged that day
+  createdAt: number
+}
+```
+
 ---
 
 ## Dexie schema — `src/db/db.ts`
 
-Seven tables. Compound indexes back the two hot read paths — "last set for an exercise" and "sets/routes for a session ordered by time" — so those never sort in memory.
+Nine data tables plus `meta`. Compound indexes back the hot read paths — "last set for an exercise" and "sets/routes/hangs for a session ordered by time" — so those never sort in memory.
 
 ```ts
 import Dexie, { type Table } from 'dexie'
 import type {
   Exercise, WorkoutTemplate, WorkoutSession,
   LoggedSet, LoggedCardio,
-  ClimbingRoute, PersonalRecord
+  ClimbingRoute, LoggedHang, PersonalRecord, PlannedWorkout
 } from '@/types'
 
 export class WorkoutDB extends Dexie {
@@ -197,7 +259,10 @@ export class WorkoutDB extends Dexie {
   sets!: Table<LoggedSet>
   cardio!: Table<LoggedCardio>
   routes!: Table<ClimbingRoute>
+  hangs!: Table<LoggedHang>
   prs!: Table<PersonalRecord>
+  plannedWorkouts!: Table<PlannedWorkout>
+  meta!: Table<MetaRow>
 
   constructor() {
     super('WorkoutTrackerDB')
@@ -214,6 +279,10 @@ export class WorkoutDB extends Dexie {
     this.version(2).stores({ meta: '&key' })
     // v3 adds hangboard hang logs.
     this.version(3).stores({ hangs: '&id, sessionId, [sessionId+loggedAt]' })
+    // v4 adds the calendar's planned workouts.
+    this.version(4).stores({
+      plannedWorkouts: '&id, plannedDate, templateId, completedSessionId',
+    })
   }
 }
 
@@ -237,7 +306,7 @@ export async function deleteExercise(id: string): Promise<void>
 
 // Templates
 export async function getAllTemplates(): Promise<WorkoutTemplate[]>
-export async function getTemplatesByType(type?: 'strength' | 'cardio'): Promise<WorkoutTemplate[]>
+export async function getTemplatesByType(type?: DisciplineType): Promise<WorkoutTemplate[]>
 export async function getTemplate(id: string): Promise<WorkoutTemplate | undefined>
 export async function upsertTemplate(t: Omit<WorkoutTemplate, 'id' | 'createdAt'> & { id?: string }): Promise<string>
 export async function deleteTemplate(id: string): Promise<void>
@@ -251,6 +320,8 @@ export async function deleteSession(id: string): Promise<void>  // cascades to s
 export async function getRecentSessions(limit?: number): Promise<WorkoutSession[]>
 export async function getAllSessions(type?: DisciplineType): Promise<WorkoutSession[]>  // ordered by startedAt desc; for History
 export async function getSessionById(id: string): Promise<WorkoutSession | undefined>
+export async function repeatSession(sourceId: string): Promise<string>  // "use as workout" — snapshots a past session's plan onto a new one
+// endSession() also best-effort links a same-day, same-template PlannedWorkout via completedSessionId
 
 // Sets
 export async function addSet(s: Omit<LoggedSet, 'id'>): Promise<string>
@@ -285,9 +356,18 @@ export async function getPRsForExercise(exerciseName: string): Promise<PersonalR
 export async function getPRsForSession(sessionId: string): Promise<PersonalRecord[]>  // for the summary screen
 export async function getGradePRForStyle(style: ClimbingStyle): Promise<PersonalRecord | undefined>
 
-// Export / import
-export async function exportAllData(): Promise<string>   // returns JSON string
-export async function importAllData(json: string): Promise<void>  // wrapped in one Dexie transaction
+// Planned workouts (calendar)
+export async function getPlannedWorkoutsForRange(from: string, to: string): Promise<PlannedWorkout[]>
+export async function addPlannedWorkout(p: Omit<PlannedWorkout, 'id' | 'createdAt'>): Promise<string>
+export async function updatePlannedWorkout(id: string, updates: Partial<PlannedWorkout>): Promise<void>
+export async function deletePlannedWorkout(id: string): Promise<void>
+export async function linkPlanToSession(plannedId: string, sessionId: string): Promise<void>
+
+// Export / import / data management
+export async function exportAllData(): Promise<string>   // JSON string; includes plannedWorkouts
+export async function importAllData(json: string): Promise<void>  // REPLACE — one Dexie transaction
+export async function mergeData(json: string): Promise<{ inserted: number; skipped: number }>  // additive; skips existing ids, re-runs PR detection
+export async function clearAllData(): Promise<void>  // clears every table (incl. meta) → re-seeds next launch
 ```
 
 ## ID generation — `src/lib/id.ts`
@@ -315,7 +395,7 @@ Built-in exercises and templates use **stable slug ids** (`ex_*`, `tpl_*`) so th
 - **Templates** are seeded once each: the `meta` key `seededTemplateIds` records every built-in ever seeded, so a new build adds only the new ids and a user-deleted starter is never resurrected.
 - A one-time **legacy migration** (`meta.legacyMigrated`) removes the original uuid-id starter set, replaced by the stable-id set. User-created templates (uuid ids, non-starter names) are untouched.
 
-The built-in set is science-based / proven splits: Push/Pull/Legs A+B, Upper/Lower, Full Body A/B, plus Easy run, Tempo run, Zone 2 ride, Interval ride, and Rowing intervals.
+The built-in set is science-based / proven splits: Push/Pull/Legs A+B, Upper/Lower, Full Body A/B, plus Easy run, Tempo run, Zone 2 ride, Interval ride, Rowing intervals, and two hangboard protocols (Repeaters @180s, Max hangs @300s). Strength rest defaults and hangboard rest values are literature-based (see `05_reference` / comments in `seed.ts`). `BUILTIN_SET_VERSION` bumps trigger a one-time refresh of existing built-ins (preserving `createdAt`/`lastUsedAt`).
 
 **Exercise library to seed** (minimum viable set):
 

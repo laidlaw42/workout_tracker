@@ -1,6 +1,6 @@
 import { CheckCircle2, ChevronRight, Pencil, Plus, Trash2 } from 'lucide-react'
 import { DISCIPLINE_BADGE, DISCIPLINE_DOT, DISCIPLINE_LABEL } from '@/lib/discipline'
-import { formatTimeOfDay, fromDateKey, fullDayLabel } from '@/lib/date'
+import { formatTimeOfDay, fullDayLabel } from '@/lib/date'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -111,12 +111,10 @@ export function DayDetailSheet({
                         <p className="truncate font-medium">{s.templateName}</p>
                         <p className="text-xs text-muted-foreground">
                           {DISCIPLINE_LABEL[s.type]} ·{' '}
-                          {fromDateKey(dateKey ?? '').getTime()
-                            ? new Date(s.startedAt).toLocaleTimeString(undefined, {
-                                hour: 'numeric',
-                                minute: '2-digit',
-                              })
-                            : ''}
+                          {new Date(s.startedAt).toLocaleTimeString(undefined, {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                          })}
                         </p>
                       </div>
                       <ChevronRight className="size-4 shrink-0 text-muted-foreground" />

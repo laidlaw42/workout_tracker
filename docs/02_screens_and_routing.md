@@ -5,6 +5,7 @@
 ```
 /                         → Home (redirect → /home)
 /home                     → HomeScreen
+/planner                  → PlannerScreen (calendar: week / month / list)
 /library                  → LibraryScreen (workout template browser)
 /library/:id              → TemplateDetailScreen
 /library/:id/edit         → TemplateEditScreen
@@ -41,14 +42,31 @@ All routes are client-side (React Router). GitHub Pages needs a `404.html` redir
 
 ---
 
+### PlannerScreen `/planner`
+
+**Purpose:** Schedule workouts on a calendar and see planned vs completed.
+
+**Views** (pill toggle at top):
+- **Week** — 7-column grid; each day lists compact planned cards + a coloured dot per completed session. Swipe or ‹ › to change week.
+- **Month** — calendar grid; each date shows discipline dots (solid = completed session, faded = still-planned). Swipe or ‹ › to change month.
+- **List** — chronological, grouped by week (4 weeks forward + history backward); planned = outlined cards, logged sessions = filled cards.
+
+**Day-detail sheet** (tap any day): planned entries (name, discipline badge, optional time, edit/delete) + completed sessions (tap → SessionDetailScreen) + "Add to this day" → template picker → `addPlannedWorkout`.
+
+Plans live in the `plannedWorkouts` table; finishing a session best-effort links it to a same-day, same-template plan.
+
+---
+
 ### LibraryScreen `/library`
 
-**Purpose:** Browse and manage workout templates (strength + cardio only).
+**Purpose:** Browse and manage workout templates (strength, cardio, and climbing).
 
 **Shows:**
-- Filter tabs: All / Strength / Cardio
+- Filter tabs: All / Strength / Cardio / Climbing (+ tag chips)
+- Split into **Workouts** and **Exercises** tabs; exercises have their own CRUD manager
 - Template cards: name, type badge, exercise count or activity, last used date
-- "New" button (header): opens a dialog for name + type, creates an empty template, and opens its editor
+- Climbing quick-starts (Gym / Crag plain sessions) on the Climbing filter
+- "New" button (header): opens a dialog for name + kind (strength / cardio / hangboard / climbing-workout), creates an empty template, and opens its editor
 
 **Actions:**
 - Tap card → TemplateDetailScreen
@@ -108,13 +126,14 @@ All routes are client-side (React Router). GitHub Pages needs a `404.html` redir
    - Weight input (kg, numeric keyboard) + reps input
    - "Log set" button
    - Rest timer: auto-starts after logging a set, counts down, vibrates at 0
-3. Floating "Modify" button → bottom sheet for swap / skip / add set
+3. Floating "Edit workout" FAB (`ModifyFab`, shared across disciplines) → bottom sheet
 
 **Mid-session modify sheet:**
-- Swap exercise: searchable exercise picker
+- Add exercise to the workout (multi-select picker)
+- Swap current exercise: searchable exercise picker
 - Skip remaining sets for this exercise
-- Add an extra set to current exercise
-- Reorder remaining exercises
+- **Remove** current exercise ("Logged sets will be kept")
+- Reorder remaining exercises via drag (@dnd-kit/sortable)
 
 **Actions:**
 - Log set → addSet(), check PR, auto-scroll to next set
@@ -141,9 +160,12 @@ All routes are client-side (React Router). GitHub Pages needs a `404.html` redir
 
 ### ClimbingSessionScreen `/session/climbing/:id`
 
-**Purpose:** Log individual route attempts throughout a climbing session.
+**Purpose:** Log a climbing session. Handles three flavours from one screen:
+- **Plain** (gym/crag quick-start): route logging only.
+- **Hangboard** template: a Hangboard section of `HangCard`s (progress tracked per `hangSetId`); routes hidden.
+- **Climbing-workout** template (or a repeat session): a strength-style Exercises section (with the `RestTimer` between sets and the Edit-workout modify sheet) **plus** hangs and/or routes.
 
-The `WorkoutSession` (`type: 'climbing'`) already exists before this screen loads — it is created when the user taps *Climbing* on Home (see Phase 3). Routes link to it directly via `sessionId`; there is no separate climbing-session record. Optional `gym`/`crag` are edited on the session itself.
+The `WorkoutSession` (`type: 'climbing'`) already exists before this screen loads. Routes/hangs link to it via `sessionId`; there is no separate climbing-session record. Optional `gym`/`crag` are edited on the session itself. The elapsed timer runs for every flavour.
 
 **Layout:**
 1. Header: "Climbing session", elapsed timer, "Finish" button
@@ -156,11 +178,10 @@ The `WorkoutSession` (`type: 'climbing'`) already exists before this screen load
 
 **LogRouteSheet (bottom sheet):**
 - Step 1: Style selector — Bouldering / Top rope / Lead (segmented control)
-- Step 2 (bouldering): V-grade picker (VB, V0–V17) + wall angle
-- Step 2 (roped): Ewbanks grade number input + Top rope / Lead toggle
+- Step 2: grade picker — V-grade chips (VB, V0–V17) for bouldering, or the full **Ewbanks 1–39** colour-banded chip row (green/yellow/orange/red/magenta) for roped. **Wall angle** (Slab/Vertical/Overhang, optional) is offered for **every** style.
 - Step 3: Tick type picker — filtered to valid ticks for chosen style
 - Optional: route name / colour, attempts count, notes
-- "Save route" button
+- "Save route" button; editing an existing route (tap a RouteCard) pre-fills and saves via `updateRoute`
 
 **Tick type options by style:**
 - Bouldering: Onsight, Flash, Send, Working, Repeat, Dab
@@ -245,9 +266,14 @@ The `WorkoutSession` (`type: 'climbing'`) already exists before this screen load
 ### SettingsScreen `/settings`
 
 **Shows:**
-- Export data → triggers exportAllData(), downloads JSON file
-- Import data → file picker, triggers importAllData()
-- "About" section with version number (weights are kg-only in v1)
+- **You** — name field (persisted to `localStorage['user_name']`, used in the Home greeting)
+- **Theme** — 2-column grid of 28 themes (dark left / light right), applied via `applyTheme` (`data-theme` on `<html>` + `.dark` toggle, stored in `localStorage['theme']`)
+- **Data:**
+  - Export data → `exportAllData()`, downloads JSON
+  - Import data → file picker → `importAllData()` (**replaces** all data, confirmed)
+  - Import and merge → file picker → `mergeData()` (adds only new ids; toast shows counts)
+  - Clear all data → **two-step** confirmation → `clearAllData()` → toast + navigate home
+- **About** section with version number (weights are kg-only in v1)
 
 ---
 
@@ -255,9 +281,12 @@ The `WorkoutSession` (`type: 'climbing'`) already exists before this screen load
 
 | Component | Purpose |
 |---|---|
-| `BottomNav` | 4-tab nav bar fixed to bottom: Home, Library, History, Progress |
-| `SessionHeader` | Sticky header with title, elapsed timer, Finish button |
-| `RestTimer` | Countdown with haptic feedback at 0, auto-dismiss |
+| `BottomNav` | 5-tab nav bar fixed to bottom: Home, Planner, Library, History, Progress |
+| `SessionHeader` | Sticky header with title, elapsed timer, pause/resume, cancel, Finish |
+| `ModifyFab` | Shared "Edit workout" FAB — same bottom-right spot on strength, cardio, climbing |
+| `RestTimer` | Countdown with haptic feedback at 0, auto-dismiss (strength + climbing-workout) |
+| `CardioEditSheet` | Mid-session cardio editor: activity + intervals |
+| `TemplatePickerSheet` / `DayDetailSheet` | Planner: pick a template to schedule; per-day detail |
 | `GradePickerSheet` | Reusable V-grade or Ewbanks picker |
 | `TickTypePicker` | Filtered tick options for a given climbing style |
 | `ExercisePicker` | Searchable list from exercise library |

@@ -49,17 +49,23 @@ workout_tracker/
 
 The app tracks three distinct activity types, each with its own data model and session flow:
 
-1. **Strength** — pre-built templates with exercises, sets, reps, rest times. Mid-session modification allowed.
-2. **Cardio** — duration, distance, pace. Optional interval structure.
-3. **Climbing** — bouldering (V-grade) and roped (Ewbanks). Per-route tick logging with theCrag tick types.
+1. **Strength** — pre-built templates with exercises, sets, reps, rest times. Mid-session modification (add/swap/skip/remove/reorder) and an auto rest timer.
+2. **Cardio** — duration, distance, pace. Optional interval structure, editable mid-session.
+3. **Climbing** — three flavours: plain gym/crag route logging (bouldering V-grade + roped Ewbanks with theCrag tick types), **hangboard** templates (grip protocols), and climbing-**workout** templates (strength-style exercises + hangs + routes in one session).
+
+## Planning & personalisation
+
+- **Planner** — a calendar tab (week / month / list views) to schedule workouts from the template library; finishing a matching session auto-links it to its plan.
+- **Themes** — 28 built-in light/dark themes (14 families) chosen in Settings, applied via `data-theme` on `<html>`.
+- **Data tools** — JSON export, replace-import, non-destructive merge-import, and a two-step "clear all data".
 
 ## Core design constraints
 
 - Offline-first: every feature must work with no internet after first install
 - iPhone viewport: all interactive targets ≥ 44px, safe area insets respected
 - No accounts, no backend, no cloud sync (v1)
-- JSON export/import for backup and restore
-- Dark mode supported throughout
+- JSON export/import (replace or merge) for backup and restore
+- 28 light/dark themes; theme + user name persist in `localStorage`, all other data in IndexedDB
 - Weights are stored and entered in **kg only** in v1 (no unit toggle)
 - Requires a secure context (HTTPS or `localhost`) for the service worker and `crypto` — on-device LAN testing uses a dev HTTPS cert (see Phase 1)
 

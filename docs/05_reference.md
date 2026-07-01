@@ -20,7 +20,25 @@ Intermediate: 23–27
 Advanced: 28–32
 Elite: 33+
 
-Typical gym range to display in picker: 10–35 in steps of 1
+Picker displays the **full scale 1–39** as a scrollable, colour-banded chip row (`ewbanksBandClass`):
+
+| Grades | Colour |
+|---|---|
+| 1–12 | green |
+| 13–18 | yellow |
+| 19–24 | orange |
+| 25–32 | red |
+| 33–39 | magenta (fuchsia) |
+
+### Hangboard rest (finger-tendon recovery)
+
+Per the Anderson brothers (*The Rock Climber's Training Manual*) and Lattice Training:
+
+- **180s** (3 min) between repeater sets
+- **300s** (5 min) between max-recruitment / max-weight hangs
+- **480s** (8 min) between grip-position changes
+
+Seeded protocols: **Repeaters** (7s hang × 6, 180s rest) and **Max hangs** (10s hang × 5, 300s rest). New hangboard sets default to 180s.
 
 ---
 
@@ -132,7 +150,13 @@ Weights are stored and displayed in **kg only** in v1 — there is no unit conve
 
 ## Persistent state
 
-v1 stores no UI preferences in `localStorage`. All persistent data lives in IndexedDB (Dexie), and first-run seeding is detected via `await db.templates.count() === 0` — there is no `db_seeded` flag. Import restores data into the same tables, so it never triggers a re-seed.
+Two UI preferences live in `localStorage`: `theme` (theme id) and `user_name`. All workout data lives in IndexedDB (Dexie).
+
+Seed provenance is tracked in the Dexie `meta` table (`seededExerciseIds`, `seededTemplateIds`, `builtinRefreshVersion`, `legacyMigrated`), **not** a `localStorage` flag — `seedIfNeeded()` runs on every launch and is idempotent/additive. Clearing all data wipes `meta` (and removes a legacy `db_seeded` key defensively), so the built-in library re-seeds on the next launch. Replace-import restores into the same tables; merge-import only adds ids not already present and re-runs PR detection.
+
+## Themes
+
+28 built-in themes = 14 families, each with a dark and light variant, defined in `src/lib/theme.ts` (`THEMES`, ordered dark,light pairs) and `src/themes.css` (`[data-theme='…']` token blocks). `applyTheme(id)` sets `data-theme` on `<html>`, toggles `.dark` for dark ids, and stores the id. A pre-paint script in `index.html` applies the saved theme before first paint (its `darkThemes` list must stay in sync with `DARK_THEME_IDS`).
 
 ---
 
