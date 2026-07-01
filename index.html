@@ -14,7 +14,18 @@
           var t = localStorage.getItem('theme') || 'dark'
           var el = document.documentElement
           el.setAttribute('data-theme', t)
-          var darkThemes = ['dark', 'solarized-dark', 'forest-dark', 'darcula', 'nord']
+          // Keep in sync with DARK_THEME_IDS in src/lib/theme.ts
+          var darkThemes = [
+            'dark',
+            'solarized-dark',
+            'forest-dark',
+            'darcula',
+            'nord',
+            'sunset-dark',
+            'slate-dark',
+            'gruvbox-dark',
+            'emerald-dark',
+          ]
           el.classList.toggle('dark', darkThemes.indexOf(t) !== -1)
         } catch (e) {}
       })()
