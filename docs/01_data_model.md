@@ -230,6 +230,8 @@ Functions to implement (signatures only — bodies written in Phase 2):
 // Exercises
 export async function getAllExercises(): Promise<Exercise[]>
 export async function upsertExercise(e: Omit<Exercise, 'id' | 'createdAt'>): Promise<string>
+export async function updateExercise(id: string, updates: Partial<Omit<Exercise, 'id' | 'createdAt'>>): Promise<void>  // rename cascades to templates
+export async function deleteExercise(id: string): Promise<void>
 
 // Templates
 export async function getAllTemplates(): Promise<WorkoutTemplate[]>
@@ -301,7 +303,7 @@ export function generateId(): string {
 
 Built-in exercises and templates use **stable slug ids** (`ex_*`, `tpl_*`) so the starter library can grow over time. `seedIfNeeded()` is idempotent, additive, and respects user curation, all inside one `db.transaction('rw', …)`:
 
-- **Exercises** are ensured present by id every startup (safe — there is no delete-exercise UI).
+- **Exercises** are seeded once each (`meta.seededExerciseIds`), so a user-deleted exercise is never re-seeded and user edits are never clobbered.
 - **Templates** are seeded once each: the `meta` key `seededTemplateIds` records every built-in ever seeded, so a new build adds only the new ids and a user-deleted starter is never resurrected.
 - A one-time **legacy migration** (`meta.legacyMigrated`) removes the original uuid-id starter set, replaced by the stable-id set. User-created templates (uuid ids, non-starter names) are untouched.
 

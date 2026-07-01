@@ -298,13 +298,20 @@ export async function seedIfNeeded(): Promise<void> {
       await db.meta.put({ key: 'legacyMigrated', value: true })
     }
 
-    // Ensure all built-in exercises exist (stable ids; safe to keep current).
-    const haveEx = new Set((await db.exercises.toArray()).map((e) => e.id))
-    const newEx = EXERCISES.filter((e) => !haveEx.has(e.id)).map<Exercise>((e) => ({
-      ...e,
-      createdAt: now,
-    }))
-    if (newEx.length) await db.exercises.bulkPut(newEx)
+    // Seed each built-in exercise once (tracked by id), so a user-deleted
+    // exercise is never re-seeded and user edits are never clobbered.
+    const seededExIds = (await getMeta<string[]>('seededExerciseIds')) ?? []
+    const seededEx = new Set(seededExIds)
+    const unseededEx = EXERCISES.filter((e) => !seededEx.has(e.id))
+    if (unseededEx.length) {
+      const haveEx = new Set((await db.exercises.toArray()).map((e) => e.id))
+      const toInsert = unseededEx
+        .filter((e) => !haveEx.has(e.id))
+        .map<Exercise>((e) => ({ ...e, createdAt: now }))
+      if (toInsert.length) await db.exercises.bulkPut(toInsert)
+      for (const e of unseededEx) seededEx.add(e.id)
+      await db.meta.put({ key: 'seededExerciseIds', value: [...seededEx] })
+    }
 
     // Seed built-in templates once each (never resurrect user-deleted ones).
     const seededIds = (await getMeta<string[]>('seededTemplateIds')) ?? []

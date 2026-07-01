@@ -49,6 +49,35 @@ export async function upsertExercise(
   })
 }
 
+// Updates an exercise; a rename cascades to templates' denormalised names so
+// they stay in sync. Historical sets/routes keep their recorded names.
+export async function updateExercise(
+  id: string,
+  updates: Partial<Omit<Exercise, 'id' | 'createdAt'>>,
+): Promise<void> {
+  return run('updateExercise', async () => {
+    await db.transaction('rw', [db.exercises, db.templates], async () => {
+      await db.exercises.update(id, updates)
+      if (updates.name) {
+        const templates = await db.templates.toArray()
+        for (const t of templates) {
+          if (t.exercises.some((e) => e.exerciseId === id)) {
+            await db.templates.update(t.id, {
+              exercises: t.exercises.map((e) =>
+                e.exerciseId === id ? { ...e, exerciseName: updates.name! } : e,
+              ),
+            })
+          }
+        }
+      }
+    })
+  })
+}
+
+export async function deleteExercise(id: string): Promise<void> {
+  return run('deleteExercise', () => db.exercises.delete(id))
+}
+
 // ---------------------------------------------------------------------------
 // Templates
 // ---------------------------------------------------------------------------

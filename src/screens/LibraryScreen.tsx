@@ -6,6 +6,7 @@ import { useLiveQuery } from '@/hooks/useDb'
 import { deleteTemplate, getTemplatesByType, upsertTemplate } from '@/db/helpers'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { TemplateCard } from '@/components/TemplateCard'
+import { ExerciseLibrary } from '@/components/ExerciseLibrary'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -45,6 +46,7 @@ export default function LibraryScreen() {
   const [filter, setFilter] = useState<Filter>(
     initial === 'strength' || initial === 'cardio' ? initial : 'all',
   )
+  const [view, setView] = useState<'workouts' | 'exercises'>('workouts')
   const [toDelete, setToDelete] = useState<WorkoutTemplate | null>(null)
   const [newOpen, setNewOpen] = useState(false)
   const [newName, setNewName] = useState('')
@@ -89,40 +91,58 @@ export default function LibraryScreen() {
     <div className="space-y-4 p-4 pt-[calc(env(safe-area-inset-top)+1rem)]">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Library</h1>
-        <Button size="sm" onClick={() => setNewOpen(true)}>
-          <Plus className="size-4" /> New
-        </Button>
+        {view === 'workouts' && (
+          <Button size="sm" onClick={() => setNewOpen(true)}>
+            <Plus className="size-4" /> New
+          </Button>
+        )}
       </div>
-      <SegmentedControl options={OPTIONS} value={filter} onChange={setFilter} />
 
-      {templates === undefined ? (
-        <div className="space-y-2">
-          <Skeleton className="h-16 w-full rounded-xl" />
-          <Skeleton className="h-16 w-full rounded-xl" />
-          <Skeleton className="h-16 w-full rounded-xl" />
-        </div>
-      ) : templates.length === 0 ? (
-        <EmptyState
-          icon={Dumbbell}
-          title="No templates here"
-          subtitle="Templates you create will appear in this list."
-        />
+      <SegmentedControl
+        options={[
+          { value: 'workouts', label: 'Workouts' },
+          { value: 'exercises', label: 'Exercises' },
+        ]}
+        value={view}
+        onChange={setView}
+      />
+
+      {view === 'exercises' ? (
+        <ExerciseLibrary />
       ) : (
-        <div className="space-y-2">
-          {templates.map((t) => (
-            <TemplateCard
-              key={t.id}
-              template={t}
-              onOpen={() => navigate(`/library/${t.id}`)}
-              onDelete={() => setToDelete(t)}
-            />
-          ))}
-        </div>
-      )}
+        <>
+          <SegmentedControl options={OPTIONS} value={filter} onChange={setFilter} />
 
-      <p className="px-1 text-center text-xs text-muted-foreground">
-        Tip: press and hold a template to delete it.
-      </p>
+          {templates === undefined ? (
+            <div className="space-y-2">
+              <Skeleton className="h-16 w-full rounded-xl" />
+              <Skeleton className="h-16 w-full rounded-xl" />
+              <Skeleton className="h-16 w-full rounded-xl" />
+            </div>
+          ) : templates.length === 0 ? (
+            <EmptyState
+              icon={Dumbbell}
+              title="No workouts here"
+              subtitle="Tap New to create a workout routine."
+            />
+          ) : (
+            <div className="space-y-2">
+              {templates.map((t) => (
+                <TemplateCard
+                  key={t.id}
+                  template={t}
+                  onOpen={() => navigate(`/library/${t.id}`)}
+                  onDelete={() => setToDelete(t)}
+                />
+              ))}
+            </div>
+          )}
+
+          <p className="px-1 text-center text-xs text-muted-foreground">
+            Tip: press and hold a workout to delete it.
+          </p>
+        </>
+      )}
 
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent>
