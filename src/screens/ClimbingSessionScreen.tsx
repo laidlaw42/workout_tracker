@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Mountain, Plus, SlidersHorizontal } from 'lucide-react'
+import { Mountain, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { generateId } from '@/lib/id'
@@ -25,6 +25,7 @@ import { RouteCard } from '@/components/RouteCard'
 import { LogRouteSheet } from '@/components/LogRouteSheet'
 import { ExerciseCard, type LoggedSetInput, type WorkExercise } from '@/components/ExerciseCard'
 import { HangCard } from '@/components/HangCard'
+import { ModifyFab } from '@/components/ModifyFab'
 import { ModifySheet } from '@/components/ModifySheet'
 import { ExercisePicker } from '@/components/ExercisePicker'
 import { EmptyState } from '@/components/EmptyState'
@@ -359,17 +360,7 @@ export default function ClimbingSessionScreen() {
 
         {showExercises && (
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-muted-foreground">Exercises</p>
-              <button
-                type="button"
-                onClick={() => setModifyOpen(true)}
-                aria-label="Modify exercises"
-                className="flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground"
-              >
-                <SlidersHorizontal className="size-4" />
-              </button>
-            </div>
+            <p className="text-sm font-medium text-muted-foreground">Exercises</p>
             {work.map((ex) => (
               <ExerciseCard
                 key={ex.uid}
@@ -434,6 +425,7 @@ export default function ClimbingSessionScreen() {
 
       {showExercises && (
         <>
+          <ModifyFab onClick={() => setModifyOpen(true)} />
           <ModifySheet
             open={modifyOpen}
             onOpenChange={setModifyOpen}

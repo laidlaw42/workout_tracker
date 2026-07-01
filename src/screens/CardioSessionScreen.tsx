@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useLiveQuery } from '@/hooks/useDb'
@@ -24,13 +24,15 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { SessionHeader } from '@/components/SessionHeader'
+import { ModifyFab } from '@/components/ModifyFab'
+import { CardioEditSheet } from '@/components/CardioEditSheet'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { formatElapsed, formatPace } from '@/lib/formatDuration'
-import type { CardioActivityType, CompletedInterval } from '@/types'
+import type { CardioActivityType, CompletedInterval, IntervalBlock } from '@/types'
 
 const ACTIVITY_LABELS: Record<CardioActivityType, string> = {
   run: 'Run',
@@ -52,13 +54,36 @@ export default function CardioSessionScreen() {
   const [distance, setDistance] = useState('')
   const [notes, setNotes] = useState('')
   const [confirmCancel, setConfirmCancel] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+
+  // Activity + intervals are editable mid-session, so they live in state. Seed
+  // once from the session's own plan (edits are stored there) or the linked
+  // template. Wait for a referenced template to load before seeding, otherwise
+  // a transient null would lock in an empty plan.
+  const [activity, setActivity] = useState<CardioActivityType>('other')
+  const [intervals, setIntervals] = useState<IntervalBlock[]>([])
+  const [inited, setInited] = useState(false)
+  useEffect(() => {
+    if (inited || !session || template === undefined) return
+    if (session.templateId && !template) return
+    setActivity(session.plannedActivity ?? template?.cardioActivity ?? 'other')
+    setIntervals(session.plannedIntervals ?? template?.intervals ?? [])
+    setInited(true)
+  }, [session, template, inited])
 
   const clock = useSessionTimer(session?.startedAt ?? Date.now())
   const elapsed = clock.elapsed
-  const timer = useIntervalTimer(template?.intervals ?? session?.plannedIntervals ?? [], elapsed)
+  const timer = useIntervalTimer(intervals, elapsed)
 
-  const activity: CardioActivityType =
-    template?.cardioActivity ?? session?.plannedActivity ?? 'other'
+  function updateActivity(a: CardioActivityType) {
+    setActivity(a)
+    void updateSession(id, { plannedActivity: a })
+  }
+  function updateIntervals(iv: IntervalBlock[]) {
+    setIntervals(iv)
+    void updateSession(id, { plannedIntervals: iv })
+  }
+
   const distanceKm = distance.trim() === '' ? undefined : Number(distance)
   const paceSecPerKm =
     distanceKm && distanceKm > 0 && !Number.isNaN(distanceKm) ? elapsed / distanceKm : undefined
@@ -216,6 +241,17 @@ export default function CardioSessionScreen() {
           Finish session
         </Button>
       </div>
+
+      <ModifyFab onClick={() => setEditOpen(true)} />
+
+      <CardioEditSheet
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        activity={activity}
+        onActivityChange={updateActivity}
+        intervals={intervals}
+        onIntervalsChange={updateIntervals}
+      />
 
       <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
         <AlertDialogContent>

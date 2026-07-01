@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { SlidersHorizontal } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { useRestTimer } from '@/hooks/useRestTimer'
@@ -21,6 +20,7 @@ import { generateId } from '@/lib/id'
 import { SessionHeader } from '@/components/SessionHeader'
 import { ExerciseCard, type LoggedSetInput, type WorkExercise } from '@/components/ExerciseCard'
 import { RestTimer } from '@/components/RestTimer'
+import { ModifyFab } from '@/components/ModifyFab'
 import { ModifySheet } from '@/components/ModifySheet'
 import { ExercisePicker } from '@/components/ExercisePicker'
 import { Button } from '@/components/ui/button'
@@ -337,17 +337,8 @@ export default function StrengthSessionScreen() {
         )}
       </div>
 
-      {/* Modify FAB — lifted above the rest bar when it's showing. */}
-      <button
-        type="button"
-        onClick={() => setModifyOpen(true)}
-        className={`fixed right-4 z-40 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-all ${
-          rest.isRunning ? 'bottom-28' : 'bottom-6'
-        }`}
-        aria-label="Modify workout"
-      >
-        <SlidersHorizontal className="size-6" />
-      </button>
+      {/* Edit-workout FAB — lifted above the rest bar when it's showing. */}
+      <ModifyFab onClick={() => setModifyOpen(true)} raised={rest.isRunning} />
 
       {rest.isRunning && (
         <RestTimer remaining={rest.remaining} duration={rest.duration} onSkip={rest.skip} />
