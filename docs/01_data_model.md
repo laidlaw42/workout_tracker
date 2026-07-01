@@ -62,10 +62,17 @@ export interface WorkoutTemplate {
   createdAt: number
 }
 
-export interface IntervalBlock {
-  label: string                     // e.g. 'work', 'rest'
+// An interval block = one round-group. Its steps run in order, repeated `repeat`
+// times, which cleanly expresses interleaved sets like 8×(2min hard / 1min easy).
+// The cardio timer flattens IntervalBlock[] by expanding each block's steps `repeat` times.
+export interface IntervalStep {
+  label: string                     // e.g. 'Hard', 'Easy'
   durationSeconds: number
-  repeatCount: number
+}
+
+export interface IntervalBlock {
+  repeat: number                    // number of rounds (1 for a plain warmup/cooldown)
+  steps: IntervalStep[]             // steps performed each round, in order
 }
 ```
 
