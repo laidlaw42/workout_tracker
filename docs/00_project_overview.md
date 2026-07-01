@@ -8,7 +8,7 @@ A mobile-first Progressive Web App (PWA) for tracking strength workouts, cardio 
 
 | Layer | Choice | Reason |
 |---|---|---|
-| Framework | React 18 + TypeScript | Familiar stack, excellent mobile support |
+| Framework | React 19 + TypeScript | Excellent mobile support; matches shadcn's ref-as-prop components |
 | Build tool | Vite | Fast dev server, first-class PWA plugin |
 | Styling | Tailwind CSS v4 | Utility-first, mobile-first; CSS-first config via `@tailwindcss/vite` |
 | Components | shadcn/ui | Accessible, unstyled-first, copy-paste |

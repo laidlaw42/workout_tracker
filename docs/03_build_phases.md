@@ -13,8 +13,8 @@ Each phase ends with a working, committable, installable app state. Run `npm run
 ### Claude instructions
 
 ```
-Set up a new Vite + React + TypeScript project at the current working directory.
-Pin React 18 explicitly (the latest Vite template scaffolds React 19).
+Set up a new Vite + React 19 + TypeScript project at the current working directory.
+(React 19 matches the shadcn/ui components, which use ref-as-prop, not forwardRef.)
 
 Install these packages:
 - tailwindcss @tailwindcss/vite   (Tailwind v4 — CSS-first, no tailwind.config.ts)
