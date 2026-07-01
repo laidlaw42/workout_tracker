@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { BottomNav } from '@/components/BottomNav'
 import { Toaster } from '@/components/ui/sonner'
@@ -11,13 +12,19 @@ import ClimbingSessionScreen from '@/screens/ClimbingSessionScreen'
 import SessionSummaryScreen from '@/screens/SessionSummaryScreen'
 import SessionDetailScreen from '@/screens/SessionDetailScreen'
 import HistoryScreen from '@/screens/HistoryScreen'
-import ProgressScreen from '@/screens/ProgressScreen'
 import SettingsScreen from '@/screens/SettingsScreen'
 
-// Immersive flows (active sessions, template detail/edit) hide the bottom nav.
+// Charts (recharts) are heavy — split them out of the initial bundle.
+const ProgressScreen = lazy(() => import('@/screens/ProgressScreen'))
+
+// Immersive flows (active sessions, template detail/edit, settings) hide the nav.
 function useHideNav() {
   const { pathname } = useLocation()
-  return /^\/session\//.test(pathname) || /^\/library\/[^/]+/.test(pathname)
+  return (
+    /^\/session\//.test(pathname) ||
+    /^\/library\/[^/]+/.test(pathname) ||
+    pathname === '/settings'
+  )
 }
 
 export default function App() {
@@ -26,6 +33,7 @@ export default function App() {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-background text-foreground">
       <main className={hideNav ? 'flex-1' : 'flex-1 overscroll-y-contain pb-20'}>
+        <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading…</div>}>
         <Routes>
           <Route path="/" element={<Navigate to="/home" replace />} />
           <Route path="/home" element={<HomeScreen />} />
@@ -42,6 +50,7 @@ export default function App() {
           <Route path="/settings" element={<SettingsScreen />} />
           <Route path="*" element={<Navigate to="/home" replace />} />
         </Routes>
+        </Suspense>
       </main>
       {!hideNav && <BottomNav />}
       <Toaster position="top-center" richColors />
