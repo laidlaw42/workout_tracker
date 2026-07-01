@@ -51,6 +51,7 @@ export default function StrengthSessionScreen() {
   const [modified, setModified] = useState(false)
   const [modifyOpen, setModifyOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerMode, setPickerMode] = useState<'swap' | 'add'>('swap')
   const [confirmFinish, setConfirmFinish] = useState(false)
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
 
@@ -183,6 +184,28 @@ export default function StrengthSessionScreen() {
     setPickerOpen(false)
   }
 
+  function addNewExercise(ex: Exercise) {
+    setWork((w) => [
+      ...w,
+      {
+        uid: generateId(),
+        exerciseId: ex.id,
+        exerciseName: ex.name,
+        targetSets: 3,
+        targetReps: 10,
+        restSeconds: 90,
+        skipped: false,
+      },
+    ])
+    markModified()
+    setPickerOpen(false)
+  }
+
+  function onPickerSelect(ex: Exercise) {
+    if (pickerMode === 'add') addNewExercise(ex)
+    else swapCurrent(ex)
+  }
+
   function move(uid: string, dir: -1 | 1) {
     setWork((w) => {
       const from = w.findIndex((e) => e.uid === uid)
@@ -308,12 +331,18 @@ export default function StrengthSessionScreen() {
         onSkip={skipCurrent}
         onSwap={() => {
           setModifyOpen(false)
+          setPickerMode('swap')
+          setPickerOpen(true)
+        }}
+        onAddExercise={() => {
+          setModifyOpen(false)
+          setPickerMode('add')
           setPickerOpen(true)
         }}
         onMove={move}
       />
 
-      <ExercisePicker open={pickerOpen} onOpenChange={setPickerOpen} onSelect={swapCurrent} />
+      <ExercisePicker open={pickerOpen} onOpenChange={setPickerOpen} onSelect={onPickerSelect} />
 
       <AlertDialog open={confirmFinish} onOpenChange={setConfirmFinish}>
         <AlertDialogContent>

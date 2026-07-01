@@ -1,4 +1,4 @@
-import { ArrowLeftRight, ChevronDown, ChevronUp, Plus, SkipForward } from 'lucide-react'
+import { ArrowLeftRight, ChevronDown, ChevronUp, Dumbbell, Plus, SkipForward } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -22,6 +22,7 @@ interface Props {
   onAddSet: () => void
   onSkip: () => void
   onSwap: () => void
+  onAddExercise: () => void
   onMove: (uid: string, dir: -1 | 1) => void
 }
 
@@ -33,6 +34,7 @@ export function ModifySheet({
   onAddSet,
   onSkip,
   onSwap,
+  onAddExercise,
   onMove,
 }: Props) {
   return (
@@ -46,6 +48,10 @@ export function ModifySheet({
         </SheetHeader>
 
         <div className="space-y-5 px-4 pb-6">
+          <Button variant="outline" className="w-full" onClick={onAddExercise}>
+            <Dumbbell className="size-4" /> Add exercise to workout
+          </Button>
+
           {currentName && (
             <div className="grid grid-cols-3 gap-2">
               <Button variant="outline" className="h-auto flex-col gap-1 py-3" onClick={onAddSet}>
