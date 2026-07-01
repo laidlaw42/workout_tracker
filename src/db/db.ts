@@ -8,6 +8,7 @@ import type {
   ClimbingRoute,
   LoggedHang,
   PersonalRecord,
+  PlannedWorkout,
 } from '@/types'
 
 export interface MetaRow {
@@ -27,6 +28,7 @@ export class WorkoutDB extends Dexie {
   routes!: Table<ClimbingRoute, string>
   hangs!: Table<LoggedHang, string>
   prs!: Table<PersonalRecord, string>
+  plannedWorkouts!: Table<PlannedWorkout, string>
   meta!: Table<MetaRow, string>
 
   constructor() {
@@ -46,6 +48,10 @@ export class WorkoutDB extends Dexie {
     // v3 adds hangboard hang logs.
     this.version(3).stores({
       hangs: '&id, sessionId, [sessionId+loggedAt]',
+    })
+    // v4 adds the calendar's planned workouts.
+    this.version(4).stores({
+      plannedWorkouts: '&id, plannedDate, templateId, completedSessionId',
     })
   }
 }

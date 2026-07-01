@@ -1,9 +1,10 @@
 import { NavLink } from 'react-router-dom'
-import { BarChart3, Clock, House, List } from 'lucide-react'
+import { BarChart3, CalendarDays, Clock, House, List } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const tabs = [
   { to: '/home', label: 'Home', icon: House },
+  { to: '/planner', label: 'Planner', icon: CalendarDays },
   { to: '/library', label: 'Library', icon: List },
   { to: '/history', label: 'History', icon: Clock },
   { to: '/progress', label: 'Progress', icon: BarChart3 },

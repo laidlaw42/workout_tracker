@@ -202,6 +202,22 @@ export interface ClimbingRoute {
 }
 
 // ---------------------------------------------------------------------------
+// Planned workouts (calendar)
+// ---------------------------------------------------------------------------
+
+export interface PlannedWorkout {
+  id: string
+  templateId: string
+  templateName: string // denormalised for display
+  disciplineType: DisciplineType
+  plannedDate: string // 'YYYY-MM-DD' (local)
+  plannedTimeOfDay?: number // minutes since midnight
+  notes?: string
+  completedSessionId?: string // set when a matching session is logged that day
+  createdAt: number
+}
+
+// ---------------------------------------------------------------------------
 // Personal records
 // ---------------------------------------------------------------------------
 

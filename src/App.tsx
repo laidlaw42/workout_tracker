@@ -12,6 +12,7 @@ import ClimbingSessionScreen from '@/screens/ClimbingSessionScreen'
 import SessionSummaryScreen from '@/screens/SessionSummaryScreen'
 import SessionDetailScreen from '@/screens/SessionDetailScreen'
 import HistoryScreen from '@/screens/HistoryScreen'
+import PlannerScreen from '@/screens/PlannerScreen'
 import SettingsScreen from '@/screens/SettingsScreen'
 
 // Charts (recharts) are heavy — split them out of the initial bundle.
@@ -37,6 +38,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/home" replace />} />
           <Route path="/home" element={<HomeScreen />} />
+          <Route path="/planner" element={<PlannerScreen />} />
           <Route path="/library" element={<LibraryScreen />} />
           <Route path="/library/:id" element={<TemplateDetailScreen />} />
           <Route path="/library/:id/edit" element={<TemplateEditScreen />} />

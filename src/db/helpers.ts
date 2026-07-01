@@ -14,11 +14,13 @@ import type {
   LoggedHang,
   LoggedSet,
   PersonalRecord,
+  PlannedWorkout,
   PRType,
   TemplateExercise,
   WorkoutSession,
   WorkoutTemplate,
 } from '@/types'
+import { toDateKey } from '@/lib/date'
 
 // Wrap every DB op so failures surface with a descriptive message instead of a
 // bare Dexie error. Helpers stay UI-agnostic — callers show the toast.
@@ -170,6 +172,73 @@ export async function updateSession(
 export async function endSession(id: string): Promise<void> {
   return run('endSession', async () => {
     await db.sessions.update(id, { endedAt: Date.now() })
+    // Best-effort: link a planned workout scheduled for this session's day and
+    // template. Never blocks finishing — a failure here is swallowed.
+    try {
+      const session = await db.sessions.get(id)
+      if (session?.templateId) {
+        const dateKey = toDateKey(session.startedAt)
+        const match = await db.plannedWorkouts
+          .where('plannedDate')
+          .equals(dateKey)
+          .filter((p) => p.templateId === session.templateId && !p.completedSessionId)
+          .first()
+        if (match) await db.plannedWorkouts.update(match.id, { completedSessionId: id })
+      }
+    } catch {
+      /* best-effort linking */
+    }
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Planned workouts (calendar)
+// ---------------------------------------------------------------------------
+
+export async function getPlannedWorkoutsForRange(
+  from: string,
+  to: string,
+): Promise<PlannedWorkout[]> {
+  return run('getPlannedWorkoutsForRange', async () => {
+    const list = await db.plannedWorkouts
+      .where('plannedDate')
+      .between(from, to, true, true)
+      .toArray()
+    // Chronological, then by time-of-day (untimed last).
+    return list.sort(
+      (a, b) =>
+        a.plannedDate.localeCompare(b.plannedDate) ||
+        (a.plannedTimeOfDay ?? 1440) - (b.plannedTimeOfDay ?? 1440),
+    )
+  })
+}
+
+export async function addPlannedWorkout(
+  p: Omit<PlannedWorkout, 'id' | 'createdAt'>,
+): Promise<string> {
+  return run('addPlannedWorkout', async () => {
+    const id = generateId()
+    await db.plannedWorkouts.put({ ...p, id, createdAt: Date.now() })
+    return id
+  })
+}
+
+export async function updatePlannedWorkout(
+  id: string,
+  updates: Partial<PlannedWorkout>,
+): Promise<void> {
+  return run('updatePlannedWorkout', async () => {
+    await db.plannedWorkouts.update(id, updates)
+  })
+}
+
+export async function deletePlannedWorkout(id: string): Promise<void> {
+  return run('deletePlannedWorkout', () => db.plannedWorkouts.delete(id))
+}
+
+export async function linkPlanToSession(plannedId: string, sessionId: string): Promise<void> {
+  return run('linkPlanToSession', async () => {
+    await db.plannedWorkouts.update(plannedId, { completedSessionId: sessionId })
   })
 }
 
@@ -550,12 +619,13 @@ interface ExportBundle {
     routes: ClimbingRoute[]
     hangs: LoggedHang[]
     prs: PersonalRecord[]
+    plannedWorkouts?: PlannedWorkout[]
   }
 }
 
 export async function exportAllData(): Promise<string> {
   return run('exportAllData', async () => {
-    const [exercises, templates, sessions, sets, cardio, routes, hangs, prs] =
+    const [exercises, templates, sessions, sets, cardio, routes, hangs, prs, plannedWorkouts] =
       await Promise.all([
         db.exercises.toArray(),
         db.templates.toArray(),
@@ -565,11 +635,12 @@ export async function exportAllData(): Promise<string> {
         db.routes.toArray(),
         db.hangs.toArray(),
         db.prs.toArray(),
+        db.plannedWorkouts.toArray(),
       ])
     const bundle: ExportBundle = {
       version: 1,
       exportedAt: Date.now(),
-      data: { exercises, templates, sessions, sets, cardio, routes, hangs, prs },
+      data: { exercises, templates, sessions, sets, cardio, routes, hangs, prs, plannedWorkouts },
     }
     return JSON.stringify(bundle)
   })
@@ -585,7 +656,17 @@ export async function importAllData(json: string): Promise<void> {
     // Atomic: a bad file never leaves a half-wiped DB.
     await db.transaction(
       'rw',
-      [db.exercises, db.templates, db.sessions, db.sets, db.cardio, db.routes, db.hangs, db.prs],
+      [
+        db.exercises,
+        db.templates,
+        db.sessions,
+        db.sets,
+        db.cardio,
+        db.routes,
+        db.hangs,
+        db.prs,
+        db.plannedWorkouts,
+      ],
       async () => {
         await Promise.all([
           db.exercises.clear(),
@@ -596,6 +677,7 @@ export async function importAllData(json: string): Promise<void> {
           db.routes.clear(),
           db.hangs.clear(),
           db.prs.clear(),
+          db.plannedWorkouts.clear(),
         ])
         if (d.exercises?.length) await db.exercises.bulkAdd(d.exercises)
         if (d.templates?.length) await db.templates.bulkAdd(d.templates)
@@ -605,6 +687,7 @@ export async function importAllData(json: string): Promise<void> {
         if (d.routes?.length) await db.routes.bulkAdd(d.routes)
         if (d.hangs?.length) await db.hangs.bulkAdd(d.hangs)
         if (d.prs?.length) await db.prs.bulkAdd(d.prs)
+        if (d.plannedWorkouts?.length) await db.plannedWorkouts.bulkAdd(d.plannedWorkouts)
       },
     )
   })
@@ -671,7 +754,17 @@ export async function mergeData(json: string): Promise<{ inserted: number; skipp
 
     await db.transaction(
       'rw',
-      [db.exercises, db.templates, db.sessions, db.sets, db.cardio, db.routes, db.hangs, db.prs],
+      [
+        db.exercises,
+        db.templates,
+        db.sessions,
+        db.sets,
+        db.cardio,
+        db.routes,
+        db.hangs,
+        db.prs,
+        db.plannedWorkouts,
+      ],
       async () => {
         async function mergeInto<T extends { id: string }>(
           table: Dexie.Table<T, string>,
@@ -702,6 +795,7 @@ export async function mergeData(json: string): Promise<{ inserted: number; skipp
         await mergeInto(db.routes, d.routes, (r) => newRoutes.push(r))
         await mergeInto(db.hangs, d.hangs)
         await mergeInto(db.prs, d.prs)
+        await mergeInto(db.plannedWorkouts, d.plannedWorkouts)
       },
     )
 
