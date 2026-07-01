@@ -6,6 +6,7 @@ import type {
   LoggedSet,
   LoggedCardio,
   ClimbingRoute,
+  LoggedHang,
   PersonalRecord,
 } from '@/types'
 
@@ -24,6 +25,7 @@ export class WorkoutDB extends Dexie {
   sets!: Table<LoggedSet, string>
   cardio!: Table<LoggedCardio, string>
   routes!: Table<ClimbingRoute, string>
+  hangs!: Table<LoggedHang, string>
   prs!: Table<PersonalRecord, string>
   meta!: Table<MetaRow, string>
 
@@ -40,6 +42,10 @@ export class WorkoutDB extends Dexie {
     })
     this.version(2).stores({
       meta: '&key',
+    })
+    // v3 adds hangboard hang logs.
+    this.version(3).stores({
+      hangs: '&id, sessionId, [sessionId+loggedAt]',
     })
   }
 }

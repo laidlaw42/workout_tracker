@@ -8,6 +8,7 @@ import type {
   DisciplineType,
   Exercise,
   LoggedCardio,
+  LoggedHang,
   LoggedSet,
   PersonalRecord,
   PRType,
@@ -87,7 +88,7 @@ export async function getAllTemplates(): Promise<WorkoutTemplate[]> {
 }
 
 export async function getTemplatesByType(
-  type?: 'strength' | 'cardio',
+  type?: DisciplineType,
 ): Promise<WorkoutTemplate[]> {
   return run('getTemplatesByType', async () => {
     const list = type
@@ -120,6 +121,8 @@ export async function upsertTemplate(
       targetDurationSeconds: t.targetDurationSeconds,
       targetDistanceKm: t.targetDistanceKm,
       intervals: t.intervals,
+      climbingKind: t.climbingKind,
+      hangboardSets: t.hangboardSets,
       lastUsedAt: t.lastUsedAt,
       createdAt: existing?.createdAt ?? Date.now(),
     }
@@ -170,12 +173,13 @@ export async function deleteSession(id: string): Promise<void> {
   return run('deleteSession', async () => {
     await db.transaction(
       'rw',
-      [db.sessions, db.sets, db.cardio, db.routes, db.prs],
+      [db.sessions, db.sets, db.cardio, db.routes, db.hangs, db.prs],
       async () => {
         await db.sessions.delete(id)
         await db.sets.where('sessionId').equals(id).delete()
         await db.cardio.where('sessionId').equals(id).delete()
         await db.routes.filter((r) => r.sessionId === id).delete()
+        await db.hangs.where('sessionId').equals(id).delete()
         await db.prs.where('sessionId').equals(id).delete()
       },
     )
@@ -338,6 +342,37 @@ export async function getAllRoutes(): Promise<ClimbingRoute[]> {
 }
 
 // ---------------------------------------------------------------------------
+// Hangboard hangs
+// ---------------------------------------------------------------------------
+
+export async function addHang(h: Omit<LoggedHang, 'id'>): Promise<string> {
+  return run('addHang', async () => {
+    const id = generateId()
+    await db.hangs.put({ ...h, id })
+    return id
+  })
+}
+
+export async function updateHang(id: string, updates: Partial<LoggedHang>): Promise<void> {
+  return run('updateHang', async () => {
+    await db.hangs.update(id, updates)
+  })
+}
+
+export async function deleteHang(id: string): Promise<void> {
+  return run('deleteHang', () => db.hangs.delete(id))
+}
+
+export async function getHangsForSession(sessionId: string): Promise<LoggedHang[]> {
+  return run('getHangsForSession', () =>
+    db.hangs
+      .where('[sessionId+loggedAt]')
+      .between([sessionId, MIN], [sessionId, MAX])
+      .toArray(),
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Personal records
 // ---------------------------------------------------------------------------
 
@@ -414,25 +449,28 @@ interface ExportBundle {
     sets: LoggedSet[]
     cardio: LoggedCardio[]
     routes: ClimbingRoute[]
+    hangs: LoggedHang[]
     prs: PersonalRecord[]
   }
 }
 
 export async function exportAllData(): Promise<string> {
   return run('exportAllData', async () => {
-    const [exercises, templates, sessions, sets, cardio, routes, prs] = await Promise.all([
-      db.exercises.toArray(),
-      db.templates.toArray(),
-      db.sessions.toArray(),
-      db.sets.toArray(),
-      db.cardio.toArray(),
-      db.routes.toArray(),
-      db.prs.toArray(),
-    ])
+    const [exercises, templates, sessions, sets, cardio, routes, hangs, prs] =
+      await Promise.all([
+        db.exercises.toArray(),
+        db.templates.toArray(),
+        db.sessions.toArray(),
+        db.sets.toArray(),
+        db.cardio.toArray(),
+        db.routes.toArray(),
+        db.hangs.toArray(),
+        db.prs.toArray(),
+      ])
     const bundle: ExportBundle = {
       version: 1,
       exportedAt: Date.now(),
-      data: { exercises, templates, sessions, sets, cardio, routes, prs },
+      data: { exercises, templates, sessions, sets, cardio, routes, hangs, prs },
     }
     return JSON.stringify(bundle)
   })
@@ -448,7 +486,7 @@ export async function importAllData(json: string): Promise<void> {
     // Atomic: a bad file never leaves a half-wiped DB.
     await db.transaction(
       'rw',
-      [db.exercises, db.templates, db.sessions, db.sets, db.cardio, db.routes, db.prs],
+      [db.exercises, db.templates, db.sessions, db.sets, db.cardio, db.routes, db.hangs, db.prs],
       async () => {
         await Promise.all([
           db.exercises.clear(),
@@ -457,6 +495,7 @@ export async function importAllData(json: string): Promise<void> {
           db.sets.clear(),
           db.cardio.clear(),
           db.routes.clear(),
+          db.hangs.clear(),
           db.prs.clear(),
         ])
         if (d.exercises?.length) await db.exercises.bulkAdd(d.exercises)
@@ -465,6 +504,7 @@ export async function importAllData(json: string): Promise<void> {
         if (d.sets?.length) await db.sets.bulkAdd(d.sets)
         if (d.cardio?.length) await db.cardio.bulkAdd(d.cardio)
         if (d.routes?.length) await db.routes.bulkAdd(d.routes)
+        if (d.hangs?.length) await db.hangs.bulkAdd(d.hangs)
         if (d.prs?.length) await db.prs.bulkAdd(d.prs)
       },
     )

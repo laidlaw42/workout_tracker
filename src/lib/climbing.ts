@@ -27,6 +27,22 @@ export const STYLE_LABELS: Record<ClimbingStyle, string> = {
   lead: 'Lead',
 }
 
+// --- Hangboard --------------------------------------------------------------
+
+// Common hangboard grip types (stored as a string; the picker also allows "Other").
+export const GRIP_TYPES = [
+  'Half crimp',
+  'Open hand',
+  'Full crimp',
+  'Four-finger open',
+  'Front three',
+  'Front two',
+  'Middle two',
+  'Back two',
+  'Pinch',
+  'Sloper',
+] as const
+
 // --- Tick types -------------------------------------------------------------
 
 export interface TickOption {

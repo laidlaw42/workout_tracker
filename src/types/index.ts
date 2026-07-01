@@ -24,6 +24,8 @@ export type RopedTick =
 
 export type ClimbingTick = BoulderTick | RopedTick
 
+export type ClimbingKind = 'hangboard' | 'workout'
+
 export type PRType = 'weight' | 'reps' | 'pace' | 'distance' | 'grade'
 
 // ---------------------------------------------------------------------------
@@ -66,10 +68,22 @@ export interface IntervalBlock {
   steps: IntervalStep[]
 }
 
+// A hangboard protocol row (template-level).
+export interface HangboardSet {
+  id: string
+  gripType: string
+  edgeDepthMm: number
+  durationSeconds: number // hang duration
+  weightKg: number // + added / - assisted
+  sets: number // number of hangs
+  restSeconds: number
+  order: number
+}
+
 export interface WorkoutTemplate {
   id: string
   name: string
-  type: 'strength' | 'cardio'
+  type: DisciplineType
   tags: string[]
   exercises: TemplateExercise[]
   // cardio-only fields
@@ -77,6 +91,9 @@ export interface WorkoutTemplate {
   targetDurationSeconds?: number
   targetDistanceKm?: number
   intervals?: IntervalBlock[]
+  // climbing-only fields
+  climbingKind?: ClimbingKind
+  hangboardSets?: HangboardSet[]
   lastUsedAt?: number
   createdAt: number
 }
@@ -143,6 +160,21 @@ export interface LoggedCardio {
 // ---------------------------------------------------------------------------
 // Climbing route logs (a climbing session is a WorkoutSession with type 'climbing')
 // ---------------------------------------------------------------------------
+
+// A logged hang (session-level).
+export interface LoggedHang {
+  id: string
+  sessionId: string
+  gripType: string
+  edgeDepthMm: number
+  setNumber: number // 1-indexed
+  targetDurationSeconds: number
+  actualDurationSeconds?: number
+  weightKg: number
+  restTakenSeconds?: number
+  skipped: boolean
+  loggedAt: number
+}
 
 export interface ClimbingRoute {
   id: string

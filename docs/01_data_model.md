@@ -212,6 +212,8 @@ export class WorkoutDB extends Dexie {
     })
     // v2 adds a small key/value meta table for built-in seed provenance.
     this.version(2).stores({ meta: '&key' })
+    // v3 adds hangboard hang logs.
+    this.version(3).stores({ hangs: '&id, sessionId, [sessionId+loggedAt]' })
   }
 }
 
@@ -270,6 +272,12 @@ export async function updateRoute(id: string, updates: Partial<ClimbingRoute>): 
 export async function deleteRoute(id: string): Promise<void>
 export async function getRoutesForSession(sessionId: string): Promise<ClimbingRoute[]>
 export async function getAllRoutes(): Promise<ClimbingRoute[]>  // Progress grade pyramid
+
+// Hangboard hangs (climbing templates: hangboard + climbing-workout kinds)
+export async function addHang(h: Omit<LoggedHang, 'id'>): Promise<string>
+export async function updateHang(id: string, updates: Partial<LoggedHang>): Promise<void>
+export async function deleteHang(id: string): Promise<void>
+export async function getHangsForSession(sessionId: string): Promise<LoggedHang[]>
 
 // PRs
 export async function checkAndSavePR(candidate: Omit<PersonalRecord, 'id'>): Promise<boolean>
