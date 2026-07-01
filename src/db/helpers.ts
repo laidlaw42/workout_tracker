@@ -1,6 +1,7 @@
 import Dexie from 'dexie'
 import { db } from './db'
 import { generateId } from '@/lib/id'
+import { normalizeTags } from '@/lib/tags'
 import type {
   CardioActivityType,
   ClimbingRoute,
@@ -45,7 +46,7 @@ export async function upsertExercise(
 ): Promise<string> {
   return run('upsertExercise', async () => {
     const id = generateId()
-    await db.exercises.put({ ...e, id, createdAt: Date.now() })
+    await db.exercises.put({ ...e, tags: normalizeTags(e.tags), id, createdAt: Date.now() })
     return id
   })
 }
@@ -57,8 +58,9 @@ export async function updateExercise(
   updates: Partial<Omit<Exercise, 'id' | 'createdAt'>>,
 ): Promise<void> {
   return run('updateExercise', async () => {
+    const normalized = updates.tags ? { ...updates, tags: normalizeTags(updates.tags) } : updates
     await db.transaction('rw', [db.exercises, db.templates], async () => {
-      await db.exercises.update(id, updates)
+      await db.exercises.update(id, normalized)
       if (updates.name) {
         const templates = await db.templates.toArray()
         for (const t of templates) {
@@ -115,7 +117,7 @@ export async function upsertTemplate(
       id,
       name: t.name,
       type: t.type,
-      tags: t.tags,
+      tags: normalizeTags(t.tags),
       exercises: t.exercises,
       cardioActivity: t.cardioActivity,
       targetDurationSeconds: t.targetDurationSeconds,

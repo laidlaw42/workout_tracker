@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { deleteExercise, updateExercise, upsertExercise } from '@/db/helpers'
 import { SegmentedControl } from '@/components/SegmentedControl'
+import { TagInput } from '@/components/TagInput'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -42,6 +43,7 @@ export function ExerciseFormSheet({ open, onOpenChange, exercise, usageCount = 0
   const [name, setName] = useState('')
   const [muscles, setMuscles] = useState('')
   const [tracking, setTracking] = useState<TrackingType>('reps')
+  const [tags, setTags] = useState<string[]>([])
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   useEffect(() => {
@@ -49,6 +51,7 @@ export function ExerciseFormSheet({ open, onOpenChange, exercise, usageCount = 0
     setName(exercise?.name ?? '')
     setMuscles(exercise?.muscleGroups.join(', ') ?? '')
     setTracking(exercise?.trackingType ?? 'reps')
+    setTags(exercise?.tags ?? [])
   }, [open, exercise])
 
   async function save() {
@@ -61,10 +64,10 @@ export function ExerciseFormSheet({ open, onOpenChange, exercise, usageCount = 0
     try {
       let id: string
       if (exercise) {
-        await updateExercise(exercise.id, { name: trimmed, muscleGroups, trackingType: tracking })
+        await updateExercise(exercise.id, { name: trimmed, muscleGroups, trackingType: tracking, tags })
         id = exercise.id
       } else {
-        id = await upsertExercise({ name: trimmed, muscleGroups, trackingType: tracking })
+        id = await upsertExercise({ name: trimmed, muscleGroups, trackingType: tracking, tags })
       }
       onSaved?.(id)
       onOpenChange(false)
@@ -116,6 +119,10 @@ export function ExerciseFormSheet({ open, onOpenChange, exercise, usageCount = 0
           <div className="space-y-2">
             <Label>Tracking</Label>
             <SegmentedControl options={TRACKING} value={tracking} onChange={setTracking} />
+          </div>
+          <div className="space-y-2">
+            <Label>Tags</Label>
+            <TagInput value={tags} onChange={setTags} />
           </div>
           {exercise && (
             <Button

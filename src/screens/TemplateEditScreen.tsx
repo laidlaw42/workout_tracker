@@ -25,6 +25,7 @@ import { IntervalsEditor } from '@/components/IntervalsEditor'
 import { HangboardSetsEditor } from '@/components/HangboardSetsEditor'
 import { PageHeader } from '@/components/PageHeader'
 import { SegmentedControl } from '@/components/SegmentedControl'
+import { TagInput } from '@/components/TagInput'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -61,6 +62,7 @@ export default function TemplateEditScreen() {
   const template = useLiveQuery(() => getTemplate(id).then((t) => t ?? null), [id])
 
   const [name, setName] = useState('')
+  const [tags, setTags] = useState<string[]>([])
   const [rows, setRows] = useState<Row[]>([])
   const [activity, setActivity] = useState<CardioActivityType>('run')
   const [durationMin, setDurationMin] = useState('')
@@ -76,6 +78,7 @@ export default function TemplateEditScreen() {
   useEffect(() => {
     if (template && !inited) {
       setName(template.name)
+      setTags(template.tags)
       setRows(template.exercises.map((e) => ({ ...e, uid: generateId() })))
       setActivity(template.cardioActivity ?? 'run')
       setDurationMin(
@@ -140,7 +143,7 @@ export default function TemplateEditScreen() {
         id: template.id,
         name: name.trim() || template.name,
         type: template.type,
-        tags: template.tags,
+        tags,
         exercises: showExercises
           ? rows.map((r, i) => ({
               exerciseId: r.exerciseId,
@@ -200,6 +203,17 @@ export default function TemplateEditScreen() {
             value={name}
             onChange={(e) => {
               setName(e.target.value)
+              setDirty(true)
+            }}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Tags</Label>
+          <TagInput
+            value={tags}
+            onChange={(t) => {
+              setTags(t)
               setDirty(true)
             }}
           />

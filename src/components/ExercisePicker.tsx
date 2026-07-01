@@ -58,8 +58,8 @@ export function ExercisePicker({ open, onOpenChange, onSelect }: Props) {
       .map((s) => s.trim())
       .filter(Boolean)
     try {
-      const id = await upsertExercise({ name: trimmed, muscleGroups, trackingType: tracking })
-      choose({ id, name: trimmed, muscleGroups, trackingType: tracking, createdAt: Date.now() })
+      const id = await upsertExercise({ name: trimmed, muscleGroups, trackingType: tracking, tags: [] })
+      choose({ id, name: trimmed, muscleGroups, trackingType: tracking, tags: [], createdAt: Date.now() })
     } catch {
       toast.error('Could not create exercise')
     }

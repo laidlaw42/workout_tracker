@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Dumbbell, Plus } from 'lucide-react'
@@ -9,6 +9,7 @@ import { TemplateCard } from '@/components/TemplateCard'
 import { ExerciseLibrary } from '@/components/ExerciseLibrary'
 import { ClimbingQuickStarts } from '@/components/ClimbingQuickStarts'
 import { EmptyState } from '@/components/EmptyState'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -50,6 +51,7 @@ export default function LibraryScreen() {
     initial === 'strength' || initial === 'cardio' || initial === 'climbing' ? initial : 'all',
   )
   const [view, setView] = useState<'workouts' | 'exercises'>('workouts')
+  const [activeTag, setActiveTag] = useState<string | null>(null)
   const [toDelete, setToDelete] = useState<WorkoutTemplate | null>(null)
   const [newOpen, setNewOpen] = useState(false)
   const [newName, setNewName] = useState('')
@@ -59,6 +61,14 @@ export default function LibraryScreen() {
     () => getTemplatesByType(filter === 'all' ? undefined : filter),
     [filter],
   )
+
+  const allTags = useMemo(() => {
+    const set = new Set<string>()
+    for (const t of templates ?? []) for (const tag of t.tags) set.add(tag)
+    return [...set].sort()
+  }, [templates])
+  const filteredTemplates =
+    activeTag && templates ? templates.filter((t) => t.tags.includes(activeTag)) : templates
 
   async function createTemplate() {
     const name = newName.trim() || 'New workout'
@@ -138,25 +148,52 @@ export default function LibraryScreen() {
         <ExerciseLibrary />
       ) : (
         <>
-          <SegmentedControl options={OPTIONS} value={filter} onChange={setFilter} />
+          <SegmentedControl
+            options={OPTIONS}
+            value={filter}
+            onChange={(v) => {
+              setFilter(v)
+              setActiveTag(null)
+            }}
+          />
 
           {filter === 'climbing' && <ClimbingQuickStarts />}
 
-          {templates === undefined ? (
+          {allTags.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {allTags.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => setActiveTag((cur) => (cur === tag ? null : tag))}
+                  className={cn(
+                    'rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset transition-colors',
+                    activeTag === tag
+                      ? 'bg-primary text-primary-foreground ring-primary'
+                      : 'bg-muted text-muted-foreground ring-transparent',
+                  )}
+                >
+                  #{tag}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {filteredTemplates === undefined ? (
             <div className="space-y-2">
               <Skeleton className="h-16 w-full rounded-xl" />
               <Skeleton className="h-16 w-full rounded-xl" />
               <Skeleton className="h-16 w-full rounded-xl" />
             </div>
-          ) : templates.length === 0 ? (
+          ) : filteredTemplates.length === 0 ? (
             <EmptyState
               icon={Dumbbell}
               title="No workouts here"
-              subtitle="Tap New to create a workout routine."
+              subtitle={activeTag ? `No workouts tagged #${activeTag}.` : 'Tap New to create a workout routine.'}
             />
           ) : (
             <div className="space-y-2">
-              {templates.map((t) => (
+              {filteredTemplates.map((t) => (
                 <TemplateCard
                   key={t.id}
                   template={t}

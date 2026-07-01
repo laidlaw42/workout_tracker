@@ -37,6 +37,7 @@ export interface Exercise {
   name: string
   muscleGroups: string[]
   trackingType: TrackingType
+  tags: string[]
   notes?: string
   createdAt: number
 }

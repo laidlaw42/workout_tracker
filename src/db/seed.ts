@@ -335,10 +335,19 @@ export async function seedIfNeeded(): Promise<void> {
       const haveEx = new Set((await db.exercises.toArray()).map((e) => e.id))
       const toInsert = unseededEx
         .filter((e) => !haveEx.has(e.id))
-        .map<Exercise>((e) => ({ ...e, createdAt: now }))
+        .map<Exercise>((e) => ({ ...e, tags: [], createdAt: now }))
       if (toInsert.length) await db.exercises.bulkPut(toInsert)
       for (const e of unseededEx) seededEx.add(e.id)
       await db.meta.put({ key: 'seededExerciseIds', value: [...seededEx] })
+    }
+
+    // Backfill tags on exercises created before the tags field existed.
+    if (!(await getMeta<boolean>('exerciseTagsBackfilled'))) {
+      await db.exercises.toCollection().modify((e) => {
+        const rec = e as { tags?: string[] }
+        if (rec.tags === undefined) rec.tags = []
+      })
+      await db.meta.put({ key: 'exerciseTagsBackfilled', value: true })
     }
 
     // Seed built-in templates once each (never resurrect user-deleted ones).
