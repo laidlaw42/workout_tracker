@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useLiveQuery } from '@/hooks/useDb'
 import {
   getCardioForSession,
+  getHangsForSession,
   getPRsForSession,
   getRoutesForSession,
   getSessionById,
@@ -31,6 +32,7 @@ export default function SessionSummaryScreen() {
   const sets = useLiveQuery(() => getSetsForSession(id), [id]) ?? []
   const cardio = useLiveQuery(() => getCardioForSession(id), [id])
   const routes = useLiveQuery(() => getRoutesForSession(id), [id]) ?? []
+  const hangs = useLiveQuery(() => getHangsForSession(id), [id]) ?? []
   const prs = useLiveQuery(() => getPRsForSession(id), [id]) ?? []
 
   if (session === undefined) {
@@ -79,7 +81,9 @@ export default function SessionSummaryScreen() {
 
         {session.type === 'strength' && <StrengthSummary sets={sets} />}
         {session.type === 'cardio' && <CardioSummary cardio={cardio} />}
-        {session.type === 'climbing' && <ClimbingSummary routes={routes} />}
+        {session.type === 'climbing' && (
+          <ClimbingSummary routes={routes} hangCount={hangs.length} setCount={sets.length} />
+        )}
       </div>
 
       <div className="flex gap-3 pt-6 pb-[env(safe-area-inset-bottom)]">
@@ -161,18 +165,33 @@ function CardioSummary({ cardio }: { cardio: LoggedCardio | undefined }) {
   )
 }
 
-function ClimbingSummary({ routes }: { routes: ClimbingRoute[] }) {
+function ClimbingSummary({
+  routes,
+  hangCount,
+  setCount,
+}: {
+  routes: ClimbingRoute[]
+  hangCount: number
+  setCount: number
+}) {
   const boulder = hardestBoulder(routes)
   const roped = hardestRoped(routes)
   const tickCounts = new Map<ClimbingRoute['tick'], number>()
   for (const r of routes) tickCounts.set(r.tick, (tickCounts.get(r.tick) ?? 0) + 1)
 
+  const stats: { label: string; value: ReactNode }[] = []
+  if (hangCount > 0) stats.push({ label: 'Hangs', value: hangCount })
+  if (setCount > 0) stats.push({ label: 'Sets', value: setCount })
+  if (routes.length > 0 || stats.length === 0) stats.push({ label: 'Routes', value: routes.length })
+  if (boulder) stats.push({ label: 'Hardest V', value: vGradeFromIndex(vGradeIndex(boulder.vGrade!)) })
+  if (roped) stats.push({ label: 'Hardest Ewb', value: roped.ewbanksGrade })
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-2">
-        <Stat label="Routes" value={routes.length} />
-        <Stat label="Hardest boulder" value={boulder ? vGradeFromIndex(vGradeIndex(boulder.vGrade!)) : '—'} />
-        <Stat label="Hardest roped" value={roped ? roped.ewbanksGrade : '—'} />
+        {stats.map((s) => (
+          <Stat key={s.label} label={s.label} value={s.value} />
+        ))}
       </div>
       {tickCounts.size > 0 && (
         <div className="space-y-2">

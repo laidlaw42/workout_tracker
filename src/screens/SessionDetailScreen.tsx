@@ -9,6 +9,7 @@ import {
   deleteSession,
   deleteSet,
   getCardioForSession,
+  getHangsForSession,
   getRoutesForSession,
   getSessionById,
   getSetsForSession,
@@ -43,7 +44,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { formatPace, formatWorkoutLength } from '@/lib/formatDuration'
-import type { ClimbingRoute, Exercise, LoggedCardio, LoggedSet } from '@/types'
+import type { ClimbingRoute, Exercise, LoggedCardio, LoggedHang, LoggedSet } from '@/types'
 
 function fullDate(ts: number): string {
   return new Date(ts).toLocaleDateString(undefined, {
@@ -62,6 +63,7 @@ export default function SessionDetailScreen() {
   const sets = useLiveQuery(() => getSetsForSession(id), [id]) ?? []
   const cardio = useLiveQuery(() => getCardioForSession(id), [id])
   const routes = useLiveQuery(() => getRoutesForSession(id), [id]) ?? []
+  const hangs = useLiveQuery(() => getHangsForSession(id), [id]) ?? []
 
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -180,6 +182,8 @@ export default function SessionDetailScreen() {
         {session.type === 'climbing' && (
           <ClimbingDetail
             routes={routes}
+            hangs={hangs}
+            sets={sets}
             editing={editing}
             onEditRoute={(r) => {
               setEditingRoute(r)
@@ -469,49 +473,95 @@ function CardioDetail({ cardio, editing }: { cardio: LoggedCardio | undefined; e
 
 function ClimbingDetail({
   routes,
+  hangs,
+  sets,
   editing,
   onEditRoute,
   onNewRoute,
   onDeleteRoute,
 }: {
   routes: ClimbingRoute[]
+  hangs: LoggedHang[]
+  sets: LoggedSet[]
   editing: boolean
   onEditRoute: (r: ClimbingRoute) => void
   onNewRoute: () => void
   onDeleteRoute: (id: string) => void
 }) {
+  const setsByExercise = new Map<string, number>()
+  for (const s of sets) setsByExercise.set(s.exerciseName, (setsByExercise.get(s.exerciseName) ?? 0) + 1)
+  const hasRoutes = routes.length > 0 || editing
+
   return (
-    <div className="space-y-3">
-      <Stat label="Routes logged" value={routes.length} />
-      {routes.length === 0 && !editing ? (
-        <p className="text-sm text-muted-foreground">No routes were logged.</p>
-      ) : (
-        <div className="space-y-2">
-          {routes.map((r) =>
-            editing ? (
-              <div key={r.id} className="flex items-center gap-2">
-                <div className="min-w-0 flex-1">
-                  <RouteCard route={r} onClick={() => onEditRoute(r)} />
-                </div>
-                <button
-                  type="button"
-                  aria-label="Delete route"
-                  onClick={() => onDeleteRoute(r.id)}
-                  className="flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground active:bg-accent"
-                >
-                  <Trash2 className="size-4" />
-                </button>
-              </div>
-            ) : (
-              <RouteCard key={r.id} route={r} />
-            ),
-          )}
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-2">
+        <Stat label="Routes" value={routes.length} />
+        {hangs.length > 0 && <Stat label="Hangs" value={hangs.length} />}
+        {sets.length > 0 && <Stat label="Sets" value={sets.length} />}
+      </div>
+
+      {sets.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-muted-foreground">Exercises</p>
+          {[...setsByExercise.entries()].map(([name, count]) => (
+            <div key={name} className="flex justify-between rounded-lg bg-card px-3 py-2 text-sm">
+              <span className="truncate">{name}</span>
+              <span className="text-muted-foreground">
+                {count} set{count === 1 ? '' : 's'}
+              </span>
+            </div>
+          ))}
         </div>
       )}
-      {editing && (
-        <Button variant="outline" className="w-full" onClick={onNewRoute}>
-          <Plus className="size-4" /> Add route
-        </Button>
+
+      {hangs.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-muted-foreground">Hangboard</p>
+          {hangs.map((h) => (
+            <div key={h.id} className="flex justify-between rounded-lg bg-card px-3 py-2 text-sm">
+              <span className="truncate">{h.gripType}</span>
+              <span className="text-muted-foreground">
+                {h.edgeDepthMm}mm · {h.actualDurationSeconds ?? h.targetDurationSeconds}s ·{' '}
+                {h.weightKg >= 0 ? '+' : ''}
+                {h.weightKg}kg
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {hasRoutes && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-muted-foreground">Routes</p>
+          {routes.length === 0 && !editing ? (
+            <p className="text-sm text-muted-foreground">No routes were logged.</p>
+          ) : (
+            routes.map((r) =>
+              editing ? (
+                <div key={r.id} className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <RouteCard route={r} onClick={() => onEditRoute(r)} />
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Delete route"
+                    onClick={() => onDeleteRoute(r.id)}
+                    className="flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground active:bg-accent"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </div>
+              ) : (
+                <RouteCard key={r.id} route={r} />
+              ),
+            )
+          )}
+          {editing && (
+            <Button variant="outline" className="w-full" onClick={onNewRoute}>
+              <Plus className="size-4" /> Add route
+            </Button>
+          )}
+        </div>
       )}
     </div>
   )
