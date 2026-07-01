@@ -2,6 +2,7 @@ import Dexie from 'dexie'
 import { db } from './db'
 import { generateId } from '@/lib/id'
 import { normalizeTags } from '@/lib/tags'
+import { STYLE_LABELS, isCleanTick, vGradeIndex } from '@/lib/climbing'
 import type {
   CardioActivityType,
   ClimbingRoute,
@@ -606,5 +607,121 @@ export async function importAllData(json: string): Promise<void> {
         if (d.prs?.length) await db.prs.bulkAdd(d.prs)
       },
     )
+  })
+}
+
+// Re-derives weight PRs (from new sets) and grade PRs (from new routes) after a
+// merge, so the prs table stays consistent with the freshly-added records.
+async function redetectPRs(newSets: LoggedSet[], newRoutes: ClimbingRoute[]): Promise<void> {
+  for (const s of newSets) {
+    if (s.skipped || s.weightKg == null) continue
+    const repsMet = s.targetReps == null || (s.actualReps ?? 0) >= s.targetReps
+    if (!repsMet) continue
+    await checkAndSavePR({
+      exerciseId: s.exerciseId,
+      exerciseName: s.exerciseName,
+      prType: 'weight',
+      value: s.weightKg,
+      unit: 'kg',
+      sessionId: s.sessionId,
+      achievedAt: s.loggedAt,
+    })
+  }
+  for (const r of newRoutes) {
+    if (!isCleanTick(r.tick)) continue
+    if (r.style === 'bouldering' && r.vGrade) {
+      await checkAndSavePR({
+        exerciseName: STYLE_LABELS.bouldering,
+        climbingStyle: 'bouldering',
+        prType: 'grade',
+        value: vGradeIndex(r.vGrade),
+        unit: 'vgrade',
+        sessionId: r.sessionId,
+        achievedAt: r.loggedAt,
+      })
+    } else if (r.style !== 'bouldering' && r.ewbanksGrade != null) {
+      await checkAndSavePR({
+        exerciseName: STYLE_LABELS[r.style],
+        climbingStyle: r.style,
+        prType: 'grade',
+        value: r.ewbanksGrade,
+        unit: 'ewbanks',
+        sessionId: r.sessionId,
+        achievedAt: r.loggedAt,
+      })
+    }
+  }
+}
+
+// Merges a backup into the existing DB: records whose id already exists are
+// skipped (existing data wins); new ids are inserted. PR detection is re-run
+// across newly inserted sets and routes so the prs table stays consistent.
+export async function mergeData(json: string): Promise<{ inserted: number; skipped: number }> {
+  return run('mergeData', async () => {
+    const parsed = JSON.parse(json) as Partial<ExportBundle>
+    const d = parsed.data
+    if (!d || typeof d !== 'object') {
+      throw new Error('unrecognised backup file (missing "data")')
+    }
+
+    let inserted = 0
+    let skipped = 0
+    const newSets: LoggedSet[] = []
+    const newRoutes: ClimbingRoute[] = []
+
+    await db.transaction(
+      'rw',
+      [db.exercises, db.templates, db.sessions, db.sets, db.cardio, db.routes, db.hangs, db.prs],
+      async () => {
+        async function mergeInto<T extends { id: string }>(
+          table: Dexie.Table<T, string>,
+          records: T[] | undefined,
+          onInsert?: (rec: T) => void,
+        ) {
+          if (!records?.length) return
+          const existingIds = new Set(await table.toCollection().primaryKeys())
+          const toAdd = records.filter((r) => {
+            if (existingIds.has(r.id)) {
+              skipped++
+              return false
+            }
+            return true
+          })
+          if (toAdd.length) {
+            await table.bulkAdd(toAdd)
+            inserted += toAdd.length
+            if (onInsert) toAdd.forEach(onInsert)
+          }
+        }
+
+        await mergeInto(db.exercises, d.exercises)
+        await mergeInto(db.templates, d.templates)
+        await mergeInto(db.sessions, d.sessions)
+        await mergeInto(db.sets, d.sets, (s) => newSets.push(s))
+        await mergeInto(db.cardio, d.cardio)
+        await mergeInto(db.routes, d.routes, (r) => newRoutes.push(r))
+        await mergeInto(db.hangs, d.hangs)
+        await mergeInto(db.prs, d.prs)
+      },
+    )
+
+    await redetectPRs(newSets, newRoutes)
+    return { inserted, skipped }
+  })
+}
+
+// Permanently wipes every table. The seed provenance lives in `meta`, so
+// clearing it (plus the db_seeded flag) means the built-in library is
+// re-seeded on the next app launch.
+export async function clearAllData(): Promise<void> {
+  return run('clearAllData', async () => {
+    await db.transaction('rw', db.tables, async () => {
+      for (const table of db.tables) await table.clear()
+    })
+    try {
+      localStorage.removeItem('db_seeded')
+    } catch {
+      /* ignore */
+    }
   })
 }

@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Download, Upload } from 'lucide-react'
-import { exportAllData, importAllData } from '@/db/helpers'
+import { Combine, Download, Trash2, Upload } from 'lucide-react'
+import { clearAllData, exportAllData, importAllData, mergeData } from '@/db/helpers'
 import { getUserName, setUserName } from '@/lib/userName'
 import { THEMES, applyTheme, getTheme } from '@/lib/theme'
 import { cn } from '@/lib/utils'
@@ -26,7 +26,10 @@ const REPO_URL = 'https://github.com/laidlaw42/workout_tracker'
 export default function SettingsScreen() {
   const navigate = useNavigate()
   const fileRef = useRef<HTMLInputElement>(null)
+  const mergeFileRef = useRef<HTMLInputElement>(null)
   const [confirmImport, setConfirmImport] = useState(false)
+  const [confirmClear, setConfirmClear] = useState(false)
+  const [confirmClear2, setConfirmClear2] = useState(false)
   const [name, setName] = useState(getUserName())
   const [theme, setTheme] = useState(getTheme())
 
@@ -54,6 +57,29 @@ export default function SettingsScreen() {
       toast.success('Data imported')
     } catch {
       toast.error('Import failed — is this a valid backup file?')
+    }
+  }
+
+  async function handleMergeFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    try {
+      const { inserted, skipped } = await mergeData(await file.text())
+      toast.success(`Merge complete — ${inserted} records added, ${skipped} already existed`)
+    } catch {
+      toast.error('Merge failed — is this a valid backup file?')
+    }
+  }
+
+  async function handleClearAll() {
+    try {
+      await clearAllData()
+      setConfirmClear2(false)
+      toast.success('All data cleared')
+      navigate('/home')
+    } catch {
+      toast.error('Could not clear data')
     }
   }
 
@@ -117,9 +143,24 @@ export default function SettingsScreen() {
             >
               <Upload className="size-4" /> Import data
             </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => mergeFileRef.current?.click()}
+            >
+              <Combine className="size-4" /> Import and merge
+            </Button>
             <p className="px-1 text-xs text-muted-foreground">
-              Export downloads a JSON backup. Import replaces all current data with a backup.
+              Export downloads a JSON backup. Import replaces all current data; merge adds only
+              records not already on this device.
             </p>
+            <Button
+              variant="outline"
+              className="w-full justify-start text-destructive"
+              onClick={() => setConfirmClear(true)}
+            >
+              <Trash2 className="size-4" /> Clear all data
+            </Button>
           </div>
         </section>
 
@@ -150,6 +191,56 @@ export default function SettingsScreen() {
         hidden
         onChange={handleFile}
       />
+      <input
+        ref={mergeFileRef}
+        type="file"
+        accept="application/json,.json"
+        hidden
+        onChange={handleMergeFile}
+      />
+
+      <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear all data?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete all your workouts, sessions, history, and planned
+              workouts. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmClear(false)
+                setConfirmClear2(true)
+              }}
+            >
+              Clear data
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmClear2} onOpenChange={setConfirmClear2}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure? This is permanent.</AlertDialogTitle>
+            <AlertDialogDescription>
+              Every workout, session, record, and planned workout will be deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleClearAll}
+            >
+              Yes, delete everything
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={confirmImport} onOpenChange={setConfirmImport}>
         <AlertDialogContent>
