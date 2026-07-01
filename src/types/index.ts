@@ -172,6 +172,7 @@ export interface LoggedCardio {
 export interface LoggedHang {
   id: string
   sessionId: string
+  hangSetId?: string // FK → the HangboardSet row this hang belongs to
   gripType: string
   edgeDepthMm: number
   setNumber: number // 1-indexed

@@ -6,6 +6,7 @@ import {
   STYLE_LABELS,
   TICK_TYPES,
   V_GRADES,
+  ewbanksBandClass,
 } from '@/lib/climbing'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { Button } from '@/components/ui/button'
@@ -100,10 +101,11 @@ export function LogRouteSheet({ open, onOpenChange, sessionId, editing, onSaved 
       style,
       vGrade: isBoulder ? (vGrade ?? undefined) : undefined,
       ewbanksGrade: isBoulder ? undefined : (ewbanks ?? undefined),
-      wallAngle: isBoulder ? wallAngle : undefined,
+      wallAngle, // optional for every style
       routeName: routeName.trim() || undefined,
       colour: colour.trim() || undefined,
       attempts: attempts.trim() ? Number(attempts) : undefined,
+      notes: notes.trim() || undefined,
       tick,
       loggedAt: editing ? editing.loggedAt : Date.now(),
     }
@@ -147,34 +149,38 @@ export function LogRouteSheet({ open, onOpenChange, sessionId, editing, onSaved 
                           key={g}
                           label={String(g)}
                           active={ewbanks === g}
+                          colorClass={ewbanksBandClass(g)}
                           onClick={() => setEwbanks(g)}
                         />
                       ))}
                 </div>
+                {!isBoulder && (
+                  <p className="text-xs text-muted-foreground">
+                    Ewbanks scale — swipe to see the full range.
+                  </p>
+                )}
               </div>
 
-              {isBoulder && (
-                <div className="space-y-2">
-                  <Label>Wall angle</Label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {WALL_ANGLES.map((a) => (
-                      <button
-                        key={a.value}
-                        type="button"
-                        onClick={() => setWallAngle((cur) => (cur === a.value ? undefined : a.value))}
-                        className={cn(
-                          'min-h-10 rounded-lg border text-sm font-medium transition-colors',
-                          wallAngle === a.value
-                            ? 'border-primary bg-primary/10 text-foreground'
-                            : 'border-border text-muted-foreground',
-                        )}
-                      >
-                        {a.label}
-                      </button>
-                    ))}
-                  </div>
+              <div className="space-y-2">
+                <Label>Wall angle</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {WALL_ANGLES.map((a) => (
+                    <button
+                      key={a.value}
+                      type="button"
+                      onClick={() => setWallAngle((cur) => (cur === a.value ? undefined : a.value))}
+                      className={cn(
+                        'min-h-10 rounded-lg border text-sm font-medium transition-colors',
+                        wallAngle === a.value
+                          ? 'border-primary bg-primary/10 text-foreground'
+                          : 'border-border text-muted-foreground',
+                      )}
+                    >
+                      {a.label}
+                    </button>
+                  ))}
                 </div>
-              )}
+              </div>
             </div>
           )}
 
@@ -274,16 +280,25 @@ interface ChipProps {
   label: string
   active: boolean
   onClick: () => void
+  colorClass?: string
 }
 
-function GradeChip({ label, active, onClick }: ChipProps) {
+function GradeChip({ label, active, onClick, colorClass }: ChipProps) {
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        'flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border px-3 font-semibold transition-colors',
-        active ? 'border-primary bg-primary text-primary-foreground' : 'border-border',
+        'flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border px-3 font-semibold transition-all',
+        colorClass
+          ? cn(
+              'border-transparent',
+              colorClass,
+              active ? 'ring-2 ring-foreground ring-offset-2 ring-offset-background' : 'opacity-80',
+            )
+          : active
+            ? 'border-primary bg-primary text-primary-foreground'
+            : 'border-border',
       )}
     >
       {label}

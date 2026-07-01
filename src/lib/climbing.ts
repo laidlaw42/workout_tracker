@@ -18,8 +18,17 @@ export function vGradeFromIndex(index: number): string {
   return index === -1 ? 'VB' : `V${index}`
 }
 
-// Typical gym range for the Ewbanks picker.
-export const EWBANKS_GRADES = Array.from({ length: 26 }, (_, i) => 10 + i) // 10..35
+// Full Ewbanks scale (1–39) for the grade picker.
+export const EWBANKS_GRADES = Array.from({ length: 39 }, (_, i) => i + 1) // 1..39
+
+// Colour bands for Ewbanks grades. Static class strings so Tailwind keeps them.
+export function ewbanksBandClass(grade: number): string {
+  if (grade <= 12) return 'bg-green-500 text-green-950'
+  if (grade <= 18) return 'bg-yellow-400 text-yellow-950'
+  if (grade <= 24) return 'bg-orange-500 text-orange-950'
+  if (grade <= 32) return 'bg-red-500 text-red-50'
+  return 'bg-fuchsia-500 text-fuchsia-50'
+}
 
 export const STYLE_LABELS: Record<ClimbingStyle, string> = {
   bouldering: 'Bouldering',

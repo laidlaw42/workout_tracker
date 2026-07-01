@@ -231,20 +231,16 @@ export default function ClimbingSessionScreen() {
     }
   }
 
-  // Hang logging
-  const completedFor = (hs: HangboardSet) =>
-    hangs.filter(
-      (h) =>
-        h.gripType === hs.gripType &&
-        h.edgeDepthMm === hs.edgeDepthMm &&
-        h.targetDurationSeconds === hs.durationSeconds,
-    ).length
+  // Hang logging. Progress is tracked per specific hang set (by its id), so two
+  // rows with identical grip/edge/duration advance independently.
+  const completedFor = (hs: HangboardSet) => hangs.filter((h) => h.hangSetId === hs.id).length
   const currentHangIndex = hangSets.findIndex((hs) => completedFor(hs) < hs.sets)
 
   async function logHang(hs: HangboardSet) {
     try {
       await addHang({
         sessionId: id,
+        hangSetId: hs.id,
         gripType: hs.gripType,
         edgeDepthMm: hs.edgeDepthMm,
         setNumber: completedFor(hs) + 1,
