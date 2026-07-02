@@ -25,14 +25,17 @@ export function SessionHeader({
 }: Props) {
   return (
     <header className="sticky top-0 z-40 flex min-h-14 items-center gap-2 border-b border-border bg-background/95 px-2 pt-[env(safe-area-inset-top)] backdrop-blur">
-      <button
-        type="button"
+      {/* Cancel — discards the session; tinted destructive so it never reads
+          as the neutral timer control beside it. */}
+      <Button
+        variant="ghost"
+        size="icon"
         onClick={onCancel}
         aria-label="Cancel workout"
-        className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors active:bg-accent"
+        className="shrink-0 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
       >
         <X className="size-5" />
-      </button>
+      </Button>
 
       <div className="min-w-0 flex-1">
         <p className="truncate font-semibold leading-tight">{title}</p>
@@ -42,16 +45,19 @@ export function SessionHeader({
         </p>
       </div>
 
-      <button
-        type="button"
+      {/* Pause / Resume — a filled circle marks it as the timer control. */}
+      <Button
+        variant="secondary"
+        size="icon"
         onClick={paused ? onResume : onPause}
         aria-label={paused ? 'Resume timer' : 'Pause timer'}
-        className="flex size-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors active:bg-accent"
+        className="shrink-0 rounded-full"
       >
         {paused ? <Play className="size-5" /> : <Pause className="size-5" />}
-      </button>
+      </Button>
 
-      <Button size="sm" variant="secondary" onClick={onFinish}>
+      {/* Finish — the primary positive action; solid accent pill. */}
+      <Button onClick={onFinish} className="shrink-0 rounded-full px-5">
         {finishLabel}
       </Button>
     </header>

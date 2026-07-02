@@ -458,7 +458,9 @@ function GradeChips({
 }) {
   const colorFor = (v: string) => (mode === 'v' ? vGradeToColor(v) : gradeToColor(Number(v)))
   return (
-    <div className="flex gap-2 overflow-x-auto pb-2">
+    // min-h + vertical padding: overflow-x-auto also clips the Y axis, so the
+    // chips (and the active ring-offset) need headroom or the top row is cut off.
+    <div className="flex min-h-16 items-center gap-2 overflow-x-auto px-0.5 py-2">
       {values.map((v) => (
         <GradeChip
           key={v}

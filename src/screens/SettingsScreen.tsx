@@ -22,6 +22,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -119,30 +126,25 @@ export default function SettingsScreen() {
 
         <section className="space-y-2">
           <h2 className="text-sm font-medium text-muted-foreground">Theme</h2>
-          <div className="grid grid-cols-2 gap-2">
-            {THEMES.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                data-theme={t.id}
-                onClick={() => {
-                  applyTheme(t.id)
-                  setTheme(t.id)
-                }}
-                className={cn(
-                  'flex items-center gap-2 rounded-lg border border-border bg-background p-3 text-left transition-shadow',
-                  theme === t.id && 'ring-2 ring-primary',
-                )}
-              >
-                <span className="flex gap-1">
-                  <span className="size-4 rounded-full border border-border bg-card" />
-                  <span className="size-4 rounded-full bg-primary" />
-                  <span className="size-4 rounded-full bg-accent" />
-                </span>
-                <span className="text-sm font-medium text-foreground">{t.label}</span>
-              </button>
-            ))}
-          </div>
+          <Select
+            value={theme}
+            onValueChange={(id) => {
+              applyTheme(id) // updates data-theme on <html> + saves to localStorage
+              setTheme(id)
+            }}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {THEMES.map((t) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="px-1 text-xs text-muted-foreground">Applies instantly — pick to preview.</p>
         </section>
 
         <section className="space-y-2">
@@ -233,6 +235,7 @@ export default function SettingsScreen() {
           <div className="rounded-xl border border-border bg-card p-3 text-sm">
             <p className="font-medium">Workout Tracker</p>
             <p className="text-muted-foreground">Version {import.meta.env.VITE_APP_VERSION}</p>
+            <p className="text-muted-foreground">Made with love for Britta ❤️</p>
             <p className="mt-1 text-muted-foreground">
               Offline-first. Weights in kg. Your data stays on this device.
             </p>
