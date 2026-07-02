@@ -6,7 +6,8 @@ import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { useRestTimer } from '@/hooks/useRestTimer'
 import { useCountdownTimer } from '@/hooks/useCountdownTimer'
 import { useCountdownBeeps } from '@/hooks/useCountdownBeeps'
-import { getAutoAdvance } from '@/lib/prefs'
+import { useWakeLock } from '@/hooks/useWakeLock'
+import { getAutoAdvance, getKeepAwake } from '@/lib/prefs'
 import {
   addSet,
   checkAndSavePR,
@@ -62,6 +63,7 @@ export default function StrengthSessionScreen() {
   const rest = useRestTimer()
   const countdown = useCountdownTimer()
   useCountdownBeeps(countdown.remaining, countdown.isRunning)
+  useWakeLock(getKeepAwake())
 
   // Build the working list once, from the linked template or (for a repeat
   // session) the plan snapshotted onto the session.

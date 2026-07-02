@@ -5,7 +5,17 @@ import { Combine, Download, Trash2, Upload } from 'lucide-react'
 import { clearAllData, exportAllData, importAllData, mergeData } from '@/db/helpers'
 import { getUserName, setUserName } from '@/lib/userName'
 import { THEMES, applyTheme, getTheme } from '@/lib/theme'
-import { getAutoAdvance, setAutoAdvance } from '@/lib/prefs'
+import {
+  getAutoAdvance,
+  getKeepAwake,
+  getTimerSounds,
+  getWeekStart,
+  setAutoAdvance,
+  setKeepAwake,
+  setTimerSounds,
+  setWeekStart,
+} from '@/lib/prefs'
+import { SegmentedControl } from '@/components/SegmentedControl'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -34,6 +44,9 @@ export default function SettingsScreen() {
   const [name, setName] = useState(getUserName())
   const [theme, setTheme] = useState(getTheme())
   const [autoAdvance, setAutoAdvanceState] = useState(getAutoAdvance())
+  const [timerSounds, setTimerSoundsState] = useState(getTimerSounds())
+  const [keepAwake, setKeepAwakeState] = useState(getKeepAwake())
+  const [weekStart, setWeekStartState] = useState<'mon' | 'sun'>(getWeekStart() === 0 ? 'sun' : 'mon')
 
   async function handleExport() {
     try {
@@ -134,36 +147,51 @@ export default function SettingsScreen() {
 
         <section className="space-y-2">
           <h2 className="text-sm font-medium text-muted-foreground">Session</h2>
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-3">
-            <div className="min-w-0">
-              <p className="text-sm font-medium">Auto-start next timed set</p>
-              <p className="text-xs text-muted-foreground">
-                When a rest timer ends, automatically begin the next hang/hold countdown.
-              </p>
-            </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={autoAdvance}
-              aria-label="Auto-start next timed set"
-              onClick={() => {
-                const next = !autoAdvance
-                setAutoAdvance(next)
-                setAutoAdvanceState(next)
+          <div className="space-y-2">
+            <SettingSwitch
+              label="Auto-start next timed set"
+              description="When a rest timer ends, automatically begin the next hang/hold countdown."
+              checked={autoAdvance}
+              onChange={(v) => {
+                setAutoAdvance(v)
+                setAutoAdvanceState(v)
               }}
-              className={cn(
-                'relative h-6 w-11 shrink-0 rounded-full transition-colors',
-                autoAdvance ? 'bg-primary' : 'bg-muted',
-              )}
-            >
-              <span
-                className={cn(
-                  'absolute top-0.5 size-5 rounded-full bg-background shadow transition-transform',
-                  autoAdvance ? 'translate-x-5' : 'translate-x-0.5',
-                )}
-              />
-            </button>
+            />
+            <SettingSwitch
+              label="Timer sounds"
+              description="Play countdown beeps and a completion tone for the set and rest timers."
+              checked={timerSounds}
+              onChange={(v) => {
+                setTimerSounds(v)
+                setTimerSoundsState(v)
+              }}
+            />
+            <SettingSwitch
+              label="Keep screen awake"
+              description="Stop the screen sleeping during an active workout."
+              checked={keepAwake}
+              onChange={(v) => {
+                setKeepAwake(v)
+                setKeepAwakeState(v)
+              }}
+            />
           </div>
+        </section>
+
+        <section className="space-y-2">
+          <h2 className="text-sm font-medium text-muted-foreground">Calendar</h2>
+          <Label>Week starts on</Label>
+          <SegmentedControl
+            options={[
+              { value: 'mon', label: 'Monday' },
+              { value: 'sun', label: 'Sunday' },
+            ]}
+            value={weekStart}
+            onChange={(v) => {
+              setWeekStart(v === 'sun' ? 0 : 1)
+              setWeekStartState(v)
+            }}
+          />
         </section>
 
         <section className="space-y-3">
@@ -295,6 +323,45 @@ export default function SettingsScreen() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  )
+}
+
+function SettingSwitch({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string
+  description: string
+  checked: boolean
+  onChange: (checked: boolean) => void
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-3">
+      <div className="min-w-0">
+        <p className="text-sm font-medium">{label}</p>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
+        onClick={() => onChange(!checked)}
+        className={cn(
+          'relative h-6 w-11 shrink-0 rounded-full transition-colors',
+          checked ? 'bg-primary' : 'bg-muted',
+        )}
+      >
+        <span
+          className={cn(
+            'absolute top-0.5 size-5 rounded-full bg-background shadow transition-transform',
+            checked ? 'translate-x-5' : 'translate-x-0.5',
+          )}
+        />
+      </button>
     </div>
   )
 }

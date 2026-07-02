@@ -2,6 +2,8 @@
 // first use; since every call originates from a user gesture (tapping Start /
 // logging a set), the browser autoplay policy is satisfied.
 
+import { getTimerSounds } from './prefs'
+
 let ctx: AudioContext | null = null
 
 function audioCtx(): AudioContext | null {
@@ -40,10 +42,12 @@ function tone(freq: number, durationMs: number) {
 
 /** Short high beep for the 4/3/2/1 countdown ticks. */
 export function playTick() {
+  if (!getTimerSounds()) return
   tone(880, 90)
 }
 
 /** Lower, longer tone for reaching zero. */
 export function playComplete() {
+  if (!getTimerSounds()) return
   tone(660, 280)
 }

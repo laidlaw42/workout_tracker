@@ -7,7 +7,8 @@ import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { useRestTimer } from '@/hooks/useRestTimer'
 import { useCountdownTimer } from '@/hooks/useCountdownTimer'
 import { useCountdownBeeps } from '@/hooks/useCountdownBeeps'
-import { getAutoAdvance } from '@/lib/prefs'
+import { useWakeLock } from '@/hooks/useWakeLock'
+import { getAutoAdvance, getKeepAwake } from '@/lib/prefs'
 import {
   addHang,
   addSet,
@@ -76,6 +77,7 @@ export default function ClimbingSessionScreen() {
   const rest = useRestTimer()
   const countdown = useCountdownTimer()
   useCountdownBeeps(countdown.remaining, countdown.isRunning)
+  useWakeLock(getKeepAwake())
 
   const isBoard = session?.board !== undefined
 

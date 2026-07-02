@@ -27,8 +27,10 @@ import {
   todayKey,
   weekDays,
   weekLabel,
+  weekdayHeaders,
   weekdayShort,
 } from '@/lib/date'
+import { getWeekStart } from '@/lib/prefs'
 import { DISCIPLINE_BADGE, DISCIPLINE_DOT, DISCIPLINE_LABEL } from '@/lib/discipline'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { DayDetailSheet } from '@/components/DayDetailSheet'
@@ -66,18 +68,19 @@ export default function PlannerScreen() {
   const [editingPlan, setEditingPlan] = useState<PlannedWorkout | null>(null)
   const [editTime, setEditTime] = useState('')
   const [editNotes, setEditNotes] = useState('')
+  const weekStartsOn = getWeekStart()
 
   const range = useMemo(() => {
     if (view === 'week') {
-      const d = weekDays(anchor)
+      const d = weekDays(anchor, weekStartsOn)
       return { from: d[0], to: d[6] }
     }
     if (view === 'month') {
-      const c = monthGrid(anchor)
+      const c = monthGrid(anchor, weekStartsOn)
       return { from: c[0], to: c[c.length - 1] }
     }
     return { from: toDateKey(addDays(new Date(), -56)), to: toDateKey(addDays(new Date(), 28)) }
-  }, [view, anchor])
+  }, [view, anchor, weekStartsOn])
 
   const planned = useLiveQuery(
     () => getPlannedWorkoutsForRange(range.from, range.to),
@@ -201,7 +204,7 @@ export default function PlannerScreen() {
               <ChevronLeft className="size-5" />
             </button>
             <p className="text-sm font-medium">
-              {view === 'month' ? monthLabel(anchor) : weekLabel(anchor)}
+              {view === 'month' ? monthLabel(anchor) : weekLabel(anchor, weekStartsOn)}
             </p>
             <button
               type="button"
@@ -218,7 +221,7 @@ export default function PlannerScreen() {
       <div className="p-4" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         {view === 'week' && (
           <WeekView
-            days={weekDays(anchor)}
+            days={weekDays(anchor, weekStartsOn)}
             plannedByDate={plannedByDate}
             sessionsByDate={sessionsByDate}
             onSelect={setSelectedDate}
@@ -226,7 +229,8 @@ export default function PlannerScreen() {
         )}
         {view === 'month' && (
           <MonthView
-            cells={monthGrid(anchor)}
+            cells={monthGrid(anchor, weekStartsOn)}
+            headers={weekdayHeaders(weekStartsOn)}
             anchor={anchor}
             plannedByDate={plannedByDate}
             sessionsByDate={sessionsByDate}
@@ -237,6 +241,7 @@ export default function PlannerScreen() {
           <ListView
             planned={planned ?? []}
             sessions={(sessions ?? []).filter((s) => s.endedAt)}
+            weekStartsOn={weekStartsOn}
             onSelectDate={setSelectedDate}
             onOpenSession={(id) => navigate(`/history/${id}`)}
           />
@@ -364,16 +369,16 @@ function WeekView({
 
 // --- Month view -------------------------------------------------------------
 
-const MONTH_HEADERS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-
 function MonthView({
   cells,
+  headers,
   anchor,
   plannedByDate,
   sessionsByDate,
   onSelect,
 }: {
   cells: string[]
+  headers: string[]
   anchor: Date
   plannedByDate: PlanMap
   sessionsByDate: SessionMap
@@ -383,7 +388,7 @@ function MonthView({
   return (
     <div>
       <div className="mb-1 grid grid-cols-7 gap-1">
-        {MONTH_HEADERS.map((h) => (
+        {headers.map((h) => (
           <div key={h} className="text-center text-[10px] uppercase text-muted-foreground">
             {h}
           </div>
@@ -445,25 +450,27 @@ type ListItem =
 function ListView({
   planned,
   sessions,
+  weekStartsOn,
   onSelectDate,
   onOpenSession,
 }: {
   planned: PlannedWorkout[]
   sessions: WorkoutSession[]
+  weekStartsOn: 0 | 1
   onSelectDate: (key: string) => void
   onOpenSession: (id: string) => void
 }) {
   const weeksBack = 8
   const weeksFwd = 4
-  const start = startOfWeek(addDays(new Date(), -weeksBack * 7))
+  const start = startOfWeek(addDays(new Date(), -weeksBack * 7), weekStartsOn)
   const weekStarts: string[] = []
   for (let i = weeksBack + weeksFwd; i >= 0; i--) {
     weekStarts.push(toDateKey(addDays(start, i * 7))) // newest week first
   }
-  const thisWeekStart = toDateKey(startOfWeek(new Date()))
+  const thisWeekStart = toDateKey(startOfWeek(new Date(), weekStartsOn))
 
   const buckets = new Map<string, ListItem[]>()
-  const bucketKey = (dateKey: string) => toDateKey(startOfWeek(fromDateKey(dateKey)))
+  const bucketKey = (dateKey: string) => toDateKey(startOfWeek(fromDateKey(dateKey), weekStartsOn))
   for (const p of planned) {
     const wk = bucketKey(p.plannedDate)
     const arr = buckets.get(wk) ?? []
@@ -491,7 +498,7 @@ function ListView({
       {populated.map((wk) => (
         <section key={wk} className="space-y-2">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold">{weekLabel(fromDateKey(wk))}</h2>
+            <h2 className="text-sm font-semibold">{weekLabel(fromDateKey(wk), weekStartsOn)}</h2>
             {wk === thisWeekStart && (
               <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
                 This week

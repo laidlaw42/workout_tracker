@@ -4,6 +4,8 @@ import { toast } from 'sonner'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { useIntervalTimer } from '@/hooks/useIntervalTimer'
+import { useWakeLock } from '@/hooks/useWakeLock'
+import { getKeepAwake } from '@/lib/prefs'
 import {
   addCardio,
   checkAndSavePR,
@@ -73,6 +75,7 @@ export default function CardioSessionScreen() {
 
   const clock = useSessionTimer(session?.startedAt ?? Date.now())
   const elapsed = clock.elapsed
+  useWakeLock(getKeepAwake())
   const timer = useIntervalTimer(intervals, elapsed)
 
   function updateActivity(a: CardioActivityType) {

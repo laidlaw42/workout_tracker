@@ -81,11 +81,12 @@ export function addMonths(d: Date, n: number): Date {
   return out
 }
 
-// Monday as the first day of the week.
-export function startOfWeek(d: Date): Date {
+// First day of the week: 1 = Monday (default), 0 = Sunday.
+export function startOfWeek(d: Date, weekStartsOn: 0 | 1 = 1): Date {
   const out = new Date(d.getFullYear(), d.getMonth(), d.getDate())
-  const dow = (out.getDay() + 6) % 7 // Mon=0 … Sun=6
-  out.setDate(out.getDate() - dow)
+  const day = out.getDay() // 0=Sun … 6=Sat
+  const diff = weekStartsOn === 1 ? (day + 6) % 7 : day
+  out.setDate(out.getDate() - diff)
   return out
 }
 
@@ -97,15 +98,15 @@ export function endOfMonth(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth() + 1, 0)
 }
 
-// The 7 date keys of the week containing `d` (Mon–Sun).
-export function weekDays(d: Date): string[] {
-  const start = startOfWeek(d)
+// The 7 date keys of the week containing `d`.
+export function weekDays(d: Date, weekStartsOn: 0 | 1 = 1): string[] {
+  const start = startOfWeek(d, weekStartsOn)
   return Array.from({ length: 7 }, (_, i) => toDateKey(addDays(start, i)))
 }
 
-// A month grid padded to full Mon–Sun weeks (35 or 42 cells).
-export function monthGrid(d: Date): string[] {
-  const first = startOfWeek(startOfMonth(d))
+// A month grid padded to full weeks (35 or 42 cells).
+export function monthGrid(d: Date, weekStartsOn: 0 | 1 = 1): string[] {
+  const first = startOfWeek(startOfMonth(d), weekStartsOn)
   const last = endOfMonth(d)
   const cells: string[] = []
   let cur = first
@@ -117,8 +118,14 @@ export function monthGrid(d: Date): string[] {
 }
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+// A date's own weekday name — independent of where the week starts.
 export function weekdayShort(key: string): string {
   return WEEKDAYS[(fromDateKey(key).getDay() + 6) % 7]
+}
+
+// Column headers in week-start order.
+export function weekdayHeaders(weekStartsOn: 0 | 1 = 1): string[] {
+  return weekStartsOn === 1 ? WEEKDAYS : ['Sun', ...WEEKDAYS.slice(0, 6)]
 }
 
 export function dayOfMonth(key: string): number {
@@ -129,8 +136,8 @@ export function monthLabel(d: Date): string {
   return d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
 }
 
-export function weekLabel(d: Date): string {
-  const start = startOfWeek(d)
+export function weekLabel(d: Date, weekStartsOn: 0 | 1 = 1): string {
+  const start = startOfWeek(d, weekStartsOn)
   const end = addDays(start, 6)
   const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
   return `${start.toLocaleDateString(undefined, opts)} – ${end.toLocaleDateString(undefined, opts)}`
