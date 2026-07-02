@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import { useLiveQuery } from '@/hooks/useDb'
 import { getTemplate, startSessionFromTemplate } from '@/db/helpers'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
+import { badgeForTemplate } from '@/lib/badges'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -72,7 +73,7 @@ export default function TemplateDetailScreen() {
 
       <div className="space-y-4 p-4">
         <div className="flex flex-wrap items-center gap-2">
-          <DisciplineBadge type={template.type} />
+          <DisciplineBadge badge={badgeForTemplate(template)} />
           {template.tags.map((tag) => (
             <span
               key={tag}

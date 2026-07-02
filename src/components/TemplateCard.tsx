@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { DisciplineBadge } from './DisciplineBadge'
+import { badgeForTemplate } from '@/lib/badges'
 import { formatRelativeDay } from '@/lib/date'
 import { formatWorkoutLength } from '@/lib/formatDuration'
 import type { WorkoutTemplate } from '@/types'
@@ -76,7 +77,7 @@ export function TemplateCard({ template, onOpen, onDelete }: Props) {
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex items-center gap-2">
           <span className="truncate font-medium">{template.name}</span>
-          <DisciplineBadge type={template.type} />
+          <DisciplineBadge badge={badgeForTemplate(template)} />
         </div>
         <div className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
           <span>{summarise(template)}</span>

@@ -3,6 +3,7 @@ import { db } from './db'
 import { generateId } from '@/lib/id'
 import { normalizeTags } from '@/lib/tags'
 import { STYLE_LABELS, isCleanTick, vGradeIndex } from '@/lib/climbing'
+import { deriveSessionKind, type SessionKind } from '@/lib/badges'
 import type {
   CardioActivityType,
   ClimbingRoute,
@@ -561,6 +562,51 @@ export async function getHangsForSession(sessionId: string): Promise<LoggedHang[
       .between([sessionId, MIN], [sessionId, MAX])
       .toArray(),
   )
+}
+
+// Classify a batch of sessions by their logged content, so cards can show the
+// right subtype emoji (route style / hangboard / climbing workout / cardio
+// activity). Loads only the tables relevant to the sessions passed in.
+export async function describeSessions(
+  sessions: WorkoutSession[],
+): Promise<Record<string, SessionKind>> {
+  return run('describeSessions', async () => {
+    const out: Record<string, SessionKind> = {}
+    const climbing = sessions.filter((s) => s.type === 'climbing')
+    const cardio = sessions.filter((s) => s.type === 'cardio')
+
+    if (cardio.length) {
+      const ids = cardio.map((s) => s.id)
+      const logs = await db.cardio.where('sessionId').anyOf(ids).toArray()
+      const activityBy = new Map<string, CardioActivityType>()
+      for (const c of logs) if (!activityBy.has(c.sessionId)) activityBy.set(c.sessionId, c.activityType)
+      for (const s of cardio) {
+        out[s.id] = deriveSessionKind(s, { cardioActivity: activityBy.get(s.id) })
+      }
+    }
+
+    if (climbing.length) {
+      const ids = climbing.map((s) => s.id)
+      // hangs/sets have a standalone sessionId index; routes only a compound one,
+      // so fetch those per session (indexed range scans, not a full-table scan).
+      const [hangs, sets] = await Promise.all([
+        db.hangs.where('sessionId').anyOf(ids).toArray(),
+        db.sets.where('sessionId').anyOf(ids).toArray(),
+      ])
+      const hasHang = new Set(hangs.map((h) => h.sessionId))
+      const hasSet = new Set(sets.map((x) => x.sessionId))
+      const routeLists = await Promise.all(climbing.map((s) => getRoutesForSession(s.id)))
+      climbing.forEach((s, i) => {
+        out[s.id] = deriveSessionKind(s, {
+          routes: routeLists[i],
+          hasHang: hasHang.has(s.id),
+          hasSet: hasSet.has(s.id),
+        })
+      })
+    }
+
+    return out
+  })
 }
 
 // ---------------------------------------------------------------------------

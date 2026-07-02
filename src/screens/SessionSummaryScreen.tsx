@@ -10,6 +10,7 @@ import {
   getSetsForSession,
 } from '@/db/helpers'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
+import { badgeForSession, deriveSessionKind } from '@/lib/badges'
 import { PRBadge } from '@/components/PRBadge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -60,6 +61,15 @@ export default function SessionSummaryScreen() {
 
   const durationSeconds =
     session.endedAt != null ? (session.endedAt - session.startedAt) / 1000 : 0
+  const badge = badgeForSession(
+    session,
+    deriveSessionKind(session, {
+      routes,
+      hasHang: hangs.length > 0,
+      hasSet: sets.length > 0,
+      cardioActivity: cardio?.activityType,
+    }),
+  )
 
   return (
     <div className="flex min-h-dvh flex-col p-4 pt-[calc(env(safe-area-inset-top)+1.5rem)]">
@@ -67,7 +77,7 @@ export default function SessionSummaryScreen() {
         <div className="space-y-2 text-center">
           <p className="text-3xl font-bold">{phrase}</p>
           <div className="flex items-center justify-center gap-2">
-            <DisciplineBadge type={session.type} />
+            <DisciplineBadge badge={badge} />
             <span className="text-sm text-muted-foreground">
               {formatWorkoutLength(durationSeconds)}
             </span>

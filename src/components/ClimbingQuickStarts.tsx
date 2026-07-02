@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Building2, Home, Mountain } from 'lucide-react'
 import { createSession } from '@/db/helpers'
+import { VENUE_BADGES } from '@/lib/badges'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -59,9 +60,9 @@ export function ClimbingQuickStarts() {
 
   return (
     <div className="grid grid-cols-3 gap-2">
-      <QuickCard icon={Building2} label="Gym" onClick={() => open('gym')} />
-      <QuickCard icon={Mountain} label="Crag" onClick={() => open('crag')} />
-      <QuickCard icon={Home} label="Home" onClick={() => open('home')} />
+      <QuickCard venue="gym" onClick={() => open('gym')} />
+      <QuickCard venue="crag" onClick={() => open('crag')} />
+      <QuickCard venue="home" onClick={() => open('home')} />
 
       <Dialog open={prompt !== null} onOpenChange={(o) => !o && setPrompt(null)}>
         <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
@@ -89,23 +90,28 @@ export function ClimbingQuickStarts() {
   )
 }
 
-function QuickCard({
-  icon: Icon,
-  label,
-  onClick,
-}: {
-  icon: typeof Mountain
-  label: string
-  onClick: () => void
-}) {
+// Per-venue card tint — kept as static strings so Tailwind doesn't purge them.
+const CARD_TONE: Record<Kind, string> = {
+  gym: 'bg-blue-500/10 text-blue-300',
+  crag: 'bg-amber-500/10 text-amber-300',
+  home: 'bg-green-500/10 text-green-300',
+}
+
+function QuickCard({ venue, onClick }: { venue: Kind; onClick: () => void }) {
+  const badge = VENUE_BADGES[venue]
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex min-h-20 flex-col items-center justify-center gap-2 rounded-xl border border-border bg-green-500/10 p-3 text-sm font-medium text-green-300 transition-transform active:scale-95"
+      className={cn(
+        'flex min-h-20 flex-col items-center justify-center gap-2 rounded-xl border border-border p-3 text-sm font-medium transition-transform active:scale-95',
+        CARD_TONE[venue],
+      )}
     >
-      <Icon className="size-6" aria-hidden />
-      {label}
+      <span className="text-2xl" aria-hidden>
+        {badge.emoji}
+      </span>
+      {badge.label}
     </button>
   )
 }

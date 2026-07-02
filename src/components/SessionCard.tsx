@@ -1,17 +1,20 @@
 import { Link } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 import { DisciplineBadge } from './DisciplineBadge'
+import { badgeForSession, type SessionKind } from '@/lib/badges'
 import { formatRelativeDay } from '@/lib/date'
 import { formatWorkoutLength } from '@/lib/formatDuration'
 import type { WorkoutSession } from '@/types'
 
 interface Props {
   session: WorkoutSession
+  /** Logged-content classification for the subtype emoji (from describeSessions). */
+  kind?: SessionKind
   /** Optional primary stat (e.g. "1,240 kg", "5.2 km", "V5 hardest"). */
   stat?: string
 }
 
-export function SessionCard({ session, stat }: Props) {
+export function SessionCard({ session, kind, stat }: Props) {
   const durationSeconds =
     session.endedAt != null ? (session.endedAt - session.startedAt) / 1000 : undefined
 
@@ -22,7 +25,7 @@ export function SessionCard({ session, stat }: Props) {
     >
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex items-center gap-2">
-          <DisciplineBadge type={session.type} />
+          <DisciplineBadge badge={badgeForSession(session, kind)} />
           <span className="truncate font-medium">{session.templateName}</span>
         </div>
         <div className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">

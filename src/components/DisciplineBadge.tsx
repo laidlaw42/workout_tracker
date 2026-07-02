@@ -1,34 +1,22 @@
 import { cn } from '@/lib/utils'
-import type { DisciplineType } from '@/types'
-
-// Static class strings (never build `bg-${x}` dynamically — Tailwind would purge it).
-const STYLES: Record<DisciplineType, string> = {
-  strength: 'bg-teal-500/15 text-teal-300 ring-teal-500/30',
-  cardio: 'bg-orange-500/15 text-orange-300 ring-orange-500/30',
-  climbing: 'bg-green-500/15 text-green-300 ring-green-500/30',
-}
-
-const LABELS: Record<DisciplineType, string> = {
-  strength: 'Strength',
-  cardio: 'Cardio',
-  climbing: 'Climbing',
-}
+import type { Badge } from '@/lib/badges'
 
 interface Props {
-  type: DisciplineType
+  badge: Badge
   className?: string
 }
 
-export function DisciplineBadge({ type, className }: Props) {
+export function DisciplineBadge({ badge, className }: Props) {
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset',
-        STYLES[type],
+        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset',
+        badge.classes,
         className,
       )}
     >
-      {LABELS[type]}
+      <span aria-hidden>{badge.emoji}</span>
+      {badge.label}
     </span>
   )
 }

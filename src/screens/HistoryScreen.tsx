@@ -1,7 +1,7 @@
 import { Fragment, useState } from 'react'
 import { Clock } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
-import { getAllSessions } from '@/db/helpers'
+import { describeSessions, getAllSessions } from '@/db/helpers'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { SessionCard } from '@/components/SessionCard'
 import { EmptyState } from '@/components/EmptyState'
@@ -20,13 +20,16 @@ const OPTIONS: { value: Filter; label: string }[] = [
 
 export default function HistoryScreen() {
   const [filter, setFilter] = useState<Filter>('all')
-  const sessions = useLiveQuery(
-    () => getAllSessions(filter === 'all' ? undefined : filter),
-    [filter],
-  )
+  const data = useLiveQuery(async () => {
+    const sessions = await getAllSessions(filter === 'all' ? undefined : filter)
+    // Completed sessions only, already sorted by startedAt desc.
+    const completed = sessions.filter((s) => s.endedAt != null)
+    const kinds = await describeSessions(completed)
+    return { completed, kinds }
+  }, [filter])
 
-  // Completed sessions only, already sorted by startedAt desc.
-  const completed = sessions?.filter((s) => s.endedAt != null)
+  const completed = data?.completed
+  const kinds = data?.kinds ?? {}
 
   return (
     <div className="space-y-4 p-4 pt-[calc(env(safe-area-inset-top)+1rem)]">
@@ -54,7 +57,7 @@ export default function HistoryScreen() {
                 {month !== prevMonth && (
                   <h2 className="px-1 pt-2 text-sm font-medium text-muted-foreground">{month}</h2>
                 )}
-                <SessionCard session={session} />
+                <SessionCard session={session} kind={kinds[session.id]} />
               </Fragment>
             )
           })}

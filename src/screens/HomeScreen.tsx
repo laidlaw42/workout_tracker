@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { Activity, Dumbbell, Flame, Mountain, Settings } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
-import { getAllSessions } from '@/db/helpers'
+import { describeSessions, getAllSessions } from '@/db/helpers'
 import { computeStreak } from '@/lib/streak'
 import { formatLongDate, greeting } from '@/lib/date'
 import { getUserName } from '@/lib/userName'
@@ -12,10 +12,16 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 export default function HomeScreen() {
   const navigate = useNavigate()
-  const sessions = useLiveQuery(() => getAllSessions(), [])
-  const loading = sessions === undefined
-  const streak = sessions ? computeStreak(sessions) : 0
-  const recent = sessions?.slice(0, 5) ?? []
+  const data = useLiveQuery(async () => {
+    const sessions = await getAllSessions()
+    const recent = sessions.slice(0, 5)
+    const kinds = await describeSessions(recent)
+    return { sessions, recent, kinds }
+  }, [])
+  const loading = data === undefined
+  const streak = data ? computeStreak(data.sessions) : 0
+  const recent = data?.recent ?? []
+  const kinds = data?.kinds ?? {}
 
   return (
     <div className="space-y-6 p-4 pt-[calc(env(safe-area-inset-top)+1rem)]">
@@ -90,7 +96,7 @@ export default function HomeScreen() {
         ) : (
           <div className="space-y-2">
             {recent.map((s) => (
-              <SessionCard key={s.id} session={s} />
+              <SessionCard key={s.id} session={s} kind={kinds[s.id]} />
             ))}
           </div>
         )}

@@ -23,6 +23,7 @@ import { LogRouteSheet } from '@/components/LogRouteSheet'
 import { PageHeader } from '@/components/PageHeader'
 import { RouteCard } from '@/components/RouteCard'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
+import { badgeForSession, deriveSessionKind } from '@/lib/badges'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -149,6 +150,15 @@ export default function SessionDetailScreen() {
 
   const durationSeconds =
     session.endedAt != null ? (session.endedAt - session.startedAt) / 1000 : 0
+  const badge = badgeForSession(
+    session,
+    deriveSessionKind(session, {
+      routes,
+      hasHang: hangs.length > 0,
+      hasSet: sets.length > 0,
+      cardioActivity: cardio?.activityType,
+    }),
+  )
 
   return (
     <div className="min-h-dvh pb-6">
@@ -178,7 +188,7 @@ export default function SessionDetailScreen() {
       />
       <div className="space-y-5 p-4">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <DisciplineBadge type={session.type} />
+          <DisciplineBadge badge={badge} />
           <span>{fullDate(session.startedAt)}</span>
           <span>· {formatWorkoutLength(durationSeconds)}</span>
         </div>
