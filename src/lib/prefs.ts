@@ -75,6 +75,58 @@ export function removeGymLocation(name: string): string[] {
   return next
 }
 
+// --- Remembered location names (A17) ---------------------------------------
+
+export type LocationType = 'gym' | 'crag' | 'board'
+const LOCATION_KEYS: Record<LocationType, string> = {
+  gym: 'saved_gyms',
+  crag: 'saved_crags',
+  board: 'saved_boards',
+}
+
+export function getSavedLocations(type: LocationType): string[] {
+  try {
+    const arr = JSON.parse(localStorage.getItem(LOCATION_KEYS[type]) ?? '[]')
+    return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+function writeSavedLocations(type: LocationType, list: string[]): void {
+  try {
+    localStorage.setItem(LOCATION_KEYS[type], JSON.stringify(list))
+  } catch {
+    /* ignore */
+  }
+}
+// Promote a name to the front (most recently used); dedup case-insensitively; cap 10.
+export function rememberLocation(type: LocationType, name: string): void {
+  const n = name.trim()
+  if (!n) return
+  const rest = getSavedLocations(type).filter((x) => x.toLowerCase() !== n.toLowerCase())
+  writeSavedLocations(type, [n, ...rest].slice(0, 10))
+}
+export function removeSavedLocation(type: LocationType, name: string): string[] {
+  const next = getSavedLocations(type).filter((x) => x !== name)
+  writeSavedLocations(type, next)
+  return next
+}
+export function renameSavedLocation(type: LocationType, oldName: string, newName: string): string[] {
+  const n = newName.trim()
+  if (!n) return getSavedLocations(type)
+  const seen = new Set<string>()
+  const next = getSavedLocations(type)
+    .map((x) => (x === oldName ? n : x))
+    .filter((x) => {
+      const k = x.toLowerCase()
+      if (seen.has(k)) return false
+      seen.add(k)
+      return true
+    })
+  writeSavedLocations(type, next)
+  return next
+}
+
 // --- Gym grade ranges (A21) -------------------------------------------------
 
 export type GymStyle = 'bouldering' | 'top_rope' | 'lead'

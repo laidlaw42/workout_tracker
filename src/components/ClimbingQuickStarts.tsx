@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { createSession } from '@/db/helpers'
 import { VENUE_BADGES } from '@/lib/badges'
+import { getSavedLocations, rememberLocation, type LocationType } from '@/lib/prefs'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,6 +25,9 @@ const LABELS: Record<Kind, { title: string; field: string; placeholder: string }
   home: { title: 'Home board', field: 'Board name (optional)', placeholder: 'e.g. garage wall' },
 }
 
+// A "Home board" session is remembered under the board list.
+const LOC_TYPE: Record<Kind, LocationType> = { gym: 'gym', crag: 'crag', home: 'board' }
+
 export function ClimbingQuickStarts() {
   const navigate = useNavigate()
   const [prompt, setPrompt] = useState<Kind | null>(null)
@@ -34,9 +38,12 @@ export function ClimbingQuickStarts() {
     setPrompt(kind)
   }
 
+  const saved = prompt ? getSavedLocations(LOC_TYPE[prompt]) : []
+
   async function start() {
     if (!prompt) return
-    const trimmed = name.trim() || undefined
+    const raw = name.trim()
+    const trimmed = raw || undefined
     const venue: Partial<WorkoutSession> =
       prompt === 'gym'
         ? { climbingVenue: 'gym', gym: trimmed }
@@ -51,6 +58,7 @@ export function ClimbingQuickStarts() {
         modifiedFromTemplate: false,
         ...venue,
       })
+      rememberLocation(LOC_TYPE[prompt], raw) // MRU; no-ops on empty
       setPrompt(null)
       navigate(`/session/climbing/${id}`)
     } catch {
@@ -70,6 +78,20 @@ export function ClimbingQuickStarts() {
             <DialogTitle>{prompt ? LABELS[prompt].title : ''}</DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
+            {saved.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {saved.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setName(s)}
+                    className="rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-foreground transition-colors active:bg-accent"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
             <Label htmlFor="place-name">{prompt ? LABELS[prompt].field : ''}</Label>
             <Input
               id="place-name"
