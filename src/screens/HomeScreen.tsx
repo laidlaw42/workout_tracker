@@ -62,7 +62,7 @@ export default function HomeScreen() {
           <QuickStart
             label="Strength"
             icon={Dumbbell}
-            className="bg-teal-500/15 text-teal-300"
+            className="bg-red-500/15 text-red-300"
             onClick={() => navigate('/library?type=strength')}
           />
           <QuickStart

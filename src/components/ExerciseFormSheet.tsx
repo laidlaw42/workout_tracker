@@ -90,7 +90,11 @@ export function ExerciseFormSheet({ open, onOpenChange, exercise, usageCount = 0
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="flex max-h-[90dvh] flex-col gap-0 p-0">
+      <SheetContent
+        side="bottom"
+        className="flex max-h-[90dvh] flex-col gap-0 p-0"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <SheetHeader className="border-b border-border">
           <SheetTitle>{exercise ? 'Edit exercise' : 'New exercise'}</SheetTitle>
           <SheetDescription className="sr-only">Exercise details</SheetDescription>
@@ -102,7 +106,6 @@ export function ExerciseFormSheet({ open, onOpenChange, exercise, usageCount = 0
             <Input
               id="ex-form-name"
               value={name}
-              autoFocus
               placeholder="e.g. Front squat"
               onChange={(e) => setName(e.target.value)}
             />

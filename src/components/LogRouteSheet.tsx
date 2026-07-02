@@ -1,14 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { addRoute, updateRoute } from '@/db/helpers'
-import {
-  EWBANKS_GRADES,
-  GYM_GRADES,
-  STYLE_LABELS,
-  TICK_TYPES,
-  V_GRADES,
-} from '@/lib/climbing'
+import { EWBANKS_GRADES, STYLE_LABELS, TICK_TYPES, V_GRADES } from '@/lib/climbing'
 import { contrastText, gradeToColor, vGradeToColor } from '@/lib/gradeColors'
+import { getGymGradeRanges, type GymStyle } from '@/lib/prefs'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -73,11 +68,14 @@ export function LogRouteSheet({
   const [colour, setColour] = useState('')
   const [attempts, setAttempts] = useState('')
   const [notes, setNotes] = useState('')
+  // Gym-grade ranges are read fresh each time the sheet opens (A21).
+  const [gymRanges, setGymRanges] = useState(getGymGradeRanges)
 
   // Initialise each time the sheet opens (fresh for new, populated for edit).
   useEffect(() => {
     if (!open) return
     setStep(firstStep)
+    setGymRanges(getGymGradeRanges())
     if (editing) {
       setStyle(boardMode ? 'bouldering' : editing.style)
       setGradeSystem(editing.gymGrade != null ? 'gym' : 'standard')
@@ -134,7 +132,10 @@ export function LogRouteSheet({
     gradeMode === 'v'
       ? [...V_GRADES]
       : gradeMode === 'gym'
-        ? GYM_GRADES.map(String)
+        ? (() => {
+            const r = gymRanges[style as GymStyle] ?? { min: 0, max: 35 }
+            return Array.from({ length: r.max - r.min + 1 }, (_, i) => String(r.min + i))
+          })()
         : EWBANKS_GRADES.map(String)
   const primarySelected =
     gradeMode === 'v' ? vGrade : gradeMode === 'gym' ? (gymGrade != null ? String(gymGrade) : null) : ewbanks != null ? String(ewbanks) : null
@@ -194,7 +195,11 @@ export function LogRouteSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="flex max-h-[90dvh] flex-col gap-0 p-0">
+      <SheetContent
+        side="bottom"
+        className="flex max-h-[90dvh] flex-col gap-0 p-0"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <SheetHeader className="border-b border-border">
           <SheetTitle>{editing ? 'Edit route' : 'Log a route'}</SheetTitle>
           <SheetDescription>

@@ -36,7 +36,11 @@ export function CardioEditSheet({
 }: Props) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto">
+      <SheetContent
+        side="bottom"
+        className="max-h-[85dvh] overflow-y-auto"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <SheetHeader>
           <SheetTitle>Edit workout</SheetTitle>
           <SheetDescription>Change the activity or adjust your intervals.</SheetDescription>

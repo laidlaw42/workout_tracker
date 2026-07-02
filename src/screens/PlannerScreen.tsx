@@ -263,7 +263,7 @@ export default function PlannerScreen() {
       <TemplatePickerSheet open={pickerOpen} onOpenChange={setPickerOpen} onSelect={handleAddTemplate} />
 
       <Dialog open={editingPlan !== null} onOpenChange={(o) => !o && setEditingPlan(null)}>
-        <DialogContent>
+        <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>{editingPlan?.templateName}</DialogTitle>
           </DialogHeader>

@@ -46,6 +46,7 @@ interface ExerciseSeed {
   name: string
   muscleGroups: string[]
   trackingType: TrackingType
+  supportsAdditionalWeight?: boolean
 }
 
 const EXERCISES: ExerciseSeed[] = [
@@ -62,13 +63,16 @@ const EXERCISES: ExerciseSeed[] = [
   { id: 'ex_bench_press', name: 'Bench press', muscleGroups: ['chest', 'triceps'], trackingType: 'reps' },
   { id: 'ex_incline_db_press', name: 'Incline dumbbell press', muscleGroups: ['chest', 'shoulders'], trackingType: 'reps' },
   { id: 'ex_cable_fly', name: 'Cable fly', muscleGroups: ['chest'], trackingType: 'reps' },
-  { id: 'ex_chest_dip', name: 'Chest dip', muscleGroups: ['chest', 'triceps'], trackingType: 'reps' },
+  { id: 'ex_chest_dip', name: 'Chest dip', muscleGroups: ['chest', 'triceps'], trackingType: 'reps', supportsAdditionalWeight: true },
+  { id: 'ex_ring_dip', name: 'Ring dip', muscleGroups: ['chest', 'triceps'], trackingType: 'reps', supportsAdditionalWeight: true },
   { id: 'ex_overhead_press', name: 'Overhead press', muscleGroups: ['shoulders', 'triceps'], trackingType: 'reps' },
   { id: 'ex_db_shoulder_press', name: 'Dumbbell shoulder press', muscleGroups: ['shoulders', 'triceps'], trackingType: 'reps' },
   { id: 'ex_lateral_raise', name: 'Lateral raise', muscleGroups: ['shoulders'], trackingType: 'reps' },
   { id: 'ex_tricep_pushdown', name: 'Tricep pushdown', muscleGroups: ['triceps'], trackingType: 'reps' },
   // Pull
-  { id: 'ex_pull_up', name: 'Pull-up', muscleGroups: ['back', 'biceps'], trackingType: 'reps' },
+  { id: 'ex_pull_up', name: 'Pull-up', muscleGroups: ['back', 'biceps'], trackingType: 'reps', supportsAdditionalWeight: true },
+  { id: 'ex_chin_up', name: 'Chin-up', muscleGroups: ['back', 'biceps'], trackingType: 'reps', supportsAdditionalWeight: true },
+  { id: 'ex_muscle_up', name: 'Muscle-up', muscleGroups: ['back', 'chest', 'triceps'], trackingType: 'reps', supportsAdditionalWeight: true },
   { id: 'ex_lat_pulldown', name: 'Lat pulldown', muscleGroups: ['back', 'biceps'], trackingType: 'reps' },
   { id: 'ex_seated_row', name: 'Seated row', muscleGroups: ['back', 'biceps'], trackingType: 'reps' },
   { id: 'ex_barbell_row', name: 'Barbell row', muscleGroups: ['back', 'biceps'], trackingType: 'reps' },
@@ -424,6 +428,17 @@ export async function seedIfNeeded(): Promise<void> {
       await db.meta.put({ key: 'exerciseTagsBackfilled', value: true })
     }
 
+    // Backfill the bodyweight-loadable flag onto built-ins that were seeded
+    // before the field existed (e.g. Pull-up, Chest dip).
+    if (!(await getMeta<boolean>('additionalWeightBackfilled'))) {
+      for (const e of EXERCISES) {
+        if (e.supportsAdditionalWeight) {
+          await db.exercises.update(e.id, { supportsAdditionalWeight: true })
+        }
+      }
+      await db.meta.put({ key: 'additionalWeightBackfilled', value: true })
+    }
+
     // Seed built-in templates once each (never resurrect user-deleted ones).
     const seededIds = (await getMeta<string[]>('seededTemplateIds')) ?? []
     const seededSet = new Set(seededIds)
@@ -450,5 +465,28 @@ export async function seedIfNeeded(): Promise<void> {
     }
 
     await db.meta.put({ key: 'builtinSetVersion', value: BUILTIN_SET_VERSION })
+  })
+}
+
+// Re-insert any built-in exercises/templates that are missing (e.g. the user
+// deleted them). Records that still exist — even if the user edited them — are
+// left untouched, and user-created records are never affected.
+export async function restoreDefaults(): Promise<void> {
+  await db.transaction('rw', db.exercises, db.templates, async () => {
+    const now = Date.now()
+
+    const haveEx = new Set((await db.exercises.toArray()).map((e) => e.id))
+    const exToAdd = EXERCISES.filter((e) => !haveEx.has(e.id)).map<Exercise>((e) => ({
+      ...e,
+      tags: [],
+      createdAt: now,
+    }))
+    if (exToAdd.length) await db.exercises.bulkPut(exToAdd)
+
+    const haveTpl = new Set((await db.templates.toArray()).map((t) => t.id))
+    const tplToAdd = ALL_TEMPLATE_SEEDS.filter((s) => !haveTpl.has(s.id)).map((s) =>
+      buildTemplate(s, now),
+    )
+    if (tplToAdd.length) await db.templates.bulkPut(tplToAdd)
   })
 }

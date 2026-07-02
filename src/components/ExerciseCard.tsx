@@ -19,6 +19,7 @@ export interface WorkExercise {
 
 export interface LoggedSetInput {
   weightKg?: number
+  additionalWeightKg?: number
   actualReps?: number
   durationSeconds?: number
 }
@@ -28,6 +29,8 @@ interface Props {
   loggedSets: LoggedSet[]
   isCurrent: boolean
   prefillWeight?: number
+  /** Bodyweight movement that can carry extra load — shows the +kg field. */
+  supportsAdditionalWeight?: boolean
   onLog: (data: LoggedSetInput) => void
   onAddSet: () => void
   /** Inline swap is offered on the current exercise only. */
@@ -44,6 +47,7 @@ export function ExerciseCard({
   loggedSets,
   isCurrent,
   prefillWeight,
+  supportsAdditionalWeight,
   onLog,
   onAddSet,
   onSwap,
@@ -97,7 +101,13 @@ export function ExerciseCard({
               <span className="font-medium text-foreground">
                 {s.durationSeconds != null
                   ? `${s.durationSeconds}s`
-                  : `${s.weightKg != null ? `${s.weightKg} kg` : 'BW'} × ${s.actualReps ?? '—'}`}
+                  : `${
+                      s.additionalWeightKg
+                        ? `BW +${s.additionalWeightKg} kg`
+                        : s.weightKg != null
+                          ? `${s.weightKg} kg`
+                          : 'BW'
+                    } × ${s.actualReps ?? '—'}`}
               </span>
             </div>
           ))}
@@ -118,6 +128,7 @@ export function ExerciseCard({
                 setNumber={currentSetNumber}
                 targetReps={exercise.targetReps}
                 prefillWeight={prefillWeight}
+                supportsAdditionalWeight={supportsAdditionalWeight}
                 onLog={onLog}
               />
             ))}
@@ -139,27 +150,34 @@ interface SetRowProps {
   setNumber: number
   targetReps?: number
   prefillWeight?: number
+  supportsAdditionalWeight?: boolean
   onLog: (data: LoggedSetInput) => void
 }
 
-function SetRow({ setNumber, targetReps, prefillWeight, onLog }: SetRowProps) {
+function SetRow({ setNumber, targetReps, prefillWeight, supportsAdditionalWeight, onLog }: SetRowProps) {
   const [weight, setWeight] = useState('')
+  const [addl, setAddl] = useState('')
   const [reps, setReps] = useState(targetReps != null ? String(targetReps) : '')
 
   function log() {
     const w = weight.trim() === '' ? undefined : Number(weight)
+    const a = addl.trim() === '' ? undefined : Number(addl)
     const r = reps.trim() === '' ? undefined : Number(reps)
     onLog({
       weightKg: w != null && !Number.isNaN(w) ? w : undefined,
+      additionalWeightKg: a != null && !Number.isNaN(a) && a > 0 ? a : undefined,
       actualReps: r != null && !Number.isNaN(r) ? r : undefined,
     })
     setWeight('')
+    setAddl('')
     setReps(targetReps != null ? String(targetReps) : '')
   }
 
   return (
     <div className="flex items-end gap-2 rounded-lg border border-primary/40 bg-background p-2">
-      <span className="pb-2.5 text-sm text-muted-foreground">Set {setNumber}</span>
+      {!supportsAdditionalWeight && (
+        <span className="pb-2.5 text-sm text-muted-foreground">Set {setNumber}</span>
+      )}
       <label className="flex flex-1 flex-col gap-1">
         <span className="text-xs text-muted-foreground">Weight (kg)</span>
         <Input
@@ -170,6 +188,18 @@ function SetRow({ setNumber, targetReps, prefillWeight, onLog }: SetRowProps) {
           className="h-10"
         />
       </label>
+      {supportsAdditionalWeight && (
+        <label className="flex w-16 flex-col gap-1">
+          <span className="text-xs text-muted-foreground">+kg</span>
+          <Input
+            inputMode="decimal"
+            value={addl}
+            placeholder="0"
+            onChange={(e) => setAddl(e.target.value.replace(/[^0-9.]/g, ''))}
+            className="h-10"
+          />
+        </label>
+      )}
       <label className="flex flex-1 flex-col gap-1">
         <span className="text-xs text-muted-foreground">Reps</span>
         <Input

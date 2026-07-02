@@ -13,6 +13,7 @@ import {
   checkAndSavePR,
   deleteSession,
   endSession,
+  getAllExercises,
   getLastSetForExercise,
   getSessionById,
   getSetsForSession,
@@ -49,6 +50,8 @@ export default function StrengthSessionScreen() {
     [session?.templateId],
   )
   const loggedSets = useLiveQuery(() => getSetsForSession(id), [id]) ?? []
+  const exercises = useLiveQuery(() => getAllExercises(), []) ?? []
+  const exById = useMemo(() => new Map(exercises.map((e) => [e.id, e])), [exercises])
 
   const [work, setWork] = useState<WorkExercise[]>([])
   const [inited, setInited] = useState(false)
@@ -152,22 +155,34 @@ export default function StrengthSessionScreen() {
         targetReps: ex.targetReps,
         actualReps: data.actualReps,
         weightKg: data.weightKg,
+        additionalWeightKg: data.additionalWeightKg,
         durationSeconds: data.durationSeconds,
         skipped: false,
         swappedFrom: ex.swappedFrom,
         loggedAt: Date.now(),
       })
       const repsMet = ex.targetReps == null || (data.actualReps ?? 0) >= ex.targetReps
-      if (repsMet && data.weightKg != null) {
-        await checkAndSavePR({
-          exerciseId: ex.exerciseId,
-          exerciseName: ex.exerciseName,
-          prType: 'weight',
-          value: data.weightKg,
-          unit: 'kg',
-          sessionId: id,
-          achievedAt: Date.now(),
-        })
+      if (repsMet) {
+        // Bodyweight-loadable moves (pull-up, dip, …): bodyweight isn't tracked,
+        // so the PR compares the added load alone. Everything else uses the bar
+        // weight.
+        const loadable = exById.get(ex.exerciseId)?.supportsAdditionalWeight
+        const prValue = loadable
+          ? data.additionalWeightKg != null && data.additionalWeightKg > 0
+            ? data.additionalWeightKg
+            : undefined
+          : data.weightKg
+        if (prValue != null) {
+          await checkAndSavePR({
+            exerciseId: ex.exerciseId,
+            exerciseName: ex.exerciseName,
+            prType: 'weight',
+            value: prValue,
+            unit: 'kg',
+            sessionId: id,
+            achievedAt: Date.now(),
+          })
+        }
       }
       restTimedRef.current = ex.durationSeconds != null ? ex.uid : null
       rest.start(ex.restSeconds)
@@ -339,6 +354,7 @@ export default function StrengthSessionScreen() {
               loggedSets={loggedFor(ex)}
               isCurrent={isCurrent}
               prefillWeight={isCurrent ? prefill?.weightKg : undefined}
+              supportsAdditionalWeight={exById.get(ex.exerciseId)?.supportsAdditionalWeight}
               onLog={(d) => handleLog(ex, d)}
               onAddSet={() => addSetTo(ex.uid)}
               onSwap={isCurrent ? () => setPickerOpen(true) : undefined}

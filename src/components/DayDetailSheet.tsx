@@ -36,7 +36,11 @@ export function DayDetailSheet({
 }: Props) {
   return (
     <Sheet open={dateKey !== null} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto">
+      <SheetContent
+        side="bottom"
+        className="max-h-[85dvh] overflow-y-auto"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <SheetHeader>
           <SheetTitle>{dateKey ? fullDayLabel(dateKey) : ''}</SheetTitle>
         </SheetHeader>

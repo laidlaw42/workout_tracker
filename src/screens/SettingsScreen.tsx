@@ -1,19 +1,27 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Combine, Download, Trash2, Upload } from 'lucide-react'
+import { Combine, Download, Minus, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react'
 import { clearAllData, exportAllData, importAllData, mergeData } from '@/db/helpers'
+import { restoreDefaults } from '@/db/seed'
 import { getUserName, setUserName } from '@/lib/userName'
 import { THEMES, applyTheme, getTheme } from '@/lib/theme'
 import {
+  addGymLocation,
   getAutoAdvance,
+  getGymGradeRanges,
+  getGymLocations,
   getKeepAwake,
   getTimerSounds,
   getWeekStart,
+  removeGymLocation,
   setAutoAdvance,
+  setGymGradeRanges,
   setKeepAwake,
   setTimerSounds,
   setWeekStart,
+  type GymStyle,
+  type GradeRange,
 } from '@/lib/prefs'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { cn } from '@/lib/utils'
@@ -48,6 +56,10 @@ export default function SettingsScreen() {
   const [confirmImport, setConfirmImport] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
   const [confirmClear2, setConfirmClear2] = useState(false)
+  const [confirmRestore, setConfirmRestore] = useState(false)
+  const [gyms, setGyms] = useState(getGymLocations())
+  const [newGym, setNewGym] = useState('')
+  const [gymRanges, setGymRangesState] = useState(getGymGradeRanges())
   const [name, setName] = useState(getUserName())
   const [theme, setTheme] = useState(getTheme())
   const [autoAdvance, setAutoAdvanceState] = useState(getAutoAdvance())
@@ -104,6 +116,36 @@ export default function SettingsScreen() {
       toast.error('Could not clear data')
     }
   }
+
+  async function handleRestoreDefaults() {
+    try {
+      await restoreDefaults()
+      setConfirmRestore(false)
+      toast.success('Defaults restored')
+    } catch {
+      toast.error('Could not restore defaults')
+    }
+  }
+
+  function handleAddGym() {
+    setGyms(addGymLocation(newGym))
+    setNewGym('')
+  }
+
+  // Step a range bound with functional updates so hold-to-repeat reads the latest
+  // value; min/max stay clamped to 0–35 and never cross.
+  function stepRange(style: GymStyle, bound: 'min' | 'max', delta: number) {
+    setGymRangesState((cur) => {
+      const r = cur[style]
+      const min = bound === 'min' ? Math.max(0, Math.min(r.max, r.min + delta)) : r.min
+      const max = bound === 'max' ? Math.min(35, Math.max(r.min, r.max + delta)) : r.max
+      return { ...cur, [style]: { min, max } }
+    })
+  }
+
+  useEffect(() => {
+    setGymGradeRanges(gymRanges)
+  }, [gymRanges])
 
   return (
     <div className="min-h-dvh">
@@ -196,6 +238,66 @@ export default function SettingsScreen() {
           />
         </section>
 
+        <section className="space-y-2">
+          <h2 className="text-sm font-medium text-muted-foreground">Gyms</h2>
+          <div className="flex gap-2">
+            <Input
+              value={newGym}
+              placeholder="Add a gym"
+              onChange={(e) => setNewGym(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleAddGym()
+              }}
+            />
+            <Button onClick={handleAddGym} disabled={!newGym.trim()}>
+              Add
+            </Button>
+          </div>
+          {gyms.length > 0 && (
+            <div className="space-y-2">
+              {gyms.map((g) => (
+                <div
+                  key={g}
+                  className="flex items-center justify-between rounded-xl border border-border bg-card px-3 py-2"
+                >
+                  <span className="text-sm">{g}</span>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${g}`}
+                    onClick={() => setGyms(removeGymLocation(g))}
+                    className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors active:bg-accent"
+                  >
+                    <X className="size-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="px-1 text-xs text-muted-foreground">
+            Saved gyms unlock gym grade ranges below.
+          </p>
+        </section>
+
+        {gyms.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-sm font-medium text-muted-foreground">Gym grades</h2>
+            <p className="px-1 text-xs text-muted-foreground">
+              Limits the gym-grade picker (0–35) per discipline.
+            </p>
+            <RangeConfig
+              label="Bouldering"
+              range={gymRanges.bouldering}
+              onStep={(b, d) => stepRange('bouldering', b, d)}
+            />
+            <RangeConfig
+              label="Top rope"
+              range={gymRanges.top_rope}
+              onStep={(b, d) => stepRange('top_rope', b, d)}
+            />
+            <RangeConfig label="Lead" range={gymRanges.lead} onStep={(b, d) => stepRange('lead', b, d)} />
+          </section>
+        )}
+
         <section className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground">Data</h2>
           <div className="space-y-2">
@@ -220,6 +322,13 @@ export default function SettingsScreen() {
               Export downloads a JSON backup. Import replaces all current data; merge adds only
               records not already on this device.
             </p>
+            <Button
+              variant="outline"
+              className="w-full justify-start"
+              onClick={() => setConfirmRestore(true)}
+            >
+              <RotateCcw className="size-4" /> Restore defaults
+            </Button>
             <Button
               variant="outline"
               className="w-full justify-start text-destructive"
@@ -309,6 +418,22 @@ export default function SettingsScreen() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={confirmRestore} onOpenChange={setConfirmRestore}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore defaults?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will restore the original exercise library and workout templates. Any exercises
+              or templates you have created or edited will not be affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRestoreDefaults}>Restore</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={confirmImport} onOpenChange={setConfirmImport}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -366,5 +491,96 @@ function SettingSwitch({
         />
       </button>
     </div>
+  )
+}
+
+// A min/max grade-range configurator (A21). Both bounds use hold-to-repeat
+// steppers, matching the wall-angle input (A6).
+function RangeConfig({
+  label,
+  range,
+  onStep,
+}: {
+  label: string
+  range: GradeRange
+  onStep: (bound: 'min' | 'max', delta: number) => void
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-3">
+      <p className="mb-2 text-sm font-medium">{label}</p>
+      <div className="flex gap-3">
+        <Stepper label="Min" value={range.min} onStep={(d) => onStep('min', d)} />
+        <Stepper label="Max" value={range.max} onStep={(d) => onStep('max', d)} />
+      </div>
+    </div>
+  )
+}
+
+function Stepper({
+  label,
+  value,
+  onStep,
+}: {
+  label: string
+  value: number
+  onStep: (delta: number) => void
+}) {
+  return (
+    <div className="flex-1">
+      <p className="mb-1 text-xs text-muted-foreground">{label}</p>
+      <div className="flex items-center gap-2">
+        <HoldButton aria-label={`Decrease ${label}`} onStep={() => onStep(-1)}>
+          <Minus className="size-4" />
+        </HoldButton>
+        <span className="min-w-8 flex-1 text-center text-lg font-semibold tabular-nums">{value}</span>
+        <HoldButton aria-label={`Increase ${label}`} onStep={() => onStep(1)}>
+          <Plus className="size-4" />
+        </HoldButton>
+      </div>
+    </div>
+  )
+}
+
+// Fires once on press, then repeats with slight acceleration while held.
+function HoldButton({
+  onStep,
+  children,
+  'aria-label': ariaLabel,
+}: {
+  onStep: () => void
+  children: React.ReactNode
+  'aria-label': string
+}) {
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const stop = () => {
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = undefined
+  }
+  const start = () => {
+    stop()
+    onStep()
+    const startedAt = Date.now()
+    const tick = () => {
+      onStep()
+      timer.current = setTimeout(tick, Date.now() - startedAt > 600 ? 80 : 200)
+    }
+    timer.current = setTimeout(tick, 300)
+  }
+  useEffect(() => stop, [])
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      onPointerDown={(e) => {
+        e.preventDefault()
+        start()
+      }}
+      onPointerUp={stop}
+      onPointerLeave={stop}
+      onPointerCancel={stop}
+      className="flex size-9 shrink-0 select-none items-center justify-center rounded-lg border border-border text-foreground active:bg-accent"
+    >
+      {children}
+    </button>
   )
 }

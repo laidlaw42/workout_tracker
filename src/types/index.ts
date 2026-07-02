@@ -39,6 +39,9 @@ export interface Exercise {
   trackingType: TrackingType
   tags: string[]
   notes?: string
+  // Bodyweight movements that can carry extra load (pull-up, dip, …). When true,
+  // set logging shows an "Additional weight" (+kg) field.
+  supportsAdditionalWeight?: boolean
   createdAt: number
 }
 
@@ -138,6 +141,7 @@ export interface LoggedSet {
   targetReps?: number
   actualReps?: number
   weightKg?: number
+  additionalWeightKg?: number // extra load on a bodyweight movement (pull-up, dip, …)
   restTakenSeconds?: number
   durationSeconds?: number // for timed exercises
   skipped: boolean

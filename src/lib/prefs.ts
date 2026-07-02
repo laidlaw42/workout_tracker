@@ -43,3 +43,79 @@ export function setWeekStart(v: 0 | 1): void {
     /* ignore */
   }
 }
+
+// --- Saved gym locations (A17) ---------------------------------------------
+
+export function getGymLocations(): string[] {
+  try {
+    const arr = JSON.parse(localStorage.getItem('gym_locations') ?? '[]')
+    return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+function setGymLocations(list: string[]): void {
+  try {
+    localStorage.setItem('gym_locations', JSON.stringify(list))
+  } catch {
+    /* ignore */
+  }
+}
+export function addGymLocation(name: string): string[] {
+  const n = name.trim()
+  const cur = getGymLocations()
+  if (!n || cur.some((g) => g.toLowerCase() === n.toLowerCase())) return cur
+  const next = [...cur, n]
+  setGymLocations(next)
+  return next
+}
+export function removeGymLocation(name: string): string[] {
+  const next = getGymLocations().filter((g) => g !== name)
+  setGymLocations(next)
+  return next
+}
+
+// --- Gym grade ranges (A21) -------------------------------------------------
+
+export type GymStyle = 'bouldering' | 'top_rope' | 'lead'
+export interface GradeRange {
+  min: number
+  max: number
+}
+export type GymGradeRanges = Record<GymStyle, GradeRange>
+
+const DEFAULT_GYM_RANGES: GymGradeRanges = {
+  bouldering: { min: 0, max: 35 },
+  top_rope: { min: 0, max: 35 },
+  lead: { min: 0, max: 35 },
+}
+
+function clampGrade(n: unknown, fallback: number): number {
+  const v = typeof n === 'number' && Number.isFinite(n) ? Math.round(n) : fallback
+  return Math.max(0, Math.min(35, v))
+}
+
+export function getGymGradeRanges(): GymGradeRanges {
+  try {
+    const p = JSON.parse(localStorage.getItem('gym_grade_ranges') ?? 'null')
+    if (!p || typeof p !== 'object') return { ...DEFAULT_GYM_RANGES }
+    const one = (k: GymStyle): GradeRange => {
+      const r = (p as Record<string, { min?: unknown; max?: unknown }>)[k] ?? {}
+      let min = clampGrade(r.min, 0)
+      let max = clampGrade(r.max, 35)
+      if (min > max) [min, max] = [max, min]
+      return { min, max }
+    }
+    return { bouldering: one('bouldering'), top_rope: one('top_rope'), lead: one('lead') }
+  } catch {
+    return { ...DEFAULT_GYM_RANGES }
+  }
+}
+
+export function setGymGradeRanges(ranges: GymGradeRanges): void {
+  try {
+    localStorage.setItem('gym_grade_ranges', JSON.stringify(ranges))
+  } catch {
+    /* ignore */
+  }
+}

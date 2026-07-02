@@ -22,7 +22,11 @@ export function TemplatePickerSheet({ open, onOpenChange, onSelect }: Props) {
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto">
+      <SheetContent
+        side="bottom"
+        className="max-h-[85dvh] overflow-y-auto"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <SheetHeader>
           <SheetTitle>Schedule a workout</SheetTitle>
           <SheetDescription>Pick a workout to add to this day.</SheetDescription>
