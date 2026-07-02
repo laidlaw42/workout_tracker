@@ -315,7 +315,7 @@ export default function SettingsScreen() {
           <div className="rounded-xl border border-border bg-card p-3 text-sm">
             <p className="font-medium">Workout Tracker</p>
             <p className="text-muted-foreground">Version {import.meta.env.VITE_APP_VERSION}</p>
-            <p className="text-muted-foreground">Made with love for Britta ❤️</p>
+            <p className="text-muted-foreground">Made with love for Britta ❤</p>
             <p className="mt-1 text-muted-foreground">
               Offline-first. Weights in kg. Your data stays on this device.
             </p>

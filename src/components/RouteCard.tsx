@@ -1,6 +1,7 @@
 import { Pencil, Trash2 } from 'lucide-react'
 import { STYLE_LABELS, tickBadgeClass, tickLabel } from '@/lib/climbing'
 import { contrastText, gradeToColor, vGradeToColor } from '@/lib/gradeColors'
+import { findRouteColour } from '@/lib/routeColours'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -37,6 +38,8 @@ export function RouteCard({ route, gymRange, onClick, onDelete }: Props) {
         ? gradeToColor(route.gymGrade, gymRange)
         : null
 
+  const colour = findRouteColour(route.colour)
+
   const card = (
     <button
       type="button"
@@ -62,16 +65,27 @@ export function RouteCard({ route, gymRange, onClick, onDelete }: Props) {
           <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
             {STYLE_LABELS[route.style]}
           </span>
+          {route.colour &&
+            (colour?.solid ? (
+              <span
+                className="rounded-full px-2 py-0.5 text-xs font-semibold"
+                style={{ backgroundColor: colour.solid, color: contrastText(colour.solid) }}
+              >
+                {colour.label}
+              </span>
+            ) : (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground capitalize">
+                {colour?.label ?? route.colour}
+              </span>
+            ))}
         </div>
         {(route.routeName ||
-          route.colour ||
           (route.attempts ?? 0) > 1 ||
           route.wallAngleDegrees != null ||
           route.feltLikeGrade) && (
           <p className="truncate text-xs text-muted-foreground">
             {[
               route.routeName,
-              route.colour,
               route.feltLikeGrade ? `felt ${route.feltLikeGrade}` : null,
               route.wallAngleDegrees != null ? `${route.wallAngleDegrees}°` : null,
               (route.attempts ?? 0) > 1 ? `${route.attempts} attempts` : null,

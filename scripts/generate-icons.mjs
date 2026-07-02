@@ -1,5 +1,9 @@
-// Generates placeholder PWA icons (solid #3b82f6 with a white "W") with zero
-// dependencies: raw RGBA buffers encoded to PNG via Node's built-in zlib.
+// Generates the PWA / home-screen icons with zero dependencies (raw RGBA
+// buffers encoded to PNG via Node's built-in zlib). One cohesive mark combining
+// all three disciplines on a slate tile (A27):
+//   • a double mountain peak  → climbing
+//   • a dumbbell (two plates) → strength
+//   • the dumbbell's bar is a heartbeat pulse → cardio
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { deflateSync } from 'node:zlib'
 import { fileURLToPath } from 'node:url'
@@ -8,8 +12,10 @@ import { dirname, join } from 'node:path'
 const outDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'icons')
 mkdirSync(outDir, { recursive: true })
 
-const BG = [0x3b, 0x82, 0xf6, 0xff] // #3b82f6
-const FG = [0xff, 0xff, 0xff, 0xff] // white
+const SLATE = [0x0f, 0x17, 0x2a] // #0f172a — theme surface
+const WHITE = [0xf8, 0xfa, 0xfc] // #f8fafc
+
+// --- PNG encoding (RGBA) ----------------------------------------------------
 
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256)
@@ -20,13 +26,11 @@ const CRC_TABLE = (() => {
   }
   return t
 })()
-
 function crc32(buf) {
   let c = 0xffffffff
   for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8)
   return (c ^ 0xffffffff) >>> 0
 }
-
 function chunk(type, data) {
   const len = Buffer.alloc(4)
   len.writeUInt32BE(data.length, 0)
@@ -35,7 +39,6 @@ function chunk(type, data) {
   crc.writeUInt32BE(crc32(body), 0)
   return Buffer.concat([len, body, crc])
 }
-
 function encodePng(size, rgba) {
   const sig = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
   const ihdr = Buffer.alloc(13)
@@ -57,55 +60,118 @@ function encodePng(size, rgba) {
   ])
 }
 
-function makeIcon(size, padRatio) {
-  const rgba = Buffer.alloc(size * size * 4)
-  for (let i = 0; i < size * size; i++) rgba.set(BG, i * 4)
+// --- Geometry (design space is 512×512, mark centred ~(256,252)) ------------
 
-  const setPx = (x, y) => {
-    x = Math.round(x)
-    y = Math.round(y)
-    if (x < 0 || y < 0 || x >= size || y >= size) return
-    rgba.set(FG, (y * size + x) * 4)
+const PEAK = [
+  [168, 238],
+  [214, 150],
+  [242, 186],
+  [296, 128],
+  [344, 238],
+]
+const PLATES = [
+  [150, 288, 26, 88, 10],
+  [184, 302, 16, 60, 7],
+  [312, 302, 16, 60, 7],
+  [336, 288, 26, 88, 10],
+]
+const PULSE = [
+  [200, 332],
+  [232, 332],
+  [244, 304],
+  [258, 360],
+  [270, 332],
+  [312, 332],
+]
+const PULSE_HALF = 8
+
+function inPoly(x, y, pts) {
+  let inside = false
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i]
+    const [xj, yj] = pts[j]
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside
   }
-  const sw = Math.max(2, Math.round(size * 0.09))
-  const stroke = ([x0, y0], [x1, y1]) => {
-    const steps = Math.ceil(Math.hypot(x1 - x0, y1 - y0))
-    for (let s = 0; s <= steps; s++) {
-      const t = s / steps
-      const cx = x0 + (x1 - x0) * t
-      const cy = y0 + (y1 - y0) * t
-      for (let dx = -sw / 2; dx <= sw / 2; dx++)
-        for (let dy = -sw / 2; dy <= sw / 2; dy++) setPx(cx + dx, cy + dy)
+  return inside
+}
+function inRoundRect(x, y, rx, ry, w, h, r) {
+  if (x < rx || x > rx + w || y < ry || y > ry + h) return false
+  const dx = Math.min(x - rx, rx + w - x)
+  const dy = Math.min(y - ry, ry + h - y)
+  if (dx >= r || dy >= r) return true
+  return (r - dx) ** 2 + (r - dy) ** 2 <= r * r
+}
+function distSeg(px, py, ax, ay, bx, by) {
+  const vx = bx - ax
+  const vy = by - ay
+  const c1 = vx * (px - ax) + vy * (py - ay)
+  if (c1 <= 0) return Math.hypot(px - ax, py - ay)
+  const c2 = vx * vx + vy * vy
+  if (c2 <= c1) return Math.hypot(px - bx, py - by)
+  const t = c1 / c2
+  return Math.hypot(px - (ax + t * vx), py - (ay + t * vy))
+}
+function inMark(x, y) {
+  if (inPoly(x, y, PEAK)) return true
+  for (const [rx, ry, w, h, r] of PLATES) if (inRoundRect(x, y, rx, ry, w, h, r)) return true
+  for (let i = 0; i < PULSE.length - 1; i++) {
+    if (distSeg(x, y, PULSE[i][0], PULSE[i][1], PULSE[i + 1][0], PULSE[i + 1][1]) <= PULSE_HALF)
+      return true
+  }
+  return false
+}
+
+// Supersample (SS×SS) then box-downsample for anti-aliasing, including alpha at
+// the rounded corners.
+function makeIcon(size, { rounded, scale = 1 }) {
+  const SS = 3
+  const R = size * SS
+  const acc = new Float64Array(size * size * 4) // sum of premultiplied RGB + alpha
+  const cx = 256
+  const cy = 252
+  for (let py = 0; py < R; py++) {
+    for (let px = 0; px < R; px++) {
+      const dx = ((px + 0.5) * 512) / R
+      const dy = ((py + 0.5) * 512) / R
+      let r = 0
+      let g = 0
+      let b = 0
+      let a = 0
+      if (!rounded || inRoundRect(dx, dy, 0, 0, 512, 512, 112)) {
+        const mx = scale === 1 ? dx : cx + (dx - cx) / scale
+        const my = scale === 1 ? dy : cy + (dy - cy) / scale
+        const c = inMark(mx, my) ? WHITE : SLATE
+        ;[r, g, b] = c
+        a = 255
+      }
+      const k = (Math.floor(py / SS) * size + Math.floor(px / SS)) * 4
+      acc[k] += (r * a) / 255
+      acc[k + 1] += (g * a) / 255
+      acc[k + 2] += (b * a) / 255
+      acc[k + 3] += a
     }
   }
-
-  const pad = size * padRatio
-  const x0 = pad
-  const x1 = size - pad
-  const y0 = pad
-  const y1 = size - pad
-  const w = x1 - x0
-  const h = y1 - y0
-  const p1 = [x0, y0]
-  const p2 = [x0 + w * 0.28, y1]
-  const p3 = [x0 + w * 0.5, y0 + h * 0.5]
-  const p4 = [x0 + w * 0.72, y1]
-  const p5 = [x1, y0]
-  stroke(p1, p2)
-  stroke(p2, p3)
-  stroke(p3, p4)
-  stroke(p4, p5)
-
-  return encodePng(size, rgba)
+  const n = SS * SS
+  const out = Buffer.alloc(size * size * 4)
+  for (let i = 0; i < size * size; i++) {
+    const aSum = acc[i * 4 + 3]
+    if (aSum > 0) {
+      out[i * 4] = Math.round((acc[i * 4] * 255) / aSum)
+      out[i * 4 + 1] = Math.round((acc[i * 4 + 1] * 255) / aSum)
+      out[i * 4 + 2] = Math.round((acc[i * 4 + 2] * 255) / aSum)
+    }
+    out[i * 4 + 3] = Math.round(aSum / n)
+  }
+  return encodePng(size, out)
 }
 
 const icons = [
-  ['pwa-192.png', 192, 0.28],
-  ['pwa-512.png', 512, 0.28],
-  ['pwa-512-maskable.png', 512, 0.36], // extra safe-zone padding for maskable
-  ['apple-touch-icon.png', 180, 0.28],
+  ['pwa-192.png', 192, { rounded: true }],
+  ['pwa-512.png', 512, { rounded: true }],
+  ['pwa-512-maskable.png', 512, { rounded: false, scale: 1.15 }], // full-bleed + safe-zone padding
+  ['apple-touch-icon.png', 180, { rounded: false }], // iOS applies its own rounding
 ]
-for (const [name, size, pad] of icons) {
-  writeFileSync(join(outDir, name), makeIcon(size, pad))
+for (const [name, size, opts] of icons) {
+  writeFileSync(join(outDir, name), makeIcon(size, opts))
   console.log('wrote', name)
 }

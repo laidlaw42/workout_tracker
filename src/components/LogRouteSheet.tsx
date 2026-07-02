@@ -4,10 +4,18 @@ import { addRoute, updateRoute } from '@/db/helpers'
 import { EWBANKS_GRADES, STYLE_LABELS, TICK_TYPES, V_GRADES } from '@/lib/climbing'
 import { contrastText, gradeToColor, vGradeToColor } from '@/lib/gradeColors'
 import { getGymGradeRanges, type GradeRange } from '@/lib/prefs'
+import { ROUTE_COLOURS } from '@/lib/routeColours'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Sheet,
@@ -338,13 +346,25 @@ export function LogRouteSheet({
           {/* 6 — Colour (Gym only) */}
           {isGym && (
             <div className="space-y-1.5">
-              <Label htmlFor="route-colour">Colour</Label>
-              <Input
-                id="route-colour"
-                value={colour}
-                placeholder="tape colour"
-                onChange={(e) => setColour(e.target.value)}
-              />
+              <Label>Colour</Label>
+              <Select value={colour} onValueChange={setColour}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select colour" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROUTE_COLOURS.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="size-3.5 rounded-full border border-border"
+                          style={{ background: c.swatch }}
+                        />
+                        {c.label}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
 
