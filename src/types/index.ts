@@ -193,6 +193,8 @@ export interface ClimbingRoute {
   // Grade — one of these two is set depending on style
   vGrade?: string // 'V0'–'V17', 'VB'
   ewbanksGrade?: number // e.g. 18, 25, 33
+  gymGrade?: number // gym-specific 0–35 scale (never conflated with vGrade/ewbanksGrade)
+  feltLikeGrade?: string // optional "felt like" grade, stored as its display string
   wallAngle?: WallAngle
   wallAngleDegrees?: number // Home board: -45 (slab) .. 0 (vertical) .. +90 (overhang)
   routeName?: string

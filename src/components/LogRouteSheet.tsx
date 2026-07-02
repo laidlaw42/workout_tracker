@@ -3,6 +3,7 @@ import { toast } from 'sonner'
 import { addRoute, updateRoute } from '@/db/helpers'
 import {
   EWBANKS_GRADES,
+  GYM_GRADES,
   STYLE_LABELS,
   TICK_TYPES,
   V_GRADES,
@@ -30,6 +31,8 @@ interface Props {
   editing: ClimbingRoute | null
   /** Home board: fix style to bouldering (skip step 1) and enter wall angle in degrees. */
   boardMode?: boolean
+  /** Gym session: offer the Standard / Gym-grades toggle. */
+  gymMode?: boolean
   onSaved: () => void
 }
 
@@ -51,13 +54,18 @@ export function LogRouteSheet({
   sessionId,
   editing,
   boardMode = false,
+  gymMode = false,
   onSaved,
 }: Props) {
   const firstStep = boardMode ? 2 : 1
   const [step, setStep] = useState(firstStep)
   const [style, setStyle] = useState<ClimbingStyle>('bouldering')
+  // Grade system is per-session: kept across route logs (only reset on edit).
+  const [gradeSystem, setGradeSystem] = useState<'standard' | 'gym'>('standard')
   const [vGrade, setVGrade] = useState<string | null>(null)
   const [ewbanks, setEwbanks] = useState<number | null>(null)
+  const [gymGrade, setGymGrade] = useState<number | null>(null)
+  const [feltLike, setFeltLike] = useState<string | null>(null)
   const [wallAngle, setWallAngle] = useState<WallAngle | undefined>(undefined)
   const [wallAngleDeg, setWallAngleDeg] = useState('')
   const [tick, setTick] = useState<ClimbingTick | null>(null)
@@ -72,8 +80,11 @@ export function LogRouteSheet({
     setStep(firstStep)
     if (editing) {
       setStyle(boardMode ? 'bouldering' : editing.style)
+      setGradeSystem(editing.gymGrade != null ? 'gym' : 'standard')
       setVGrade(editing.vGrade ?? null)
       setEwbanks(editing.ewbanksGrade ?? null)
+      setGymGrade(editing.gymGrade ?? null)
+      setFeltLike(editing.feltLikeGrade ?? null)
       setWallAngle(editing.wallAngle)
       setWallAngleDeg(editing.wallAngleDegrees != null ? String(editing.wallAngleDegrees) : '')
       setTick(editing.tick)
@@ -82,9 +93,12 @@ export function LogRouteSheet({
       setAttempts(editing.attempts != null ? String(editing.attempts) : '')
       setNotes(editing.notes ?? '')
     } else {
+      // New route: keep the session's grade-system choice; clear the rest.
       setStyle('bouldering')
       setVGrade(null)
       setEwbanks(null)
+      setGymGrade(null)
+      setFeltLike(null)
       setWallAngle(undefined)
       setWallAngleDeg('')
       setTick(null)
@@ -112,7 +126,35 @@ export function LogRouteSheet({
     })
   }
 
-  const canNextStep2 = isBoulder ? vGrade !== null : ewbanks !== null
+  // Which grade picker to show: gym overrides style; otherwise V for bouldering,
+  // Ewbanks for roped.
+  const gradeMode: 'v' | 'ewbanks' | 'gym' =
+    gradeSystem === 'gym' ? 'gym' : isBoulder ? 'v' : 'ewbanks'
+  const gradeOptions: { values: string[]; colored: boolean } =
+    gradeMode === 'v'
+      ? { values: [...V_GRADES], colored: false }
+      : gradeMode === 'gym'
+        ? { values: GYM_GRADES.map(String), colored: true }
+        : { values: EWBANKS_GRADES.map(String), colored: true }
+  const primarySelected =
+    gradeMode === 'v' ? vGrade : gradeMode === 'gym' ? (gymGrade != null ? String(gymGrade) : null) : ewbanks != null ? String(ewbanks) : null
+
+  function setPrimary(v: string) {
+    if (gradeMode === 'v') setVGrade(v)
+    else if (gradeMode === 'gym') setGymGrade(Number(v))
+    else setEwbanks(Number(v))
+  }
+
+  // Switching systems clears grade choices so standard/gym values never mix.
+  function changeGradeSystem(next: 'standard' | 'gym') {
+    setGradeSystem(next)
+    setVGrade(null)
+    setEwbanks(null)
+    setGymGrade(null)
+    setFeltLike(null)
+  }
+
+  const canNextStep2 = primarySelected !== null
   const canSave = tick !== null
   const totalSteps = boardMode ? 2 : 3
   const displayStep = boardMode ? step - 1 : step
@@ -127,8 +169,10 @@ export function LogRouteSheet({
     const record = {
       sessionId,
       style: boardMode ? ('bouldering' as ClimbingStyle) : style,
-      vGrade: isBoulder ? (vGrade ?? undefined) : undefined,
-      ewbanksGrade: isBoulder ? undefined : (ewbanks ?? undefined),
+      vGrade: gradeMode === 'v' ? (vGrade ?? undefined) : undefined,
+      ewbanksGrade: gradeMode === 'ewbanks' ? (ewbanks ?? undefined) : undefined,
+      gymGrade: gradeMode === 'gym' ? (gymGrade ?? undefined) : undefined,
+      feltLikeGrade: feltLike ?? undefined,
       wallAngle: boardMode ? undefined : wallAngle, // enum for gym/crag
       wallAngleDegrees: boardMode ? degClamped : undefined, // degrees for Home board
       routeName: routeName.trim() || undefined,
@@ -168,28 +212,34 @@ export function LogRouteSheet({
 
           {step === 2 && (
             <div className="space-y-5">
-              <div className="space-y-2">
-                <Label>Grade — {STYLE_LABELS[style]}</Label>
-                <div className="flex gap-2 overflow-x-auto pb-2">
-                  {isBoulder
-                    ? V_GRADES.map((g) => (
-                        <GradeChip key={g} label={g} active={vGrade === g} onClick={() => setVGrade(g)} />
-                      ))
-                    : EWBANKS_GRADES.map((g) => (
-                        <GradeChip
-                          key={g}
-                          label={String(g)}
-                          active={ewbanks === g}
-                          colorClass={ewbanksBandClass(g)}
-                          onClick={() => setEwbanks(g)}
-                        />
-                      ))}
+              {gymMode && (
+                <div className="space-y-2">
+                  <Label>Grade system</Label>
+                  <SegmentedControl
+                    options={[
+                      { value: 'standard', label: 'Standard' },
+                      { value: 'gym', label: 'Gym grades' },
+                    ]}
+                    value={gradeSystem}
+                    onChange={changeGradeSystem}
+                  />
                 </div>
-                {!isBoulder && (
-                  <p className="text-xs text-muted-foreground">
-                    Ewbanks scale — swipe to see the full range.
-                  </p>
-                )}
+              )}
+
+              <div className="space-y-2">
+                <Label>
+                  {gradeMode === 'gym' ? 'Grade — Gym (0–35)' : `Grade — ${STYLE_LABELS[style]}`}
+                </Label>
+                <GradeChips options={gradeOptions} selected={primarySelected} onSelect={setPrimary} />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Felt like (optional)</Label>
+                <GradeChips
+                  options={gradeOptions}
+                  selected={feltLike}
+                  onSelect={(v) => setFeltLike((cur) => (cur === v ? null : v))}
+                />
               </div>
 
               <div className="space-y-2">
@@ -383,6 +433,32 @@ function HoldButton({
     >
       {children}
     </button>
+  )
+}
+
+// A scrollable row of grade chips. Values are strings; numeric scales
+// (Ewbanks, gym) are colour-banded, V-grades are not.
+function GradeChips({
+  options,
+  selected,
+  onSelect,
+}: {
+  options: { values: string[]; colored: boolean }
+  selected: string | null
+  onSelect: (value: string) => void
+}) {
+  return (
+    <div className="flex gap-2 overflow-x-auto pb-2">
+      {options.values.map((v) => (
+        <GradeChip
+          key={v}
+          label={v}
+          active={selected === v}
+          colorClass={options.colored ? ewbanksBandClass(Number(v)) : undefined}
+          onClick={() => onSelect(v)}
+        />
+      ))}
+    </div>
   )
 }
 

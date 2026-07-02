@@ -21,6 +21,9 @@ export function vGradeFromIndex(index: number): string {
 // Full Ewbanks scale (1–39) for the grade picker.
 export const EWBANKS_GRADES = Array.from({ length: 39 }, (_, i) => i + 1) // 1..39
 
+// Gym-specific numeric scale (0–35), used when a gym session opts into gym grades.
+export const GYM_GRADES = Array.from({ length: 36 }, (_, i) => i) // 0..35
+
 // Colour bands for Ewbanks grades. Static class strings so Tailwind keeps them.
 export function ewbanksBandClass(grade: number): string {
   if (grade <= 12) return 'bg-green-500 text-green-950'

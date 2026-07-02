@@ -17,7 +17,13 @@ interface Props {
 }
 
 export function RouteCard({ route, onClick, onDelete }: Props) {
-  const grade = route.vGrade ?? (route.ewbanksGrade != null ? String(route.ewbanksGrade) : '—')
+  const grade =
+    route.vGrade ??
+    (route.ewbanksGrade != null
+      ? String(route.ewbanksGrade)
+      : route.gymGrade != null
+        ? String(route.gymGrade)
+        : '—')
 
   const card = (
     <button
@@ -42,11 +48,13 @@ export function RouteCard({ route, onClick, onDelete }: Props) {
         {(route.routeName ||
           route.colour ||
           (route.attempts ?? 0) > 1 ||
-          route.wallAngleDegrees != null) && (
+          route.wallAngleDegrees != null ||
+          route.feltLikeGrade) && (
           <p className="truncate text-xs text-muted-foreground">
             {[
               route.routeName,
               route.colour,
+              route.feltLikeGrade ? `felt ${route.feltLikeGrade}` : null,
               route.wallAngleDegrees != null ? `${route.wallAngleDegrees}°` : null,
               (route.attempts ?? 0) > 1 ? `${route.attempts} attempts` : null,
             ]

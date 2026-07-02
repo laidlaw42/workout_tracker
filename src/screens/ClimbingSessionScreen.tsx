@@ -353,7 +353,11 @@ export default function ClimbingSessionScreen() {
     const cleanRoutes = routes.filter((r) => isCleanTick(r.tick))
     const styles: ClimbingStyle[] = ['bouldering', 'top_rope', 'lead']
     for (const style of styles) {
-      const inStyle = cleanRoutes.filter((r) => r.style === style)
+      // Only standard-graded routes count toward grade PRs — gym-grade routes
+      // are never conflated with V/Ewbanks scales.
+      const inStyle = cleanRoutes.filter(
+        (r) => r.style === style && (style === 'bouldering' ? r.vGrade != null : r.ewbanksGrade != null),
+      )
       if (inStyle.length === 0) continue
       const value =
         style === 'bouldering'
@@ -586,6 +590,7 @@ export default function ClimbingSessionScreen() {
         sessionId={id}
         editing={editing}
         boardMode={isBoard}
+        gymMode={venue === 'gym'}
         onSaved={() => setEditing(null)}
       />
 
