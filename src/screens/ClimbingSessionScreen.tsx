@@ -8,7 +8,7 @@ import { useRestTimer } from '@/hooks/useRestTimer'
 import { useCountdownTimer } from '@/hooks/useCountdownTimer'
 import { useCountdownBeeps } from '@/hooks/useCountdownBeeps'
 import { useWakeLock } from '@/hooks/useWakeLock'
-import { getAutoAdvance, getKeepAwake } from '@/lib/prefs'
+import { getAutoAdvance, getGymGradeRanges, getKeepAwake } from '@/lib/prefs'
 import {
   addHang,
   addSet,
@@ -51,6 +51,13 @@ import type { ClimbingRoute, ClimbingStyle, Exercise, HangboardSet, LoggedSet } 
 
 type WorkHang = HangboardSet & { skipped: boolean }
 
+// Short per-style button labels (A24).
+const STYLE_BTN_LABELS: Record<ClimbingStyle, string> = {
+  bouldering: 'Boulder',
+  top_rope: 'Top rope',
+  lead: 'Lead',
+}
+
 export default function ClimbingSessionScreen() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
@@ -70,6 +77,7 @@ export default function ClimbingSessionScreen() {
   const [inited, setInited] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editing, setEditing] = useState<ClimbingRoute | null>(null)
+  const [newStyle, setNewStyle] = useState<ClimbingStyle>('bouldering')
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [confirmDeleteRouteId, setConfirmDeleteRouteId] = useState<string | null>(null)
 
@@ -425,7 +433,8 @@ export default function ClimbingSessionScreen() {
     setConfirmDeleteRouteId(null)
   }
 
-  function openNew() {
+  function openNew(s: ClimbingStyle) {
+    setNewStyle(s)
     setEditing(null)
     setSheetOpen(true)
   }
@@ -576,35 +585,54 @@ export default function ClimbingSessionScreen() {
           </div>
         )}
 
-        {showRoutes && (
-          <div className="space-y-3">
-            <Button size="lg" className="w-full" onClick={openNew}>
-              <Plus className="size-5" /> Log a route
-            </Button>
+        {showRoutes &&
+          (() => {
+            // One button per applicable style; Home is bouldering-only (A24).
+            const styles: ClimbingStyle[] = isBoard
+              ? ['bouldering']
+              : ['bouldering', 'top_rope', 'lead']
+            const gymRanges = venue === 'gym' ? getGymGradeRanges(gym.trim() || session?.gym || '') : null
+            return (
+              <div className="space-y-3">
+                {isBoard ? (
+                  <Button size="lg" className="w-full" onClick={() => openNew('bouldering')}>
+                    <Plus className="size-5" /> Boulder
+                  </Button>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2">
+                    {styles.map((s) => (
+                      <Button key={s} onClick={() => openNew(s)}>
+                        {STYLE_BTN_LABELS[s]}
+                      </Button>
+                    ))}
+                  </div>
+                )}
 
-            {routes.length === 0 ? (
-              <EmptyState
-                icon={Mountain}
-                title="No routes yet"
-                subtitle="Log your first climb of the session."
-              />
-            ) : (
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  {routes.length} route{routes.length === 1 ? '' : 's'} this session
-                </p>
-                {routes.map((r) => (
-                  <RouteCard
-                    key={r.id}
-                    route={r}
-                    onClick={() => openEdit(r)}
-                    onDelete={() => setConfirmDeleteRouteId(r.id)}
+                {routes.length === 0 ? (
+                  <EmptyState
+                    icon={Mountain}
+                    title="No routes yet"
+                    subtitle="Log your first climb of the session."
                   />
-                ))}
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      {routes.length} route{routes.length === 1 ? '' : 's'} this session
+                    </p>
+                    {routes.map((r) => (
+                      <RouteCard
+                        key={r.id}
+                        route={r}
+                        gymRange={r.gymGrade != null ? gymRanges?.[r.style] : undefined}
+                        onClick={() => openEdit(r)}
+                        onDelete={() => setConfirmDeleteRouteId(r.id)}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        )}
+            )
+          })()}
       </div>
 
       <LogRouteSheet
@@ -612,8 +640,9 @@ export default function ClimbingSessionScreen() {
         onOpenChange={setSheetOpen}
         sessionId={id}
         editing={editing}
-        boardMode={isBoard}
-        gymMode={venue === 'gym'}
+        venue={venue ?? 'crag'}
+        style={newStyle}
+        gymName={gym.trim() || session?.gym || undefined}
         onSaved={() => setEditing(null)}
       />
 

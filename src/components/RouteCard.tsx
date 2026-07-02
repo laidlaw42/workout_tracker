@@ -12,12 +12,15 @@ import type { ClimbingRoute } from '@/types'
 
 interface Props {
   route: ClimbingRoute
+  /** The gym's configured range for this route's style, so gym grades colour
+   *  relative to it (A22). Omit for non-gym or unconfigured. */
+  gymRange?: { min: number; max: number }
   onClick?: () => void
   /** When provided, long-press opens an Edit / Delete context menu. */
   onDelete?: () => void
 }
 
-export function RouteCard({ route, onClick, onDelete }: Props) {
+export function RouteCard({ route, gymRange, onClick, onDelete }: Props) {
   const grade =
     route.vGrade ??
     (route.ewbanksGrade != null
@@ -31,7 +34,7 @@ export function RouteCard({ route, onClick, onDelete }: Props) {
     : route.ewbanksGrade != null
       ? gradeToColor(route.ewbanksGrade)
       : route.gymGrade != null
-        ? gradeToColor(route.gymGrade)
+        ? gradeToColor(route.gymGrade, gymRange)
         : null
 
   const card = (

@@ -46,7 +46,15 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { formatPace, formatWorkoutLength } from '@/lib/formatDuration'
-import type { ClimbingRoute, Exercise, LoggedCardio, LoggedHang, LoggedSet } from '@/types'
+import { getGymGradeRanges, type GymGradeRanges } from '@/lib/prefs'
+import type {
+  ClimbingRoute,
+  ClimbingStyle,
+  Exercise,
+  LoggedCardio,
+  LoggedHang,
+  LoggedSet,
+} from '@/types'
 
 function fullDate(ts: number): string {
   return new Date(ts).toLocaleDateString(undefined, {
@@ -72,6 +80,7 @@ export default function SessionDetailScreen() {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [routeSheetOpen, setRouteSheetOpen] = useState(false)
   const [editingRoute, setEditingRoute] = useState<ClimbingRoute | null>(null)
+  const [newRouteStyle, setNewRouteStyle] = useState<ClimbingStyle>('bouldering')
   const [notes, setNotes] = useState('')
   const [notesInited, setNotesInited] = useState(false)
 
@@ -160,6 +169,17 @@ export default function SessionDetailScreen() {
     }),
   )
 
+  const venue: 'gym' | 'crag' | 'home' | undefined =
+    session.climbingVenue ??
+    (session.board !== undefined
+      ? 'home'
+      : session.crag !== undefined
+        ? 'crag'
+        : session.gym !== undefined
+          ? 'gym'
+          : undefined)
+  const gymRanges = venue === 'gym' ? getGymGradeRanges(session.gym ?? '') : null
+
   return (
     <div className="min-h-dvh pb-6">
       <PageHeader
@@ -214,11 +234,14 @@ export default function SessionDetailScreen() {
             hangs={hangs}
             sets={sets}
             editing={editing}
+            venue={venue}
+            gymRanges={gymRanges}
             onEditRoute={(r) => {
               setEditingRoute(r)
               setRouteSheetOpen(true)
             }}
-            onNewRoute={() => {
+            onNewRoute={(s) => {
+              setNewRouteStyle(s)
               setEditingRoute(null)
               setRouteSheetOpen(true)
             }}
@@ -255,6 +278,9 @@ export default function SessionDetailScreen() {
         onOpenChange={setRouteSheetOpen}
         sessionId={id}
         editing={editingRoute}
+        venue={venue ?? 'crag'}
+        style={newRouteStyle}
+        gymName={session.gym}
         onSaved={() => setEditingRoute(null)}
       />
 
@@ -505,11 +531,19 @@ function CardioDetail({ cardio, editing }: { cardio: LoggedCardio | undefined; e
 
 // --- Climbing ---------------------------------------------------------------
 
+const DETAIL_STYLE_LABELS: Record<ClimbingStyle, string> = {
+  bouldering: 'Boulder',
+  top_rope: 'Top rope',
+  lead: 'Lead',
+}
+
 function ClimbingDetail({
   routes,
   hangs,
   sets,
   editing,
+  venue,
+  gymRanges,
   onEditRoute,
   onNewRoute,
   onDeleteRoute,
@@ -518,10 +552,13 @@ function ClimbingDetail({
   hangs: LoggedHang[]
   sets: LoggedSet[]
   editing: boolean
+  venue?: 'gym' | 'crag' | 'home'
+  gymRanges: GymGradeRanges | null
   onEditRoute: (r: ClimbingRoute) => void
-  onNewRoute: () => void
+  onNewRoute: (style: ClimbingStyle) => void
   onDeleteRoute: (id: string) => void
 }) {
+  const rangeFor = (r: ClimbingRoute) => (r.gymGrade != null ? (gymRanges?.[r.style] ?? undefined) : undefined)
   const setsByExercise = new Map<string, number>()
   for (const s of sets) setsByExercise.set(s.exerciseName, (setsByExercise.get(s.exerciseName) ?? 0) + 1)
   const hasRoutes = routes.length > 0 || editing
@@ -574,7 +611,7 @@ function ClimbingDetail({
               editing ? (
                 <div key={r.id} className="flex items-center gap-2">
                   <div className="min-w-0 flex-1">
-                    <RouteCard route={r} onClick={() => onEditRoute(r)} />
+                    <RouteCard route={r} gymRange={rangeFor(r)} onClick={() => onEditRoute(r)} />
                   </div>
                   <button
                     type="button"
@@ -586,15 +623,24 @@ function ClimbingDetail({
                   </button>
                 </div>
               ) : (
-                <RouteCard key={r.id} route={r} />
+                <RouteCard key={r.id} route={r} gymRange={rangeFor(r)} />
               ),
             )
           )}
-          {editing && (
-            <Button variant="outline" className="w-full" onClick={onNewRoute}>
-              <Plus className="size-4" /> Add route
-            </Button>
-          )}
+          {editing &&
+            (venue === 'home' ? (
+              <Button variant="outline" className="w-full" onClick={() => onNewRoute('bouldering')}>
+                <Plus className="size-4" /> Boulder
+              </Button>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                {(['bouldering', 'top_rope', 'lead'] as ClimbingStyle[]).map((s) => (
+                  <Button key={s} variant="outline" onClick={() => onNewRoute(s)}>
+                    {DETAIL_STYLE_LABELS[s]}
+                  </Button>
+                ))}
+              </div>
+            ))}
         </div>
       )}
     </div>

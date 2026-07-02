@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 import { DisciplineBadge } from './DisciplineBadge'
-import { badgeForSession, type SessionKind } from '@/lib/badges'
+import { badgesForSession, type SessionKind } from '@/lib/badges'
 import { formatRelativeDay } from '@/lib/date'
 import { formatWorkoutLength } from '@/lib/formatDuration'
 import type { WorkoutSession } from '@/types'
@@ -43,8 +43,10 @@ export function SessionCard({ session, kind, stat }: Props) {
       className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 text-card-foreground transition-colors active:bg-accent"
     >
       <div className="min-w-0 flex-1 space-y-1">
-        <div className="flex items-center gap-2">
-          <DisciplineBadge badge={badgeForSession(session, kind)} />
+        <div className="flex flex-wrap items-center gap-1.5">
+          {badgesForSession(session, kind).map((b, i) => (
+            <DisciplineBadge key={i} badge={b} />
+          ))}
           <span className="truncate font-medium">{title}</span>
         </div>
         <div className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">

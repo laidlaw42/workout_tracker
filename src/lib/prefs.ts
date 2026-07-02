@@ -44,37 +44,6 @@ export function setWeekStart(v: 0 | 1): void {
   }
 }
 
-// --- Saved gym locations (A17) ---------------------------------------------
-
-export function getGymLocations(): string[] {
-  try {
-    const arr = JSON.parse(localStorage.getItem('gym_locations') ?? '[]')
-    return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === 'string') : []
-  } catch {
-    return []
-  }
-}
-function setGymLocations(list: string[]): void {
-  try {
-    localStorage.setItem('gym_locations', JSON.stringify(list))
-  } catch {
-    /* ignore */
-  }
-}
-export function addGymLocation(name: string): string[] {
-  const n = name.trim()
-  const cur = getGymLocations()
-  if (!n || cur.some((g) => g.toLowerCase() === n.toLowerCase())) return cur
-  const next = [...cur, n]
-  setGymLocations(next)
-  return next
-}
-export function removeGymLocation(name: string): string[] {
-  const next = getGymLocations().filter((g) => g !== name)
-  setGymLocations(next)
-  return next
-}
-
 // --- Remembered location names (A17) ---------------------------------------
 
 export type LocationType = 'gym' | 'crag' | 'board'
@@ -147,27 +116,61 @@ function clampGrade(n: unknown, fallback: number): number {
   return Math.max(0, Math.min(35, v))
 }
 
-export function getGymGradeRanges(): GymGradeRanges {
-  try {
-    const p = JSON.parse(localStorage.getItem('gym_grade_ranges') ?? 'null')
-    if (!p || typeof p !== 'object') return { ...DEFAULT_GYM_RANGES }
-    const one = (k: GymStyle): GradeRange => {
-      const r = (p as Record<string, { min?: unknown; max?: unknown }>)[k] ?? {}
-      let min = clampGrade(r.min, 0)
-      let max = clampGrade(r.max, 35)
-      if (min > max) [min, max] = [max, min]
-      return { min, max }
-    }
-    return { bouldering: one('bouldering'), top_rope: one('top_rope'), lead: one('lead') }
-  } catch {
-    return { ...DEFAULT_GYM_RANGES }
+function parseRanges(p: unknown): GymGradeRanges {
+  if (!p || typeof p !== 'object') return { ...DEFAULT_GYM_RANGES }
+  const one = (k: GymStyle): GradeRange => {
+    const r = (p as Record<string, { min?: unknown; max?: unknown }>)[k] ?? {}
+    let min = clampGrade(r.min, 0)
+    let max = clampGrade(r.max, 35)
+    if (min > max) [min, max] = [max, min]
+    return { min, max }
   }
+  return { bouldering: one('bouldering'), top_rope: one('top_rope'), lead: one('lead') }
 }
 
-export function setGymGradeRanges(ranges: GymGradeRanges): void {
+function getAllGymGradeRanges(): Record<string, GymGradeRanges> {
   try {
-    localStorage.setItem('gym_grade_ranges', JSON.stringify(ranges))
+    const p = JSON.parse(localStorage.getItem('gym_grade_ranges') ?? '{}')
+    return p && typeof p === 'object' ? (p as Record<string, GymGradeRanges>) : {}
+  } catch {
+    return {}
+  }
+}
+function writeAllGymGradeRanges(all: Record<string, GymGradeRanges>): void {
+  try {
+    localStorage.setItem('gym_grade_ranges', JSON.stringify(all))
   } catch {
     /* ignore */
   }
+}
+
+// Per-gym grade ranges (A22), keyed by gym name. Unknown gyms default to 0–35.
+export function getGymGradeRanges(gym: string): GymGradeRanges {
+  return parseRanges(getAllGymGradeRanges()[gym])
+}
+export function setGymGradeRanges(gym: string, ranges: GymGradeRanges): void {
+  const all = getAllGymGradeRanges()
+  all[gym] = ranges
+  writeAllGymGradeRanges(all)
+}
+
+// Keep the MRU name list and per-gym ranges in sync on rename / delete.
+export function deleteGym(name: string): string[] {
+  const all = getAllGymGradeRanges()
+  if (name in all) {
+    delete all[name]
+    writeAllGymGradeRanges(all)
+  }
+  return removeSavedLocation('gym', name)
+}
+export function renameGym(oldName: string, newName: string): string[] {
+  const n = newName.trim()
+  if (!n || n === oldName) return getSavedLocations('gym')
+  const all = getAllGymGradeRanges()
+  if (all[oldName]) {
+    all[n] = all[oldName]
+    delete all[oldName]
+    writeAllGymGradeRanges(all)
+  }
+  return renameSavedLocation('gym', oldName, n)
 }

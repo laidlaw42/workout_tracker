@@ -82,6 +82,7 @@ export function badgeForTemplate(t: WorkoutTemplate): Badge {
 export interface SessionKind {
   cardioActivity?: CardioActivityType
   climbingStyle?: ClimbingStyle // dominant logged route style
+  climbingStyles?: ClimbingStyle[] // every distinct logged route style (A25)
   climbingIsHangboard?: boolean
   climbingIsWorkout?: boolean
 }
@@ -124,9 +125,25 @@ export function deriveSessionKind(
     return { cardioActivity: data.cardioActivity ?? session.plannedActivity ?? 'other' }
   }
   if (session.type === 'climbing') {
-    if (data.routes && data.routes.length) return { climbingStyle: dominantStyle(data.routes) }
+    if (data.routes && data.routes.length) {
+      const logged = new Set(data.routes.map((r) => r.style))
+      const styles = (['bouldering', 'top_rope', 'lead'] as ClimbingStyle[]).filter((s) =>
+        logged.has(s),
+      )
+      return { climbingStyle: dominantStyle(data.routes), climbingStyles: styles }
+    }
     if (data.hasHang) return { climbingIsHangboard: true }
     if (data.hasSet) return { climbingIsWorkout: true }
   }
   return {}
+}
+
+// Like badgeForSession but returns one badge per distinct logged climb style for
+// completed climbing sessions (A25); other cases return a single badge.
+export function badgesForSession(s: WorkoutSession, kind?: SessionKind): Badge[] {
+  if (s.type === 'climbing' && kind?.climbingStyles && kind.climbingStyles.length) {
+    const classes = s.climbingVenue ? TONE[s.climbingVenue] : TONE.climbing
+    return kind.climbingStyles.map((st) => ({ Icon: STYLE[st].Icon, label: STYLE[st].label, classes }))
+  }
+  return [badgeForSession(s, kind)]
 }

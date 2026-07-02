@@ -47,8 +47,19 @@ const EWBANKS_BANDS: NumBand[] = [
   { min: 31, max: 35, from: '#e879f9', to: '#86198f' }, // magenta
 ]
 
-export function gradeToColor(grade: number, _system: 'ewbanks' = 'ewbanks'): string {
-  const g = Math.max(1, Math.min(35, Math.round(grade)))
+// Optionally pass a { min, max } range (e.g. a gym's configured grade range) to
+// scope the hue: the range's lowest grade maps to the green end and the highest
+// to the magenta end, regardless of the absolute numeric values. Without a range
+// the absolute 1–35 Ewbanks scale is used.
+export function gradeToColor(grade: number, range?: { min: number; max: number }): string {
+  let g: number
+  if (range && range.max > range.min) {
+    const t = Math.max(0, Math.min(1, (grade - range.min) / (range.max - range.min)))
+    g = 1 + t * 34 // project onto the full 1–35 colour scale
+  } else {
+    g = Math.round(grade)
+  }
+  g = Math.max(1, Math.min(35, g))
   const band = EWBANKS_BANDS.find((b) => g >= b.min && g <= b.max) ?? EWBANKS_BANDS[EWBANKS_BANDS.length - 1]
   const t = band.max === band.min ? 0 : (g - band.min) / (band.max - band.min)
   return lerpHex(band.from, band.to, t)

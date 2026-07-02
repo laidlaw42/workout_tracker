@@ -3,7 +3,7 @@ import { toast } from 'sonner'
 import { addRoute, updateRoute } from '@/db/helpers'
 import { EWBANKS_GRADES, STYLE_LABELS, TICK_TYPES, V_GRADES } from '@/lib/climbing'
 import { contrastText, gradeToColor, vGradeToColor } from '@/lib/gradeColors'
-import { getGymGradeRanges, type GymStyle } from '@/lib/prefs'
+import { getGymGradeRanges, type GradeRange } from '@/lib/prefs'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,23 +19,20 @@ import {
 import { cn } from '@/lib/utils'
 import type { ClimbingRoute, ClimbingStyle, ClimbingTick, WallAngle } from '@/types'
 
+type Venue = 'gym' | 'crag' | 'home'
+
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   sessionId: string
   editing: ClimbingRoute | null
-  /** Home board: fix style to bouldering (skip step 1) and enter wall angle in degrees. */
-  boardMode?: boolean
-  /** Gym session: offer the Standard / Gym-grades toggle. */
-  gymMode?: boolean
+  venue: Venue
+  /** Style to log — the sheet opens pre-set to it (Home is always bouldering). */
+  style: ClimbingStyle
+  /** Gym name, for reading that gym's configured grade range (A22). */
+  gymName?: string
   onSaved: () => void
 }
-
-const STYLE_OPTIONS: { value: ClimbingStyle; label: string }[] = [
-  { value: 'bouldering', label: 'Bouldering' },
-  { value: 'top_rope', label: 'Top rope' },
-  { value: 'lead', label: 'Lead' },
-]
 
 const WALL_ANGLES: { value: WallAngle; label: string }[] = [
   { value: 'slab', label: 'Slab' },
@@ -48,13 +45,15 @@ export function LogRouteSheet({
   onOpenChange,
   sessionId,
   editing,
-  boardMode = false,
-  gymMode = false,
+  venue,
+  style: styleProp,
+  gymName,
   onSaved,
 }: Props) {
-  const firstStep = boardMode ? 2 : 1
-  const [step, setStep] = useState(firstStep)
-  const [style, setStyle] = useState<ClimbingStyle>('bouldering')
+  const isBoard = venue === 'home'
+  const isGym = venue === 'gym'
+
+  const [style, setStyle] = useState<ClimbingStyle>(styleProp)
   // Grade system is per-session: kept across route logs (only reset on edit).
   const [gradeSystem, setGradeSystem] = useState<'standard' | 'gym'>('standard')
   const [vGrade, setVGrade] = useState<string | null>(null)
@@ -68,16 +67,15 @@ export function LogRouteSheet({
   const [colour, setColour] = useState('')
   const [attempts, setAttempts] = useState('')
   const [notes, setNotes] = useState('')
-  // Gym-grade ranges are read fresh each time the sheet opens (A21).
-  const [gymRanges, setGymRanges] = useState(getGymGradeRanges)
+  // Gym-grade ranges are read fresh (for this gym) each time the sheet opens.
+  const [gymRanges, setGymRanges] = useState(() => getGymGradeRanges(gymName ?? ''))
 
   // Initialise each time the sheet opens (fresh for new, populated for edit).
   useEffect(() => {
     if (!open) return
-    setStep(firstStep)
-    setGymRanges(getGymGradeRanges())
+    setGymRanges(getGymGradeRanges(gymName ?? ''))
     if (editing) {
-      setStyle(boardMode ? 'bouldering' : editing.style)
+      setStyle(editing.style)
       setGradeSystem(editing.gymGrade != null ? 'gym' : 'standard')
       setVGrade(editing.vGrade ?? null)
       setEwbanks(editing.ewbanksGrade ?? null)
@@ -91,8 +89,8 @@ export function LogRouteSheet({
       setAttempts(editing.attempts != null ? String(editing.attempts) : '')
       setNotes(editing.notes ?? '')
     } else {
-      // New route: keep the session's grade-system choice; clear the rest.
-      setStyle('bouldering')
+      // New route: pre-set the chosen style; keep the grade-system choice.
+      setStyle(styleProp)
       setVGrade(null)
       setEwbanks(null)
       setGymGrade(null)
@@ -105,16 +103,12 @@ export function LogRouteSheet({
       setAttempts('')
       setNotes('')
     }
-  }, [open, editing, boardMode, firstStep])
+  }, [open, editing, styleProp, gymName])
 
   const isBoulder = style === 'bouldering'
   const validTicks = TICK_TYPES[style]
-
-  function chooseStyle(next: ClimbingStyle) {
-    setStyle(next)
-    // Reset a tick that isn't valid for the new style.
-    setTick((t) => (t && TICK_TYPES[next].some((o) => o.value === t) ? t : null))
-  }
+  // Onsight / flash imply a single attempt, so the field is locked to 1 (A23).
+  const attemptsLocked = tick === 'onsight' || tick === 'flash'
 
   function adjustDeg(delta: number) {
     setWallAngleDeg((cur) => {
@@ -128,17 +122,23 @@ export function LogRouteSheet({
   // Ewbanks for roped.
   const gradeMode: 'v' | 'ewbanks' | 'gym' =
     gradeSystem === 'gym' ? 'gym' : isBoulder ? 'v' : 'ewbanks'
+  const gymRange: GradeRange = gymRanges[style]
   const gradeValues: string[] =
     gradeMode === 'v'
       ? [...V_GRADES]
       : gradeMode === 'gym'
-        ? (() => {
-            const r = gymRanges[style as GymStyle] ?? { min: 0, max: 35 }
-            return Array.from({ length: r.max - r.min + 1 }, (_, i) => String(r.min + i))
-          })()
+        ? Array.from({ length: gymRange.max - gymRange.min + 1 }, (_, i) => String(gymRange.min + i))
         : EWBANKS_GRADES.map(String)
   const primarySelected =
-    gradeMode === 'v' ? vGrade : gradeMode === 'gym' ? (gymGrade != null ? String(gymGrade) : null) : ewbanks != null ? String(ewbanks) : null
+    gradeMode === 'v'
+      ? vGrade
+      : gradeMode === 'gym'
+        ? gymGrade != null
+          ? String(gymGrade)
+          : null
+        : ewbanks != null
+          ? String(ewbanks)
+          : null
 
   function setPrimary(v: string) {
     if (gradeMode === 'v') setVGrade(v)
@@ -155,10 +155,10 @@ export function LogRouteSheet({
     setFeltLike(null)
   }
 
-  const canNextStep2 = primarySelected !== null
-  const canSave = tick !== null
-  const totalSteps = boardMode ? 2 : 3
-  const displayStep = boardMode ? step - 1 : step
+  const canSave = tick !== null && primarySelected !== null
+  const styleLabel = STYLE_LABELS[style]
+  // Colour bands for gym grades are scoped to this gym's configured range (A22).
+  const chipRange = gradeMode === 'gym' ? gymRange : undefined
 
   async function save() {
     if (!tick) return
@@ -169,16 +169,16 @@ export function LogRouteSheet({
         : undefined
     const record = {
       sessionId,
-      style: boardMode ? ('bouldering' as ClimbingStyle) : style,
+      style,
       vGrade: gradeMode === 'v' ? (vGrade ?? undefined) : undefined,
       ewbanksGrade: gradeMode === 'ewbanks' ? (ewbanks ?? undefined) : undefined,
       gymGrade: gradeMode === 'gym' ? (gymGrade ?? undefined) : undefined,
       feltLikeGrade: feltLike ?? undefined,
-      wallAngle: boardMode ? undefined : wallAngle, // enum for gym/crag
-      wallAngleDegrees: boardMode ? degClamped : undefined, // degrees for Home board
+      wallAngle: isBoard ? undefined : wallAngle, // enum for gym/crag
+      wallAngleDegrees: isBoard ? degClamped : undefined, // degrees for Home board
       routeName: routeName.trim() || undefined,
-      colour: colour.trim() || undefined,
-      attempts: attempts.trim() ? Number(attempts) : undefined,
+      colour: isGym ? colour.trim() || undefined : undefined, // colour is Gym-only (A23)
+      attempts: attemptsLocked ? 1 : attempts.trim() ? Number(attempts) : undefined,
       notes: notes.trim() || undefined,
       tick,
       loggedAt: editing ? editing.loggedAt : Date.now(),
@@ -201,201 +201,175 @@ export function LogRouteSheet({
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <SheetHeader className="border-b border-border">
-          <SheetTitle>{editing ? 'Edit route' : 'Log a route'}</SheetTitle>
-          <SheetDescription>
-            Step {displayStep} of {totalSteps}
-          </SheetDescription>
+          <SheetTitle>{editing ? 'Edit route' : `Log ${styleLabel}`}</SheetTitle>
+          <SheetDescription className="sr-only">Route details</SheetDescription>
         </SheetHeader>
 
         <div className="flex-1 space-y-5 overflow-y-auto p-4">
-          {step === 1 && (
-            <div className="space-y-3">
-              <Label>Style</Label>
-              <SegmentedControl options={STYLE_OPTIONS} value={style} onChange={chooseStyle} />
+          {/* 1 — Grade (with the Standard / Gym toggle for gyms) */}
+          {isGym && (
+            <div className="space-y-2">
+              <Label>Grade system</Label>
+              <SegmentedControl
+                options={[
+                  { value: 'standard', label: 'Standard' },
+                  { value: 'gym', label: 'Gym grades' },
+                ]}
+                value={gradeSystem}
+                onChange={changeGradeSystem}
+              />
             </div>
           )}
 
-          {step === 2 && (
-            <div className="space-y-5">
-              {gymMode && (
-                <div className="space-y-2">
-                  <Label>Grade system</Label>
-                  <SegmentedControl
-                    options={[
-                      { value: 'standard', label: 'Standard' },
-                      { value: 'gym', label: 'Gym grades' },
-                    ]}
-                    value={gradeSystem}
-                    onChange={changeGradeSystem}
-                  />
-                </div>
-              )}
+          <div className="space-y-2">
+            <Label>{gradeMode === 'gym' ? 'Grade — Gym' : `Grade — ${styleLabel}`}</Label>
+            <GradeChips
+              mode={gradeMode}
+              range={chipRange}
+              values={gradeValues}
+              selected={primarySelected}
+              onSelect={setPrimary}
+            />
+          </div>
 
-              <div className="space-y-2">
-                <Label>
-                  {gradeMode === 'gym' ? 'Grade — Gym (0–35)' : `Grade — ${STYLE_LABELS[style]}`}
-                </Label>
-                <GradeChips
-                  mode={gradeMode}
-                  values={gradeValues}
-                  selected={primarySelected}
-                  onSelect={setPrimary}
-                />
-              </div>
+          {/* 2 — Felt like */}
+          <div className="space-y-2">
+            <Label>Felt like</Label>
+            <GradeChips
+              mode={gradeMode}
+              range={chipRange}
+              values={gradeValues}
+              selected={feltLike}
+              onSelect={(v) => setFeltLike((cur) => (cur === v ? null : v))}
+            />
+          </div>
 
-              <div className="space-y-2">
-                <Label>Felt like (optional)</Label>
-                <GradeChips
-                  mode={gradeMode}
-                  values={gradeValues}
-                  selected={feltLike}
-                  onSelect={(v) => setFeltLike((cur) => (cur === v ? null : v))}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="wall-deg">Wall angle</Label>
-                {boardMode ? (
-                  <>
-                    <div className="flex items-center gap-2">
-                      <HoldButton aria-label="Decrease angle" onStep={() => adjustDeg(-1)}>
-                        −
-                      </HoldButton>
-                      <div className="relative flex-1">
-                        <Input
-                          id="wall-deg"
-                          inputMode="numeric"
-                          value={wallAngleDeg}
-                          placeholder="0"
-                          className="pr-6 text-center"
-                          onChange={(e) => {
-                            const raw = e.target.value.replace(/[^0-9-]/g, '')
-                            if (raw === '' || raw === '-') return setWallAngleDeg(raw)
-                            const n = Number(raw)
-                            setWallAngleDeg(Number.isNaN(n) ? '' : String(Math.max(-45, Math.min(90, n))))
-                          }}
-                        />
-                        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground">
-                          °
-                        </span>
-                      </div>
-                      <HoldButton aria-label="Increase angle" onStep={() => adjustDeg(1)}>
-                        +
-                      </HoldButton>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      −45 to +90 · 0° = vertical, 45° = overhang
-                    </p>
-                  </>
-                ) : (
-                  <div className="grid grid-cols-3 gap-2">
-                    {WALL_ANGLES.map((a) => (
-                      <button
-                        key={a.value}
-                        type="button"
-                        onClick={() => setWallAngle((cur) => (cur === a.value ? undefined : a.value))}
-                        className={cn(
-                          'min-h-10 rounded-lg border text-sm font-medium transition-colors',
-                          wallAngle === a.value
-                            ? 'border-primary bg-primary/10 text-foreground'
-                            : 'border-border text-muted-foreground',
-                        )}
-                      >
-                        {a.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+          {/* 3 — Tick type */}
+          <div className="space-y-2">
+            <Label>Tick type</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {validTicks.map((t) => (
+                <button
+                  key={t.value}
+                  type="button"
+                  onClick={() => setTick(t.value)}
+                  className={cn(
+                    'flex flex-col items-start gap-0.5 rounded-lg border p-2.5 text-left transition-colors',
+                    tick === t.value ? 'border-primary bg-primary/10' : 'border-border',
+                  )}
+                >
+                  <span className="text-sm font-medium">{t.label}</span>
+                  <span className="text-xs text-muted-foreground">{t.desc}</span>
+                </button>
+              ))}
             </div>
-          )}
+          </div>
 
-          {step === 3 && (
-            <div className="space-y-5">
-              <div className="space-y-2">
-                <Label>Tick type</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {validTicks.map((t) => (
-                    <button
-                      key={t.value}
-                      type="button"
-                      onClick={() => setTick(t.value)}
-                      className={cn(
-                        'flex flex-col items-start gap-0.5 rounded-lg border p-2.5 text-left transition-colors',
-                        tick === t.value
-                          ? 'border-primary bg-primary/10'
-                          : 'border-border',
-                      )}
-                    >
-                      <span className="text-sm font-medium">{t.label}</span>
-                      <span className="text-xs text-muted-foreground">{t.desc}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-4 border-t border-border pt-4">
-                <p className="text-sm font-medium text-muted-foreground">Details</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="route-name">Route name</Label>
+          {/* 4 — Wall angle */}
+          <div className="space-y-2">
+            <Label htmlFor="wall-deg">Wall angle</Label>
+            {isBoard ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <HoldButton aria-label="Decrease angle" onStep={() => adjustDeg(-1)}>
+                    −
+                  </HoldButton>
+                  <div className="relative flex-1">
                     <Input
-                      id="route-name"
-                      value={routeName}
-                      onChange={(e) => setRouteName(e.target.value)}
+                      id="wall-deg"
+                      inputMode="numeric"
+                      value={wallAngleDeg}
+                      placeholder="0"
+                      className="pr-6 text-center"
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/[^0-9-]/g, '')
+                        if (raw === '' || raw === '-') return setWallAngleDeg(raw)
+                        const n = Number(raw)
+                        setWallAngleDeg(Number.isNaN(n) ? '' : String(Math.max(-45, Math.min(90, n))))
+                      }}
                     />
+                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground">
+                      °
+                    </span>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="route-colour">Colour</Label>
-                    <Input
-                      id="route-colour"
-                      value={colour}
-                      onChange={(e) => setColour(e.target.value)}
-                    />
-                  </div>
+                  <HoldButton aria-label="Increase angle" onStep={() => adjustDeg(1)}>
+                    +
+                  </HoldButton>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="route-attempts">Attempts</Label>
-                  <Input
-                    id="route-attempts"
-                    inputMode="numeric"
-                    value={attempts}
-                    onChange={(e) => setAttempts(e.target.value.replace(/[^0-9]/g, ''))}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="route-notes">Notes</Label>
-                  <Textarea
-                    id="route-notes"
-                    rows={2}
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                  />
-                </div>
+                <p className="text-xs text-muted-foreground">
+                  −45 to +90 · 0° = vertical, 45° = overhang
+                </p>
+              </>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                {WALL_ANGLES.map((a) => (
+                  <button
+                    key={a.value}
+                    type="button"
+                    onClick={() => setWallAngle((cur) => (cur === a.value ? undefined : a.value))}
+                    className={cn(
+                      'min-h-10 rounded-lg border text-sm font-medium transition-colors',
+                      wallAngle === a.value
+                        ? 'border-primary bg-primary/10 text-foreground'
+                        : 'border-border text-muted-foreground',
+                    )}
+                  >
+                    {a.label}
+                  </button>
+                ))}
               </div>
+            )}
+          </div>
+
+          {/* 5 — Attempts (locked to 1 for onsight / flash) */}
+          <div className="space-y-1.5">
+            <Label htmlFor="route-attempts">Attempts</Label>
+            <Input
+              id="route-attempts"
+              inputMode="numeric"
+              readOnly={attemptsLocked}
+              value={attemptsLocked ? '1' : attempts}
+              placeholder="optional"
+              className={cn(attemptsLocked && 'text-muted-foreground')}
+              onChange={(e) => setAttempts(e.target.value.replace(/[^0-9]/g, ''))}
+            />
+          </div>
+
+          {/* 6 — Colour (Gym only) */}
+          {isGym && (
+            <div className="space-y-1.5">
+              <Label htmlFor="route-colour">Colour</Label>
+              <Input
+                id="route-colour"
+                value={colour}
+                placeholder="tape colour"
+                onChange={(e) => setColour(e.target.value)}
+              />
             </div>
           )}
+
+          {/* 7 — Route name */}
+          <div className="space-y-1.5">
+            <Label htmlFor="route-name">Route name</Label>
+            <Input id="route-name" value={routeName} onChange={(e) => setRouteName(e.target.value)} />
+          </div>
+
+          {/* 8 — Notes */}
+          <div className="space-y-1.5">
+            <Label htmlFor="route-notes">Notes</Label>
+            <Textarea
+              id="route-notes"
+              rows={2}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </div>
         </div>
 
-        <div className="flex gap-3 border-t border-border p-4">
-          {step > firstStep && (
-            <Button variant="outline" className="flex-1" onClick={() => setStep((s) => s - 1)}>
-              Back
-            </Button>
-          )}
-          {step < 3 ? (
-            <Button
-              className="flex-1"
-              disabled={step === 2 && !canNextStep2}
-              onClick={() => setStep((s) => s + 1)}
-            >
-              Next
-            </Button>
-          ) : (
-            <Button className="flex-1" disabled={!canSave} onClick={save}>
-              Save route
-            </Button>
-          )}
+        <div className="border-t border-border p-4">
+          <Button className="w-full" disabled={!canSave} onClick={save}>
+            {editing ? 'Save changes' : 'Save route'}
+          </Button>
         </div>
       </SheetContent>
     </Sheet>
@@ -447,21 +421,24 @@ function HoldButton({
   )
 }
 
-// A scrollable row of grade chips. Every chip is coloured by its grade, using
-// the continuous bands in gradeColors: V-grades via vGradeToColor, numeric
-// scales (Ewbanks, gym) via gradeToColor.
+// A scrollable row of grade chips. Every chip is coloured by its grade: V-grades
+// via vGradeToColor; numeric scales via gradeToColor (gym chips scoped to the
+// gym's configured range so it always spans green→magenta).
 function GradeChips({
   mode,
+  range,
   values,
   selected,
   onSelect,
 }: {
   mode: 'v' | 'ewbanks' | 'gym'
+  range?: GradeRange
   values: string[]
   selected: string | null
   onSelect: (value: string) => void
 }) {
-  const colorFor = (v: string) => (mode === 'v' ? vGradeToColor(v) : gradeToColor(Number(v)))
+  const colorFor = (v: string) =>
+    mode === 'v' ? vGradeToColor(v) : gradeToColor(Number(v), mode === 'gym' ? range : undefined)
   return (
     // min-h + vertical padding: overflow-x-auto also clips the Y axis, so the
     // chips (and the active ring-offset) need headroom or the top row is cut off.

@@ -1,27 +1,29 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Combine, Download, Minus, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react'
+import { ChevronRight, Combine, Download, Minus, Plus, RotateCcw, Trash2, Upload } from 'lucide-react'
 import { clearAllData, exportAllData, importAllData, mergeData } from '@/db/helpers'
 import { restoreDefaults } from '@/db/seed'
 import { getUserName, setUserName } from '@/lib/userName'
 import { THEMES, applyTheme, getTheme } from '@/lib/theme'
 import {
-  addGymLocation,
+  deleteGym,
   getAutoAdvance,
   getGymGradeRanges,
-  getGymLocations,
   getKeepAwake,
+  getSavedLocations,
   getTimerSounds,
   getWeekStart,
-  removeGymLocation,
+  rememberLocation,
+  renameGym,
   setAutoAdvance,
   setGymGradeRanges,
   setKeepAwake,
   setTimerSounds,
   setWeekStart,
-  type GymStyle,
   type GradeRange,
+  type GymGradeRanges,
+  type GymStyle,
 } from '@/lib/prefs'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { cn } from '@/lib/utils'
@@ -36,6 +38,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,9 +66,9 @@ export default function SettingsScreen() {
   const [confirmClear, setConfirmClear] = useState(false)
   const [confirmClear2, setConfirmClear2] = useState(false)
   const [confirmRestore, setConfirmRestore] = useState(false)
-  const [gyms, setGyms] = useState(getGymLocations())
+  const [gyms, setGyms] = useState(() => getSavedLocations('gym'))
   const [newGym, setNewGym] = useState('')
-  const [gymRanges, setGymRangesState] = useState(getGymGradeRanges())
+  const [editGym, setEditGym] = useState<string | null>(null)
   const [name, setName] = useState(getUserName())
   const [theme, setTheme] = useState(getTheme())
   const [autoAdvance, setAutoAdvanceState] = useState(getAutoAdvance())
@@ -128,24 +137,10 @@ export default function SettingsScreen() {
   }
 
   function handleAddGym() {
-    setGyms(addGymLocation(newGym))
+    rememberLocation('gym', newGym)
+    setGyms(getSavedLocations('gym'))
     setNewGym('')
   }
-
-  // Step a range bound with functional updates so hold-to-repeat reads the latest
-  // value; min/max stay clamped to 0–35 and never cross.
-  function stepRange(style: GymStyle, bound: 'min' | 'max', delta: number) {
-    setGymRangesState((cur) => {
-      const r = cur[style]
-      const min = bound === 'min' ? Math.max(0, Math.min(r.max, r.min + delta)) : r.min
-      const max = bound === 'max' ? Math.min(35, Math.max(r.min, r.max + delta)) : r.max
-      return { ...cur, [style]: { min, max } }
-    })
-  }
-
-  useEffect(() => {
-    setGymGradeRanges(gymRanges)
-  }, [gymRanges])
 
   return (
     <div className="min-h-dvh">
@@ -253,50 +248,26 @@ export default function SettingsScreen() {
               Add
             </Button>
           </div>
-          {gyms.length > 0 && (
+          {gyms.length > 0 ? (
             <div className="space-y-2">
               {gyms.map((g) => (
-                <div
+                <button
                   key={g}
-                  className="flex items-center justify-between rounded-xl border border-border bg-card px-3 py-2"
+                  type="button"
+                  onClick={() => setEditGym(g)}
+                  className="flex w-full items-center justify-between rounded-xl border border-border bg-card px-3 py-2 text-left transition-colors active:bg-accent"
                 >
                   <span className="text-sm">{g}</span>
-                  <button
-                    type="button"
-                    aria-label={`Remove ${g}`}
-                    onClick={() => setGyms(removeGymLocation(g))}
-                    className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors active:bg-accent"
-                  >
-                    <X className="size-4" />
-                  </button>
-                </div>
+                  <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                </button>
               ))}
             </div>
-          )}
-          <p className="px-1 text-xs text-muted-foreground">
-            Saved gyms unlock gym grade ranges below.
-          </p>
-        </section>
-
-        {gyms.length > 0 && (
-          <section className="space-y-3">
-            <h2 className="text-sm font-medium text-muted-foreground">Gym grades</h2>
+          ) : (
             <p className="px-1 text-xs text-muted-foreground">
-              Limits the gym-grade picker (0–35) per discipline.
+              Gyms you climb at are saved here. Tap one to set its grade ranges.
             </p>
-            <RangeConfig
-              label="Bouldering"
-              range={gymRanges.bouldering}
-              onStep={(b, d) => stepRange('bouldering', b, d)}
-            />
-            <RangeConfig
-              label="Top rope"
-              range={gymRanges.top_rope}
-              onStep={(b, d) => stepRange('top_rope', b, d)}
-            />
-            <RangeConfig label="Lead" range={gymRanges.lead} onStep={(b, d) => stepRange('lead', b, d)} />
-          </section>
-        )}
+          )}
+        </section>
 
         <section className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground">Data</h2>
@@ -451,7 +422,93 @@ export default function SettingsScreen() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <GymEditSheet
+        gym={editGym}
+        onClose={() => setEditGym(null)}
+        onChanged={() => setGyms(getSavedLocations('gym'))}
+      />
     </div>
+  )
+}
+
+// Edit one gym's grade ranges (A22); also rename or delete it from the saved list.
+function GymEditSheet({
+  gym,
+  onClose,
+  onChanged,
+}: {
+  gym: string | null
+  onClose: () => void
+  onChanged: () => void
+}) {
+  const [name, setName] = useState('')
+  const [ranges, setRanges] = useState<GymGradeRanges>(() => getGymGradeRanges(''))
+
+  useEffect(() => {
+    if (gym == null) return
+    setName(gym)
+    setRanges(getGymGradeRanges(gym))
+  }, [gym])
+
+  function step(style: GymStyle, bound: 'min' | 'max', delta: number) {
+    setRanges((cur) => {
+      const r = cur[style]
+      const min = bound === 'min' ? Math.max(0, Math.min(r.max, r.min + delta)) : r.min
+      const max = bound === 'max' ? Math.min(35, Math.max(r.min, r.max + delta)) : r.max
+      return { ...cur, [style]: { min, max } }
+    })
+  }
+  function save() {
+    if (gym == null) return
+    const newName = name.trim() || gym
+    if (newName !== gym) renameGym(gym, newName)
+    setGymGradeRanges(newName, ranges)
+    onChanged()
+    onClose()
+  }
+  function remove() {
+    if (gym == null) return
+    deleteGym(gym)
+    onChanged()
+    onClose()
+  }
+
+  return (
+    <Sheet open={gym !== null} onOpenChange={(o) => !o && onClose()}>
+      <SheetContent
+        side="bottom"
+        className="flex max-h-[90dvh] flex-col gap-0 p-0"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
+        <SheetHeader className="border-b border-border">
+          <SheetTitle>Edit gym</SheetTitle>
+          <SheetDescription className="sr-only">Gym name and grade ranges</SheetDescription>
+        </SheetHeader>
+        <div className="flex-1 space-y-4 overflow-y-auto p-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="gym-name">Name</Label>
+            <Input id="gym-name" value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <p className="px-1 text-xs text-muted-foreground">Grade ranges (0–35)</p>
+          <RangeConfig
+            label="Bouldering"
+            range={ranges.bouldering}
+            onStep={(b, d) => step('bouldering', b, d)}
+          />
+          <RangeConfig label="Top rope" range={ranges.top_rope} onStep={(b, d) => step('top_rope', b, d)} />
+          <RangeConfig label="Lead" range={ranges.lead} onStep={(b, d) => step('lead', b, d)} />
+          <Button variant="outline" className="w-full justify-start text-destructive" onClick={remove}>
+            <Trash2 className="size-4" /> Delete gym
+          </Button>
+        </div>
+        <div className="border-t border-border p-4">
+          <Button className="w-full" onClick={save}>
+            Save
+          </Button>
+        </div>
+      </SheetContent>
+    </Sheet>
   )
 }
 
