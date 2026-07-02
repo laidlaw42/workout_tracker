@@ -485,8 +485,11 @@ function SettingSwitch({
       >
         <span
           className={cn(
-            'absolute top-0.5 size-5 rounded-full bg-background shadow transition-transform',
-            checked ? 'translate-x-5' : 'translate-x-0.5',
+            // Anchor at left-0.5 (2px) and slide with translate; without an
+            // explicit left the abspos thumb resolved to the right edge and
+            // overhung the track.
+            'absolute left-0.5 top-0.5 size-5 rounded-full bg-background shadow transition-transform',
+            checked ? 'translate-x-5' : 'translate-x-0',
           )}
         />
       </button>
