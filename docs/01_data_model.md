@@ -31,6 +31,7 @@ export interface Exercise {
   trackingType: 'reps' | 'duration' | 'distance'
   tags: string[]                    // free-form, lower-cased on save
   notes?: string
+  supportsAdditionalWeight?: boolean // bodyweight move that can carry extra load (pull-up, dip, …) → set logging shows a "+kg" field
   createdAt: number                 // timestamp ms
 }
 ```
@@ -107,8 +108,10 @@ export interface WorkoutSession {
   modifiedFromTemplate: boolean
   notes?: string
   // climbing-only metadata (kept on the session — no separate climbing table)
+  climbingVenue?: 'gym' | 'crag' | 'home'  // quick-start venue discriminator; undefined for template/repeat sessions
   gym?: string
   crag?: string
+  board?: string                    // Home board name (may be '') — distinguishes a Home session from gym/crag
   // Plan snapshot for a "repeat" session (created from a past session, not a
   // template) and for mid-session cardio edits. Session screens read these when
   // there is no linked template.
@@ -131,6 +134,7 @@ export interface LoggedSet {
   targetReps?: number
   actualReps?: number
   weightKg?: number
+  additionalWeightKg?: number       // extra load on a bodyweight movement (pull-up, dip, …)
   restTakenSeconds?: number
   durationSeconds?: number          // for timed exercises
   skipped: boolean
@@ -169,12 +173,15 @@ export interface ClimbingRoute {
   id: string
   sessionId: string                 // FK → WorkoutSession
   style: ClimbingStyle
-  // Grade — one of these two is set depending on style
-  vGrade?: string                   // 'V0'–'V17', 'VB'
+  // Grade — one of these is set depending on style / grade system
+  vGrade?: string                   // 'VB-'…'V17' (VB/V0 carry -/+ sub-grades)
   ewbanksGrade?: number             // e.g. 18, 25, 33
-  wallAngle?: WallAngle
+  gymGrade?: number                 // gym-specific 0–35 scale (never conflated with vGrade/ewbanksGrade)
+  feltLikeGrade?: string            // optional "felt like" grade, stored as its display string
+  wallAngle?: WallAngle             // enum for gym/crag
+  wallAngleDegrees?: number         // Home board: -45 (slab) .. 0 (vertical) .. +90 (overhang)
   routeName?: string
-  colour?: string                   // gym tape colour
+  colour?: string                   // gym tape colour (Gym sessions only; lowercase, e.g. 'red', 'wood')
   tick: ClimbingTick
   attempts?: number
   falls?: number
@@ -191,9 +198,9 @@ export interface PersonalRecord {
   exerciseId?: string               // strength/cardio PRs
   exerciseName: string              // exercise name, or the climbing style label for grade PRs
   climbingStyle?: ClimbingStyle     // set only for grade PRs; distinguishes bouldering vs roped
-  prType: 'weight' | 'reps' | 'pace' | 'distance' | 'grade'
+  prType: 'weight' | 'reps' | 'pace' | 'distance' | 'grade' | 'duration'  // 'duration' = longest hangboard hang
   value: number                     // grade PRs store a numeric grade: V-grade sort index (VB = -1) or Ewbanks number
-  unit: string                      // 'kg', 'reps', 's/km', 'km', 'ewbanks', 'vgrade'
+  unit: string                      // 'kg', 'reps', 's/km', 'km', 'ewbanks', 'vgrade', 's'
   sessionId: string
   achievedAt: number
 }
@@ -320,6 +327,7 @@ export async function deleteSession(id: string): Promise<void>  // cascades to s
 export async function getRecentSessions(limit?: number): Promise<WorkoutSession[]>
 export async function getAllSessions(type?: DisciplineType): Promise<WorkoutSession[]>  // ordered by startedAt desc; for History
 export async function getSessionById(id: string): Promise<WorkoutSession | undefined>
+export async function describeSessions(sessions: WorkoutSession[]): Promise<Record<string, SessionKind>>  // classifies each by logged content (cardio activity / distinct climb styles / hangboard / workout) for History + Recents badges
 export async function repeatSession(sourceId: string): Promise<string>  // "use as workout" — snapshots a past session's plan onto a new one
 // endSession() also best-effort links a same-day, same-template PlannedWorkout via completedSessionId
 
@@ -349,6 +357,7 @@ export async function addHang(h: Omit<LoggedHang, 'id'>): Promise<string>
 export async function updateHang(id: string, updates: Partial<LoggedHang>): Promise<void>
 export async function deleteHang(id: string): Promise<void>
 export async function getHangsForSession(sessionId: string): Promise<LoggedHang[]>
+export async function getAllHangs(): Promise<LoggedHang[]>  // Progress hangboard charts
 
 // PRs
 export async function checkAndSavePR(candidate: Omit<PersonalRecord, 'id'>): Promise<boolean>
@@ -368,6 +377,7 @@ export async function exportAllData(): Promise<string>   // JSON string; include
 export async function importAllData(json: string): Promise<void>  // REPLACE — one Dexie transaction
 export async function mergeData(json: string): Promise<{ inserted: number; skipped: number }>  // additive; skips existing ids, re-runs PR detection
 export async function clearAllData(): Promise<void>  // clears every table (incl. meta) → re-seeds next launch
+export async function restoreDefaults(): Promise<void>  // re-inserts any missing built-in exercises/templates by id; edited/user records untouched
 ```
 
 ## ID generation — `src/lib/id.ts`

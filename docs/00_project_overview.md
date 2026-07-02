@@ -56,8 +56,8 @@ The app tracks three distinct activity types, each with its own data model and s
 ## Planning & personalisation
 
 - **Planner** — a calendar tab (week / month / list views) to schedule workouts from the template library; finishing a matching session auto-links it to its plan.
-- **Themes** — 28 built-in light/dark themes (14 families) chosen in Settings, applied via `data-theme` on `<html>`.
-- **Data tools** — JSON export, replace-import, non-destructive merge-import, and a two-step "clear all data".
+- **Themes** — 22 built-in light/dark themes (11 families) chosen from a preview-swatch dropdown in Settings, applied via `data-theme` on `<html>`.
+- **Data tools** — JSON export, replace-import, non-destructive merge-import, "restore defaults" (re-seed missing built-ins), and a two-step "clear all data".
 
 ## Core design constraints
 
@@ -65,7 +65,7 @@ The app tracks three distinct activity types, each with its own data model and s
 - iPhone viewport: all interactive targets ≥ 44px, safe area insets respected
 - No accounts, no backend, no cloud sync (v1)
 - JSON export/import (replace or merge) for backup and restore
-- 28 light/dark themes; theme + user name persist in `localStorage`, all other data in IndexedDB
+- 22 light/dark themes; UI preferences (theme, name, session toggles, week start, pre-count, saved gyms/crags/boards, per-gym grade ranges) persist in `localStorage`; all workout data in IndexedDB
 - Weights are stored and entered in **kg only** in v1 (no unit toggle)
 - Requires a secure context (HTTPS or `localhost`) for the service worker and `crypto` — on-device LAN testing uses a dev HTTPS cert (see Phase 1)
 

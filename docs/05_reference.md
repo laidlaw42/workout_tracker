@@ -8,9 +8,9 @@ Quick lookup for constants and domain rules the app needs to encode correctly.
 
 ### V-grades (bouldering)
 
-Order (easiest to hardest): VB, V0, V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14, V15, V16, V17
+Order (easiest to hardest): VB-, VB, VB+, V0-, V0, V0+, V1, V2, … V17. Only VB and V0 carry `-`/`+` sub-grades; V1+ are whole grades.
 
-Numeric sort index: VB = -1, V0 = 0, V1 = 1, … V17 = 17
+Numeric sort index: VB = -1, V0 = 0, … V17 = 17, with sub-grades offsetting the whole grade by ±0.33 (`-` below, `+` above). Whole grades stay integers so values stored before sub-grades existed still round-trip (`vGradeIndex` / `vGradeFromIndex` in `src/lib/climbing.ts`).
 
 ### Ewbanks grades (roped — Australia/NZ)
 
@@ -20,15 +20,21 @@ Intermediate: 23–27
 Advanced: 28–32
 Elite: 33+
 
-Picker displays the **full scale 1–39** as a scrollable, colour-banded chip row (`ewbanksBandClass`):
+Picker displays the **full scale 1–39** as a scrollable chip row.
 
-| Grades | Colour |
-|---|---|
-| 1–12 | green |
-| 13–18 | yellow |
-| 19–24 | orange |
-| 25–32 | red |
-| 33–39 | magenta (fuchsia) |
+### Gym grades
+
+A gym session can opt into a per-gym **0–35 numeric scale** (`gymGrade`), configured per saved gym in Settings and never conflated with V/Ewbanks values. The picker range comes from that gym's saved `{min,max}` per style (default 0–35).
+
+### Grade colours — `src/lib/gradeColors.ts`
+
+Grades are coloured by continuous interpolation across five bands (green → yellow → orange → red → magenta), shared by pickers, route pills, and charts:
+
+- `vGradeToColor(grade)` — V-scale (incl. sub-grades).
+- `gradeToColor(grade, range?)` — Ewbanks/gym numeric. Pass a gym's `{min,max}` so gym grades map relative to that range (lowest = green, highest = magenta) rather than the absolute 0–35 scale.
+- `contrastText(hex)` — readable dark/light label colour for a coloured pill.
+
+> The earlier static `ewbanksBandClass` Tailwind helper was removed in favour of these interpolated hex values (rendered via inline `style`).
 
 ### Hangboard rest (finger-tendon recovery)
 
@@ -134,7 +140,9 @@ A new PR is detected when:
 - **Reps PR**: `weightKg >= previousBestWeightKg && actualReps > previousBestReps`
 - **Pace PR**: `avgPaceSecondsPerKm < previousBestPace` (lower is better)
 - **Distance PR**: `distanceKm > previousBestDistance`
-- **Grade PR (climbing)**: a clean tick (see `CLEAN_TICKS`) at a grade higher than any previous clean tick **for the same `climbingStyle`**
+- **Grade PR (climbing)**: a clean tick (see `CLEAN_TICKS`) at a grade higher than any previous clean tick **for the same `climbingStyle`** — only standard V/Ewbanks-graded routes count; gym-grade routes are excluded (their 0–35 scale isn't comparable)
+- **Bodyweight-loadable exercises** (`supportsAdditionalWeight`): the weight PR compares `additionalWeightKg` alone (bodyweight isn't tracked in v1)
+- **Hangboard** (per grip type, keyed by `exerciseName` = grip): a **weight** PR for heaviest added load (`weightKg > 0`) and a **duration** PR for longest hang — `checkAndSavePR` is called after each logged hang
 
 Grade PRs are stored keyed by `climbingStyle` (not exercise): `value` is the numeric grade — V-grade sort index (VB = -1 … V17 = 17) with `unit: 'vgrade'` for bouldering, or the Ewbanks number with `unit: 'ewbanks'` for top_rope/lead. Bouldering and roped PRs are therefore never compared against each other.
 
@@ -150,13 +158,20 @@ Weights are stored and displayed in **kg only** in v1 — there is no unit conve
 
 ## Persistent state
 
-Two UI preferences live in `localStorage`: `theme` (theme id) and `user_name`. All workout data lives in IndexedDB (Dexie).
+UI preferences live in `localStorage`; all workout data lives in IndexedDB (Dexie). Keys:
+
+- `theme` — theme id; `user_name` — home-greeting name
+- `auto_advance_timed`, `timer_sounds`, `keep_awake` — session toggles (default on; only `'0'` disables)
+- `week_start` — `0` Sunday / `1` Monday (default Monday)
+- `precountSeconds` — "Get ready" pre-count before timed exercises (0–10, default 5; 0 = off)
+- `saved_gyms` / `saved_crags` / `saved_boards` — remembered location names, MRU JSON arrays capped at 10
+- `gym_grade_ranges` — per-gym grade ranges, keyed by gym name: `{ [gym]: { bouldering|top_rope|lead: { min, max } } }`
 
 Seed provenance is tracked in the Dexie `meta` table (`seededExerciseIds`, `seededTemplateIds`, `builtinRefreshVersion`, `legacyMigrated`), **not** a `localStorage` flag — `seedIfNeeded()` runs on every launch and is idempotent/additive. Clearing all data wipes `meta` (and removes a legacy `db_seeded` key defensively), so the built-in library re-seeds on the next launch. Replace-import restores into the same tables; merge-import only adds ids not already present and re-runs PR detection.
 
 ## Themes
 
-28 built-in themes = 14 families, each with a dark and light variant, defined in `src/lib/theme.ts` (`THEMES`, ordered dark,light pairs) and `src/themes.css` (`[data-theme='…']` token blocks). `applyTheme(id)` sets `data-theme` on `<html>`, toggles `.dark` for dark ids, and stores the id. A pre-paint script in `index.html` applies the saved theme before first paint (its `darkThemes` list must stay in sync with `DARK_THEME_IDS`).
+22 built-in themes = 11 families, each with a dark and light variant, defined in `src/lib/theme.ts` (`THEMES`, ordered dark,light pairs) and `src/themes.css` (`[data-theme='…']` token blocks). `applyTheme(id)` sets `data-theme` on `<html>`, toggles `.dark` for dark ids, and stores the id. A pre-paint script in `index.html` applies the saved theme before first paint (its `darkThemes` list must stay in sync with `DARK_THEME_IDS`). The theme is chosen from a `Select` dropdown in Settings; each option (and the trigger) shows three preview circles — background / primary / accent — from `THEME_PREVIEWS` in `theme.ts` (mirrored from `themes.css`).
 
 ---
 
