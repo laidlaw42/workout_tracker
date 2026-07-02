@@ -31,38 +31,33 @@ export function contrastText(hex: string): string {
   return L > 0.5 ? '#0a0a0a' : '#fafafa'
 }
 
-// --- Ewbanks (numeric) ------------------------------------------------------
+// --- Ewbanks / gym (numeric) ------------------------------------------------
 
-interface NumBand {
-  min: number
-  max: number
-  from: string
-  to: string
-}
-const EWBANKS_BANDS: NumBand[] = [
-  { min: 1, max: 10, from: '#4ade80', to: '#16a34a' }, // green
-  { min: 11, max: 17, from: '#facc15', to: '#fb923c' }, // yellow → orange
-  { min: 18, max: 24, from: '#f97316', to: '#dc2626' }, // orange → red
-  { min: 25, max: 30, from: '#dc2626', to: '#7f1d1d' }, // red → deep red
-  { min: 31, max: 35, from: '#e879f9', to: '#86198f' }, // magenta
+// Five colour bands, low → high. Rendered as five *equal, contiguous* segments
+// across the grade range and interpolated within — so the progression is smooth
+// and strictly one-directional (green → magenta), with magenta reserved for the
+// top 20%. No gaps → no accidental fallback to the magenta band.
+const NUM_BANDS: [string, string][] = [
+  ['#4ade80', '#16a34a'], // green
+  ['#facc15', '#fb923c'], // yellow → orange
+  ['#f97316', '#dc2626'], // orange → red
+  ['#dc2626', '#7f1d1d'], // red → deep red
+  ['#e879f9', '#86198f'], // magenta
 ]
 
-// Optionally pass a { min, max } range (e.g. a gym's configured grade range) to
-// scope the hue: the range's lowest grade maps to the green end and the highest
-// to the magenta end, regardless of the absolute numeric values. Without a range
-// the absolute 1–35 Ewbanks scale is used.
+// Optionally pass a { min, max } range (e.g. a gym's configured grade range) so
+// the bands are computed relative to that range — the lowest grade maps to the
+// green end and the highest to magenta, regardless of the absolute values.
+// Without a range the absolute 1–35 Ewbanks scale is used.
 export function gradeToColor(grade: number, range?: { min: number; max: number }): string {
-  let g: number
-  if (range && range.max > range.min) {
-    const t = Math.max(0, Math.min(1, (grade - range.min) / (range.max - range.min)))
-    g = 1 + t * 34 // project onto the full 1–35 colour scale
-  } else {
-    g = Math.round(grade)
-  }
-  g = Math.max(1, Math.min(35, g))
-  const band = EWBANKS_BANDS.find((b) => g >= b.min && g <= b.max) ?? EWBANKS_BANDS[EWBANKS_BANDS.length - 1]
-  const t = band.max === band.min ? 0 : (g - band.min) / (band.max - band.min)
-  return lerpHex(band.from, band.to, t)
+  const min = range && range.max > range.min ? range.min : 1
+  const max = range && range.max > range.min ? range.max : 35
+  const t = max > min ? Math.max(0, Math.min(1, (grade - min) / (max - min))) : 0
+  // Locate the band (each spans 1/5 of the range) and interpolate within it.
+  const scaled = t * NUM_BANDS.length // 0 .. 5
+  const i = Math.min(NUM_BANDS.length - 1, Math.floor(scaled))
+  const [from, to] = NUM_BANDS[i]
+  return lerpHex(from, to, scaled - i)
 }
 
 // --- V-grades (string, with VB/V0 sub-grades) -------------------------------
