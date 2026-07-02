@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import { addRoute, updateRoute } from '@/db/helpers'
 import {
@@ -104,6 +104,14 @@ export function LogRouteSheet({
     setTick((t) => (t && TICK_TYPES[next].some((o) => o.value === t) ? t : null))
   }
 
+  function adjustDeg(delta: number) {
+    setWallAngleDeg((cur) => {
+      const base = cur.trim() === '' || cur === '-' ? 0 : Number(cur)
+      const next = (Number.isNaN(base) ? 0 : base) + delta
+      return String(Math.max(-45, Math.min(90, next)))
+    })
+  }
+
   const canNextStep2 = isBoulder ? vGrade !== null : ewbanks !== null
   const canSave = tick !== null
   const totalSteps = boardMode ? 2 : 3
@@ -189,15 +197,30 @@ export function LogRouteSheet({
                 {boardMode ? (
                   <>
                     <div className="flex items-center gap-2">
-                      <Input
-                        id="wall-deg"
-                        inputMode="numeric"
-                        value={wallAngleDeg}
-                        placeholder="0"
-                        className="w-24"
-                        onChange={(e) => setWallAngleDeg(e.target.value.replace(/[^0-9-]/g, ''))}
-                      />
-                      <span className="text-xl text-muted-foreground">°</span>
+                      <HoldButton aria-label="Decrease angle" onStep={() => adjustDeg(-1)}>
+                        −
+                      </HoldButton>
+                      <div className="relative flex-1">
+                        <Input
+                          id="wall-deg"
+                          inputMode="numeric"
+                          value={wallAngleDeg}
+                          placeholder="0"
+                          className="pr-6 text-center"
+                          onChange={(e) => {
+                            const raw = e.target.value.replace(/[^0-9-]/g, '')
+                            if (raw === '' || raw === '-') return setWallAngleDeg(raw)
+                            const n = Number(raw)
+                            setWallAngleDeg(Number.isNaN(n) ? '' : String(Math.max(-45, Math.min(90, n))))
+                          }}
+                        />
+                        <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground">
+                          °
+                        </span>
+                      </div>
+                      <HoldButton aria-label="Increase angle" onStep={() => adjustDeg(1)}>
+                        +
+                      </HoldButton>
                     </div>
                     <p className="text-xs text-muted-foreground">
                       −45 to +90 · 0° = vertical, 45° = overhang
@@ -315,6 +338,51 @@ export function LogRouteSheet({
         </div>
       </SheetContent>
     </Sheet>
+  )
+}
+
+// A press-and-hold stepper button: one step on tap; while held it repeats,
+// accelerating from 1/200ms to 1/80ms after 600ms.
+function HoldButton({
+  onStep,
+  children,
+  'aria-label': ariaLabel,
+}: {
+  onStep: () => void
+  children: ReactNode
+  'aria-label': string
+}) {
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const stop = () => {
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = undefined
+  }
+  const start = () => {
+    stop()
+    onStep()
+    const startedAt = Date.now()
+    const tick = () => {
+      onStep()
+      timer.current = setTimeout(tick, Date.now() - startedAt > 600 ? 80 : 200)
+    }
+    timer.current = setTimeout(tick, 200)
+  }
+  useEffect(() => stop, [])
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      onPointerDown={(e) => {
+        e.preventDefault()
+        start()
+      }}
+      onPointerUp={stop}
+      onPointerLeave={stop}
+      onPointerCancel={stop}
+      className="flex size-11 shrink-0 select-none items-center justify-center rounded-lg border border-border text-xl font-semibold text-foreground active:bg-accent"
+    >
+      {children}
+    </button>
   )
 }
 

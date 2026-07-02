@@ -24,40 +24,36 @@ export function SessionHeader({
   finishLabel = 'Finish',
 }: Props) {
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/95 px-2 pt-[env(safe-area-inset-top)] backdrop-blur">
-      <div className="flex items-center gap-2 pt-1.5">
-        <button
-          type="button"
-          onClick={onCancel}
-          aria-label="Cancel workout"
-          className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors active:bg-accent"
-        >
-          <X className="size-5" />
-        </button>
+    <header className="sticky top-0 z-40 flex min-h-14 items-center gap-2 border-b border-border bg-background/95 px-2 pt-[env(safe-area-inset-top)] backdrop-blur">
+      <button
+        type="button"
+        onClick={onCancel}
+        aria-label="Cancel workout"
+        className="flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors active:bg-accent"
+      >
+        <X className="size-5" />
+      </button>
 
-        <p className="min-w-0 flex-1 truncate font-semibold leading-tight">{title}</p>
-
-        <button
-          type="button"
-          onClick={paused ? onResume : onPause}
-          aria-label={paused ? 'Resume timer' : 'Pause timer'}
-          className="flex size-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors active:bg-accent"
-        >
-          {paused ? <Play className="size-5" /> : <Pause className="size-5" />}
-        </button>
-
-        <Button size="sm" variant="secondary" onClick={onFinish}>
-          {finishLabel}
-        </Button>
-      </div>
-
-      {/* Prominent, glanceable elapsed time (F7). */}
-      <div className="flex items-baseline gap-2 px-1.5 pb-2">
-        <span className="font-mono text-5xl font-bold leading-none tabular-nums">
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-semibold leading-tight">{title}</p>
+        <p className="font-mono text-xs tabular-nums text-muted-foreground">
           {formatElapsed(elapsedSeconds)}
-        </span>
-        {paused && <span className="text-sm font-medium text-amber-400">Paused</span>}
+          {paused && <span className="ml-2 text-amber-400">Paused</span>}
+        </p>
       </div>
+
+      <button
+        type="button"
+        onClick={paused ? onResume : onPause}
+        aria-label={paused ? 'Resume timer' : 'Pause timer'}
+        className="flex size-9 shrink-0 items-center justify-center rounded-full text-foreground transition-colors active:bg-accent"
+      >
+        {paused ? <Play className="size-5" /> : <Pause className="size-5" />}
+      </button>
+
+      <Button size="sm" variant="secondary" onClick={onFinish}>
+        {finishLabel}
+      </Button>
     </header>
   )
 }

@@ -12,6 +12,16 @@
       ;(function () {
         try {
           var t = localStorage.getItem('theme') || 'dark'
+          // Themes removed in later versions fall back to Dark (flash-free).
+          var removed = [
+            'emerald-dark',
+            'emerald-light',
+            'amethyst-dark',
+            'amethyst-light',
+            'coral-dark',
+            'coral-light',
+          ]
+          if (removed.indexOf(t) !== -1) t = 'dark'
           var el = document.documentElement
           el.setAttribute('data-theme', t)
           // Keep in sync with DARK_THEME_IDS in src/lib/theme.ts
@@ -24,12 +34,9 @@
             'sunset-dark',
             'slate-dark',
             'gruvbox-dark',
-            'emerald-dark',
             'bubblegum-dark',
             'synthwave-dark',
-            'amethyst-dark',
             'crimson-dark',
-            'coral-dark',
           ]
           el.classList.toggle('dark', darkThemes.indexOf(t) !== -1)
         } catch (e) {}

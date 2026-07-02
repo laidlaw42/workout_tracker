@@ -4,6 +4,8 @@ import { toast } from 'sonner'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { useRestTimer } from '@/hooks/useRestTimer'
+import { useCountdownTimer } from '@/hooks/useCountdownTimer'
+import { useCountdownBeeps } from '@/hooks/useCountdownBeeps'
 import {
   addSet,
   checkAndSavePR,
@@ -18,8 +20,8 @@ import {
 } from '@/db/helpers'
 import { generateId } from '@/lib/id'
 import { SessionHeader } from '@/components/SessionHeader'
-import { type LoggedSetInput, type WorkExercise } from '@/components/ExerciseCard'
-import { SortableExerciseList } from '@/components/SortableExerciseList'
+import { ExerciseCard, type LoggedSetInput, type WorkExercise } from '@/components/ExerciseCard'
+import { SortableList } from '@/components/SortableList'
 import { RestTimer } from '@/components/RestTimer'
 import { ExercisePicker } from '@/components/ExercisePicker'
 import { Button } from '@/components/ui/button'
@@ -57,6 +59,8 @@ export default function StrengthSessionScreen() {
 
   const timer = useSessionTimer(session?.startedAt ?? Date.now())
   const rest = useRestTimer()
+  const countdown = useCountdownTimer()
+  useCountdownBeeps(countdown.remaining, countdown.isRunning)
 
   // Build the working list once, from the linked template or (for a repeat
   // session) the plan snapshotted onto the session.
@@ -77,6 +81,7 @@ export default function StrengthSessionScreen() {
           exerciseName: e.exerciseName,
           targetSets: e.defaultSets,
           targetReps: e.defaultReps,
+          durationSeconds: e.defaultDuration,
           restSeconds: e.defaultRestSeconds,
           skipped: false,
         })),
@@ -140,6 +145,7 @@ export default function StrengthSessionScreen() {
         targetReps: ex.targetReps,
         actualReps: data.actualReps,
         weightKg: data.weightKg,
+        durationSeconds: data.durationSeconds,
         skipped: false,
         swappedFrom: ex.swappedFrom,
         loggedAt: Date.now(),
@@ -160,6 +166,14 @@ export default function StrengthSessionScreen() {
     } catch {
       toast.error('Could not log set')
     }
+  }
+
+  // Timed exercises: run the countdown, then log the set (which starts rest).
+  function startTimedSet(ex: WorkExercise) {
+    if (ex.durationSeconds == null) return
+    countdown.start(ex.uid, ex.durationSeconds, () =>
+      handleLog(ex, { durationSeconds: ex.durationSeconds }),
+    )
   }
 
   function addSetTo(uid: string) {
@@ -285,18 +299,32 @@ export default function StrengthSessionScreen() {
       />
 
       <div className="p-4">
-        <SortableExerciseList
-          work={work}
-          loggedFor={loggedFor}
+        <SortableList
+          items={work}
+          getUid={(e) => e.uid}
           isComplete={isComplete}
+          isDimmed={(e) => e.skipped}
           currentUid={currentEx?.uid}
-          prefillWeight={prefill?.weightKg}
-          onLog={handleLog}
-          onAddSet={addSetTo}
+          onReorder={reorderActive}
           onSkip={skip}
           onRemove={setConfirmRemoveUid}
-          onSwap={() => setPickerOpen(true)}
-          onReorder={reorderActive}
+          renderItem={(ex, isCurrent) => (
+            <ExerciseCard
+              exercise={ex}
+              loggedSets={loggedFor(ex)}
+              isCurrent={isCurrent}
+              prefillWeight={isCurrent ? prefill?.weightKg : undefined}
+              onLog={(d) => handleLog(ex, d)}
+              onAddSet={() => addSetTo(ex.uid)}
+              onSwap={isCurrent ? () => setPickerOpen(true) : undefined}
+              onStartCountdown={() => startTimedSet(ex)}
+              countdown={
+                isCurrent && countdown.activeUid === ex.uid
+                  ? { remaining: countdown.remaining, duration: countdown.duration }
+                  : null
+              }
+            />
+          )}
         />
 
         {allDone && (

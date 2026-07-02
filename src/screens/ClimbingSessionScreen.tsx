@@ -5,10 +5,13 @@ import { Mountain, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { useRestTimer } from '@/hooks/useRestTimer'
+import { useCountdownTimer } from '@/hooks/useCountdownTimer'
+import { useCountdownBeeps } from '@/hooks/useCountdownBeeps'
 import {
   addHang,
   addSet,
   checkAndSavePR,
+  deleteRoute,
   deleteSession,
   endSession,
   getHangsForSession,
@@ -23,9 +26,9 @@ import { STYLE_LABELS, isCleanTick, vGradeIndex } from '@/lib/climbing'
 import { SessionHeader } from '@/components/SessionHeader'
 import { RouteCard } from '@/components/RouteCard'
 import { LogRouteSheet } from '@/components/LogRouteSheet'
-import { type LoggedSetInput, type WorkExercise } from '@/components/ExerciseCard'
-import { SortableExerciseList } from '@/components/SortableExerciseList'
+import { ExerciseCard, type LoggedSetInput, type WorkExercise } from '@/components/ExerciseCard'
 import { HangCard } from '@/components/HangCard'
+import { SortableList } from '@/components/SortableList'
 import { RestTimer } from '@/components/RestTimer'
 import { ExercisePicker } from '@/components/ExercisePicker'
 import { EmptyState } from '@/components/EmptyState'
@@ -43,6 +46,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import type { ClimbingRoute, ClimbingStyle, Exercise, HangboardSet, LoggedSet } from '@/types'
+
+type WorkHang = HangboardSet & { skipped: boolean }
 
 export default function ClimbingSessionScreen() {
   const { id = '' } = useParams()
@@ -64,16 +69,16 @@ export default function ClimbingSessionScreen() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editing, setEditing] = useState<ClimbingRoute | null>(null)
   const [confirmCancel, setConfirmCancel] = useState(false)
+  const [confirmDeleteRouteId, setConfirmDeleteRouteId] = useState<string | null>(null)
 
   const clock = useSessionTimer(session?.startedAt ?? Date.now())
   const rest = useRestTimer()
+  const countdown = useCountdownTimer()
+  useCountdownBeeps(countdown.remaining, countdown.isRunning)
 
-  // A "Home board" session (board flavour) fixes routes to bouldering and uses
-  // a degree-based wall angle in the route logger.
   const isBoard = session?.board !== undefined
 
-  // Rest-timer completion: haptic (no-op on iOS) + auto-dismiss. Mirrors the
-  // strength screen so logging a set/hang shows the same rest bar.
+  // Rest-timer completion: haptic + auto-dismiss (component beeps are in RestTimer).
   const firedRef = useRef(false)
   useEffect(() => {
     if (rest.isRunning && rest.remaining === 0) {
@@ -101,8 +106,7 @@ export default function ClimbingSessionScreen() {
     if (session && session.type !== 'climbing') navigate('/home', { replace: true })
   }, [session, navigate])
 
-  // Plan comes from the linked template (workout kind) or, for a repeat session,
-  // the snapshot on the session itself.
+  // Plan comes from the linked template (workout kind) or a repeat snapshot.
   const planExercises =
     template?.climbingKind === 'workout' ? template.exercises : session?.plannedExercises
   const planHangs = template?.hangboardSets ?? session?.plannedHangs
@@ -116,20 +120,24 @@ export default function ClimbingSessionScreen() {
           exerciseName: e.exerciseName,
           targetSets: e.defaultSets,
           targetReps: e.defaultReps,
+          durationSeconds: e.defaultDuration,
           restSeconds: e.defaultRestSeconds,
           skipped: false,
         })),
     [planExercises],
   )
-  const hangSets = useMemo<HangboardSet[]>(
-    () => [...(planHangs ?? [])].sort((a, b) => a.order - b.order),
+  const baseHangs = useMemo<WorkHang[]>(
+    () => [...(planHangs ?? [])].sort((a, b) => a.order - b.order).map((h) => ({ ...h, skipped: false })),
     [planHangs],
   )
 
   const [work, setWork] = useState<WorkExercise[]>([])
   const [workInited, setWorkInited] = useState(false)
+  const [hangWork, setHangWork] = useState<WorkHang[]>([])
+  const [hangWorkInited, setHangWorkInited] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [confirmRemoveUid, setConfirmRemoveUid] = useState<string | null>(null)
+  const [confirmRemoveHangId, setConfirmRemoveHangId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!workInited && template !== undefined && basePlanExercises.length > 0) {
@@ -137,14 +145,21 @@ export default function ClimbingSessionScreen() {
       setWorkInited(true)
     }
   }, [basePlanExercises, workInited, template])
+  useEffect(() => {
+    if (!hangWorkInited && template !== undefined && baseHangs.length > 0) {
+      setHangWork(baseHangs)
+      setHangWorkInited(true)
+    }
+  }, [baseHangs, hangWorkInited, template])
 
   const hasExercises = (planExercises?.length ?? 0) > 0
+  const hasHangs = (planHangs?.length ?? 0) > 0
   const showExercises = hasExercises
-  const showHangs = hangSets.length > 0
+  const showHangs = hasHangs
   // Routes for plain (no plan) or workout (has exercises); hangboard-only hides them.
-  const showRoutes = !showHangs || hasExercises
+  const showRoutes = !hasHangs || hasExercises
 
-  // Exercise logging (climbing-workout kind)
+  // --- Exercise logging (climbing-workout kind) ---------------------------
   const setsByExercise = useMemo(() => {
     const map = new Map<string, LoggedSet[]>()
     for (const s of loggedSets) {
@@ -157,8 +172,7 @@ export default function ClimbingSessionScreen() {
   }, [loggedSets])
   const loggedForEx = (ex: WorkExercise) => setsByExercise.get(ex.exerciseId) ?? []
   const isComplete = (ex: WorkExercise) => ex.skipped || loggedForEx(ex).length >= ex.targetSets
-  const currentExIndex = work.findIndex((ex) => !isComplete(ex))
-  const currentEx = currentExIndex >= 0 ? work[currentExIndex] : undefined
+  const currentEx = work.find((ex) => !isComplete(ex))
   const prefill = useLiveQuery(
     () => (currentEx ? getLastSetForExercise(currentEx.exerciseId) : undefined),
     [currentEx?.exerciseId],
@@ -169,7 +183,10 @@ export default function ClimbingSessionScreen() {
   }
   function skip(uid: string) {
     setWork((w) => w.map((e) => (e.uid === uid ? { ...e, skipped: true } : e)))
-    if (uid === currentEx?.uid) rest.skip()
+    if (uid === currentEx?.uid) {
+      rest.skip()
+      countdown.cancel()
+    }
   }
   function swapCurrent(ex: Exercise) {
     if (!currentEx) return
@@ -190,7 +207,7 @@ export default function ClimbingSessionScreen() {
       return [...completed, ...reordered]
     })
   }
-  function doRemove() {
+  function doRemoveExercise() {
     if (!confirmRemoveUid) return
     setWork((w) => w.filter((e) => e.uid !== confirmRemoveUid))
     setConfirmRemoveUid(null)
@@ -207,6 +224,7 @@ export default function ClimbingSessionScreen() {
         targetReps: ex.targetReps,
         actualReps: data.actualReps,
         weightKg: data.weightKg,
+        durationSeconds: data.durationSeconds,
         skipped: false,
         loggedAt: Date.now(),
       })
@@ -227,11 +245,41 @@ export default function ClimbingSessionScreen() {
       toast.error('Could not log set')
     }
   }
+  function startTimedSet(ex: WorkExercise) {
+    if (ex.durationSeconds == null) return
+    countdown.start(ex.uid, ex.durationSeconds, () =>
+      logExerciseSet(ex, { durationSeconds: ex.durationSeconds }),
+    )
+  }
 
-  // Hang logging. Progress is tracked per specific hang set (by its id), so two
-  // rows with identical grip/edge/duration advance independently.
+  // --- Hang logging (hangboard) -------------------------------------------
   const completedFor = (hs: HangboardSet) => hangs.filter((h) => h.hangSetId === hs.id).length
-  const currentHangIndex = hangSets.findIndex((hs) => completedFor(hs) < hs.sets)
+  const isCompleteHang = (h: WorkHang) => h.skipped || completedFor(h) >= h.sets
+  const currentHang = hangWork.find((h) => !isCompleteHang(h))
+
+  function addSetToHang(hid: string) {
+    setHangWork((w) => w.map((h) => (h.id === hid ? { ...h, sets: h.sets + 1 } : h)))
+  }
+  function skipHang(hid: string) {
+    setHangWork((w) => w.map((h) => (h.id === hid ? { ...h, skipped: true } : h)))
+    if (hid === currentHang?.id) {
+      rest.skip()
+      countdown.cancel()
+    }
+  }
+  function reorderHangs(activeIds: string[]) {
+    setHangWork((w) => {
+      const done = w.filter((h) => isCompleteHang(h))
+      const byId = new Map(w.map((h) => [h.id, h]))
+      const reordered = activeIds.map((x) => byId.get(x)).filter((h): h is WorkHang => h != null)
+      return [...done, ...reordered]
+    })
+  }
+  function doRemoveHang() {
+    if (!confirmRemoveHangId) return
+    setHangWork((w) => w.filter((h) => h.id !== confirmRemoveHangId))
+    setConfirmRemoveHangId(null)
+  }
 
   async function logHang(hs: HangboardSet) {
     try {
@@ -251,6 +299,9 @@ export default function ClimbingSessionScreen() {
     } catch {
       toast.error('Could not log hang')
     }
+  }
+  function startHangCountdown(hs: HangboardSet) {
+    countdown.start(hs.id, hs.durationSeconds, () => logHang(hs))
   }
 
   async function saveGradePRs() {
@@ -284,7 +335,6 @@ export default function ClimbingSessionScreen() {
       toast.error('Could not finish session')
     }
   }
-
   async function handleCancel() {
     try {
       await deleteSession(id)
@@ -292,6 +342,15 @@ export default function ClimbingSessionScreen() {
     } catch {
       toast.error('Could not cancel session')
     }
+  }
+  async function doDeleteRoute() {
+    if (!confirmDeleteRouteId) return
+    try {
+      await deleteRoute(confirmDeleteRouteId)
+    } catch {
+      toast.error('Could not delete route')
+    }
+    setConfirmDeleteRouteId(null)
   }
 
   function openNew() {
@@ -369,18 +428,32 @@ export default function ClimbingSessionScreen() {
         {showExercises && (
           <div className="space-y-3">
             <p className="text-sm font-medium text-muted-foreground">Exercises</p>
-            <SortableExerciseList
-              work={work}
-              loggedFor={loggedForEx}
+            <SortableList
+              items={work}
+              getUid={(e) => e.uid}
               isComplete={isComplete}
+              isDimmed={(e) => e.skipped}
               currentUid={currentEx?.uid}
-              prefillWeight={prefill?.weightKg}
-              onLog={logExerciseSet}
-              onAddSet={addSetTo}
+              onReorder={reorderActive}
               onSkip={skip}
               onRemove={setConfirmRemoveUid}
-              onSwap={() => setPickerOpen(true)}
-              onReorder={reorderActive}
+              renderItem={(ex, isCurrent) => (
+                <ExerciseCard
+                  exercise={ex}
+                  loggedSets={loggedForEx(ex)}
+                  isCurrent={isCurrent}
+                  prefillWeight={isCurrent ? prefill?.weightKg : undefined}
+                  onLog={(d) => logExerciseSet(ex, d)}
+                  onAddSet={() => addSetTo(ex.uid)}
+                  onSwap={isCurrent ? () => setPickerOpen(true) : undefined}
+                  onStartCountdown={() => startTimedSet(ex)}
+                  countdown={
+                    isCurrent && countdown.activeUid === ex.uid
+                      ? { remaining: countdown.remaining, duration: countdown.duration }
+                      : null
+                  }
+                />
+              )}
             />
           </div>
         )}
@@ -388,15 +461,33 @@ export default function ClimbingSessionScreen() {
         {showHangs && (
           <div className="space-y-3">
             <p className="text-sm font-medium text-muted-foreground">Hangboard</p>
-            {hangSets.map((hs, i) => (
-              <HangCard
-                key={hs.id}
-                hangSet={hs}
-                completedCount={completedFor(hs)}
-                isCurrent={i === currentHangIndex}
-                onLog={() => logHang(hs)}
-              />
-            ))}
+            <SortableList
+              items={hangWork}
+              getUid={(h) => h.id}
+              isComplete={isCompleteHang}
+              isDimmed={(h) => h.skipped}
+              currentUid={currentHang?.id}
+              skipLabel="Skip hang"
+              removeLabel="Remove hang"
+              onReorder={reorderHangs}
+              onSkip={skipHang}
+              onRemove={setConfirmRemoveHangId}
+              renderItem={(h, isCurrent) => (
+                <HangCard
+                  hangSet={h}
+                  completedCount={completedFor(h)}
+                  isCurrent={isCurrent}
+                  skipped={h.skipped}
+                  onAddSet={() => addSetToHang(h.id)}
+                  onStartCountdown={() => startHangCountdown(h)}
+                  countdown={
+                    isCurrent && countdown.activeUid === h.id
+                      ? { remaining: countdown.remaining, duration: countdown.duration }
+                      : null
+                  }
+                />
+              )}
+            />
           </div>
         )}
 
@@ -418,7 +509,12 @@ export default function ClimbingSessionScreen() {
                   {routes.length} route{routes.length === 1 ? '' : 's'} this session
                 </p>
                 {routes.map((r) => (
-                  <RouteCard key={r.id} route={r} onClick={() => openEdit(r)} />
+                  <RouteCard
+                    key={r.id}
+                    route={r}
+                    onClick={() => openEdit(r)}
+                    onDelete={() => setConfirmDeleteRouteId(r.id)}
+                  />
                 ))}
               </div>
             )}
@@ -440,29 +536,60 @@ export default function ClimbingSessionScreen() {
       )}
 
       {showExercises && (
-        <>
-          <ExercisePicker
-            open={pickerOpen}
-            onOpenChange={setPickerOpen}
-            onSelect={(exs) => exs[0] && swapCurrent(exs[0])}
-          />
-          <AlertDialog
-            open={confirmRemoveUid !== null}
-            onOpenChange={(o) => !o && setConfirmRemoveUid(null)}
-          >
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Remove “{removeName}” from this workout?</AlertDialogTitle>
-                <AlertDialogDescription>Logged sets will be kept.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Keep it</AlertDialogCancel>
-                <AlertDialogAction onClick={doRemove}>Remove</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </>
+        <ExercisePicker
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          onSelect={(exs) => exs[0] && swapCurrent(exs[0])}
+        />
       )}
+
+      <AlertDialog
+        open={confirmRemoveUid !== null}
+        onOpenChange={(o) => !o && setConfirmRemoveUid(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove “{removeName}” from this workout?</AlertDialogTitle>
+            <AlertDialogDescription>Logged sets will be kept.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep it</AlertDialogCancel>
+            <AlertDialogAction onClick={doRemoveExercise}>Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={confirmRemoveHangId !== null}
+        onOpenChange={(o) => !o && setConfirmRemoveHangId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this hang set?</AlertDialogTitle>
+            <AlertDialogDescription>Logged hangs will be kept.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep it</AlertDialogCancel>
+            <AlertDialogAction onClick={doRemoveHang}>Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={confirmDeleteRouteId !== null}
+        onOpenChange={(o) => !o && setConfirmDeleteRouteId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this route?</AlertDialogTitle>
+            <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={doDeleteRoute}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
         <AlertDialogContent>

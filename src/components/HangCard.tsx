@@ -1,13 +1,17 @@
-import { Check } from 'lucide-react'
+import { Check, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { SetCountdown } from '@/components/SetCountdown'
 import type { HangboardSet } from '@/types'
 
 interface Props {
   hangSet: HangboardSet
   completedCount: number
   isCurrent: boolean
-  onLog: () => void
+  skipped: boolean
+  onAddSet: () => void
+  /** Start the hang countdown (session logs it + starts rest at zero). */
+  onStartCountdown?: () => void
+  countdown?: { remaining: number; duration: number } | null
 }
 
 function weightLabel(kg: number): string {
@@ -15,17 +19,22 @@ function weightLabel(kg: number): string {
   return `${kg > 0 ? '+' : ''}${kg} kg`
 }
 
-export function HangCard({ hangSet, completedCount, isCurrent, onLog }: Props) {
+// Body of a hang card. The shell (border, drag handle, long-press Skip/Remove)
+// is provided by SortableList.
+export function HangCard({
+  hangSet,
+  completedCount,
+  isCurrent,
+  skipped,
+  onAddSet,
+  onStartCountdown,
+  countdown,
+}: Props) {
   const complete = completedCount >= hangSet.sets
   const currentHang = completedCount + 1
 
   return (
-    <div
-      className={cn(
-        'space-y-3 rounded-2xl border p-4 transition-colors',
-        isCurrent ? 'border-primary/40 bg-card' : 'border-border bg-card',
-      )}
-    >
+    <div className="space-y-3">
       <div className="flex items-baseline justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate font-semibold">{hangSet.gripType}</p>
@@ -34,30 +43,44 @@ export function HangCard({ hangSet, completedCount, isCurrent, onLog }: Props) {
           </p>
         </div>
         <span className="shrink-0 text-sm text-muted-foreground">
-          {complete ? 'Done' : `Hang ${currentHang} of ${hangSet.sets}`}
+          {skipped ? 'Skipped' : complete ? 'Done' : `Hang ${currentHang} of ${hangSet.sets}`}
         </span>
       </div>
 
-      <div className="space-y-2">
-        {Array.from({ length: completedCount }).map((_, i) => (
-          <div
-            key={i}
-            className="flex items-center gap-3 rounded-lg bg-green-500/10 px-3 py-2 text-sm text-green-300"
-          >
-            <Check className="size-4 shrink-0" />
-            <span className="text-muted-foreground">Hang {i + 1}</span>
-            <span className="font-medium text-foreground">
-              {hangSet.durationSeconds}s · {weightLabel(hangSet.weightKg)}
-            </span>
-          </div>
-        ))}
+      {!skipped && (
+        <div className="space-y-2">
+          {Array.from({ length: completedCount }).map((_, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-3 rounded-lg bg-green-500/10 px-3 py-2 text-sm text-green-300"
+            >
+              <Check className="size-4 shrink-0" />
+              <span className="text-muted-foreground">Hang {i + 1}</span>
+              <span className="font-medium text-foreground">
+                {hangSet.durationSeconds}s · {weightLabel(hangSet.weightKg)}
+              </span>
+            </div>
+          ))}
 
-        {isCurrent && !complete && (
-          <Button className="w-full" onClick={onLog}>
-            Log hang {currentHang}
-          </Button>
-        )}
-      </div>
+          {isCurrent &&
+            !complete &&
+            (countdown ? (
+              <SetCountdown remaining={countdown.remaining} duration={countdown.duration} label="Hang" />
+            ) : (
+              <Button className="w-full" onClick={onStartCountdown}>
+                Start hang {currentHang} ({hangSet.durationSeconds}s)
+              </Button>
+            ))}
+
+          <button
+            type="button"
+            onClick={onAddSet}
+            className="flex items-center gap-1 rounded-md px-1 py-1 text-xs font-medium text-muted-foreground transition-colors active:bg-accent"
+          >
+            <Plus className="size-3.5" /> Add hang
+          </button>
+        </div>
+      )}
     </div>
   )
 }

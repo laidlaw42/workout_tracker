@@ -1,14 +1,8 @@
-import { useState, type ReactNode } from 'react'
-import { ArrowLeftRight, Check, Plus, SkipForward, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { ArrowLeftRight, Check, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from '@/components/ui/context-menu'
-import { cn } from '@/lib/utils'
+import { SetCountdown } from '@/components/SetCountdown'
 import type { LoggedSet } from '@/types'
 
 export interface WorkExercise {
@@ -17,6 +11,7 @@ export interface WorkExercise {
   exerciseName: string
   targetSets: number
   targetReps?: number
+  durationSeconds?: number // timed exercise (e.g. plank) — logs by holding, not reps
   restSeconds: number
   swappedFrom?: string
   skipped: boolean
@@ -25,6 +20,7 @@ export interface WorkExercise {
 export interface LoggedSetInput {
   weightKg?: number
   actualReps?: number
+  durationSeconds?: number
 }
 
 interface Props {
@@ -34,14 +30,15 @@ interface Props {
   prefillWeight?: number
   onLog: (data: LoggedSetInput) => void
   onAddSet: () => void
-  onSkip: () => void
-  onRemove: () => void
   /** Inline swap is offered on the current exercise only. */
   onSwap?: () => void
-  /** Drag handle element (with dnd listeners) — present only on draggable cards. */
-  dragHandle?: ReactNode
+  /** Timed exercises: start the set countdown (session logs it at zero). */
+  onStartCountdown?: () => void
+  countdown?: { remaining: number; duration: number } | null
 }
 
+// The body of an exercise card. The card shell (border, drag handle, long-press
+// Skip/Remove menu) is provided by SortableList.
 export function ExerciseCard({
   exercise,
   loggedSets,
@@ -49,106 +46,91 @@ export function ExerciseCard({
   prefillWeight,
   onLog,
   onAddSet,
-  onSkip,
-  onRemove,
   onSwap,
-  dragHandle,
+  onStartCountdown,
+  countdown,
 }: Props) {
   const doneCount = loggedSets.length
   const complete = doneCount >= exercise.targetSets
   const currentSetNumber = doneCount + 1
+  const timed = exercise.durationSeconds != null
 
   return (
-    <div
-      className={cn(
-        'flex gap-2 rounded-2xl border p-3 transition-colors',
-        exercise.skipped
-          ? 'border-border bg-muted/30 opacity-60'
-          : isCurrent
-            ? 'border-primary/40 bg-card'
-            : 'border-border bg-card',
-      )}
-    >
-      {dragHandle}
-
-      <ContextMenu>
-        <ContextMenuTrigger asChild>
-          <div className="min-w-0 flex-1 space-y-3">
-            <div className="flex items-baseline justify-between gap-2">
-              <div className="min-w-0">
-                <p className="truncate font-semibold">{exercise.exerciseName}</p>
-                {exercise.swappedFrom && (
-                  <p className="text-xs text-muted-foreground">swapped from {exercise.swappedFrom}</p>
-                )}
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <span className="text-sm text-muted-foreground">
-                  {exercise.skipped
-                    ? 'Skipped'
-                    : complete
-                      ? 'Done'
-                      : `Set ${currentSetNumber} of ${exercise.targetSets}`}
-                </span>
-                {isCurrent && onSwap && (
-                  <button
-                    type="button"
-                    aria-label="Swap exercise"
-                    onClick={onSwap}
-                    className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors active:bg-accent"
-                  >
-                    <ArrowLeftRight className="size-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {!exercise.skipped && (
-              <div className="space-y-2">
-                {loggedSets.map((s) => (
-                  <div
-                    key={s.id}
-                    className="flex items-center gap-3 rounded-lg bg-green-500/10 px-3 py-2 text-sm text-green-300"
-                  >
-                    <Check className="size-4 shrink-0" />
-                    <span className="w-10 text-muted-foreground">Set {s.setNumber}</span>
-                    <span className="font-medium text-foreground">
-                      {s.weightKg != null ? `${s.weightKg} kg` : 'BW'} × {s.actualReps ?? '—'}
-                    </span>
-                  </div>
-                ))}
-
-                {isCurrent && !complete && (
-                  <SetRow
-                    key={currentSetNumber}
-                    setNumber={currentSetNumber}
-                    targetReps={exercise.targetReps}
-                    prefillWeight={prefillWeight}
-                    onLog={onLog}
-                  />
-                )}
-
-                <button
-                  type="button"
-                  onClick={onAddSet}
-                  className="flex items-center gap-1 rounded-md px-1 py-1 text-xs font-medium text-muted-foreground transition-colors active:bg-accent"
-                >
-                  <Plus className="size-3.5" /> Add set
-                </button>
-              </div>
-            )}
-          </div>
-        </ContextMenuTrigger>
-        <ContextMenuContent>
-          {!complete && !exercise.skipped && (
-            <ContextMenuItem onSelect={onSkip}>
-              <SkipForward /> Skip exercise
-            </ContextMenuItem>
+    <div className="space-y-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate font-semibold">{exercise.exerciseName}</p>
+          {exercise.swappedFrom && (
+            <p className="text-xs text-muted-foreground">swapped from {exercise.swappedFrom}</p>
           )}
-          <ContextMenuItem variant="destructive" onSelect={onRemove}>
-            <Trash2 /> Remove exercise
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="text-sm text-muted-foreground">
+            {exercise.skipped
+              ? 'Skipped'
+              : complete
+                ? 'Done'
+                : `Set ${currentSetNumber} of ${exercise.targetSets}`}
+          </span>
+          {isCurrent && onSwap && (
+            <button
+              type="button"
+              aria-label="Swap exercise"
+              onClick={onSwap}
+              className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors active:bg-accent"
+            >
+              <ArrowLeftRight className="size-4" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {!exercise.skipped && (
+        <div className="space-y-2">
+          {loggedSets.map((s) => (
+            <div
+              key={s.id}
+              className="flex items-center gap-3 rounded-lg bg-green-500/10 px-3 py-2 text-sm text-green-300"
+            >
+              <Check className="size-4 shrink-0" />
+              <span className="w-10 text-muted-foreground">Set {s.setNumber}</span>
+              <span className="font-medium text-foreground">
+                {s.durationSeconds != null
+                  ? `${s.durationSeconds}s`
+                  : `${s.weightKg != null ? `${s.weightKg} kg` : 'BW'} × ${s.actualReps ?? '—'}`}
+              </span>
+            </div>
+          ))}
+
+          {isCurrent &&
+            !complete &&
+            (timed ? (
+              countdown ? (
+                <SetCountdown remaining={countdown.remaining} duration={countdown.duration} label="Hold" />
+              ) : (
+                <Button className="w-full" onClick={onStartCountdown}>
+                  Start {exercise.durationSeconds}s hold
+                </Button>
+              )
+            ) : (
+              <SetRow
+                key={currentSetNumber}
+                setNumber={currentSetNumber}
+                targetReps={exercise.targetReps}
+                prefillWeight={prefillWeight}
+                onLog={onLog}
+              />
+            ))}
+
+          <button
+            type="button"
+            onClick={onAddSet}
+            className="flex items-center gap-1 rounded-md px-1 py-1 text-xs font-medium text-muted-foreground transition-colors active:bg-accent"
+          >
+            <Plus className="size-3.5" /> Add set
+          </button>
+        </div>
+      )}
     </div>
   )
 }

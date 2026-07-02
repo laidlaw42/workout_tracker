@@ -1,16 +1,25 @@
+import { Pencil, Trash2 } from 'lucide-react'
 import { STYLE_LABELS, tickBadgeClass, tickLabel } from '@/lib/climbing'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu'
 import { cn } from '@/lib/utils'
 import type { ClimbingRoute } from '@/types'
 
 interface Props {
   route: ClimbingRoute
   onClick?: () => void
+  /** When provided, long-press opens an Edit / Delete context menu. */
+  onDelete?: () => void
 }
 
-export function RouteCard({ route, onClick }: Props) {
+export function RouteCard({ route, onClick, onDelete }: Props) {
   const grade = route.vGrade ?? (route.ewbanksGrade != null ? String(route.ewbanksGrade) : '—')
 
-  return (
+  const card = (
     <button
       type="button"
       onClick={onClick}
@@ -22,10 +31,7 @@ export function RouteCard({ route, onClick }: Props) {
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-1.5">
           <span
-            className={cn(
-              'rounded-full px-2 py-0.5 text-xs font-semibold',
-              tickBadgeClass(route.tick),
-            )}
+            className={cn('rounded-full px-2 py-0.5 text-xs font-semibold', tickBadgeClass(route.tick))}
           >
             {tickLabel(route.tick)}
           </span>
@@ -50,5 +56,23 @@ export function RouteCard({ route, onClick }: Props) {
         )}
       </div>
     </button>
+  )
+
+  if (!onDelete) return card
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{card}</ContextMenuTrigger>
+      <ContextMenuContent>
+        {onClick && (
+          <ContextMenuItem onSelect={onClick}>
+            <Pencil /> Edit route
+          </ContextMenuItem>
+        )}
+        <ContextMenuItem variant="destructive" onSelect={onDelete}>
+          <Trash2 /> Delete route
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   )
 }

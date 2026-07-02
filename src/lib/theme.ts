@@ -23,19 +23,18 @@ export const THEMES: ThemeOption[] = [
   { id: 'slate', label: 'Slate Light', dark: false },
   { id: 'gruvbox-dark', label: 'Gruvbox Dark', dark: true },
   { id: 'gruvbox-light', label: 'Gruvbox Light', dark: false },
-  { id: 'emerald-dark', label: 'Emerald Dark', dark: true },
-  { id: 'emerald-light', label: 'Emerald Light', dark: false },
   { id: 'bubblegum-dark', label: 'Bubblegum Dark', dark: true },
   { id: 'bubblegum-light', label: 'Bubblegum Light', dark: false },
   { id: 'synthwave-dark', label: 'Synthwave Dark', dark: true },
   { id: 'synthwave-light', label: 'Synthwave Light', dark: false },
-  { id: 'amethyst-dark', label: 'Amethyst Dark', dark: true },
-  { id: 'amethyst-light', label: 'Amethyst Light', dark: false },
   { id: 'crimson-dark', label: 'Crimson Dark', dark: true },
   { id: 'crimson-light', label: 'Crimson Light', dark: false },
-  { id: 'coral-dark', label: 'Coral Dark', dark: true },
-  { id: 'coral-light', label: 'Coral Light', dark: false },
 ]
+
+/** Whether a stored theme id is still a valid, known theme. */
+export function isValidTheme(id: string | null | undefined): boolean {
+  return !!id && THEMES.some((t) => t.id === id)
+}
 
 /** Theme ids whose `.dark` class should be toggled on. Kept in sync with the
  *  pre-paint list in index.html. */
