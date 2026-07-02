@@ -1,5 +1,6 @@
 import { Pencil, Trash2 } from 'lucide-react'
 import { STYLE_LABELS, tickBadgeClass, tickLabel } from '@/lib/climbing'
+import { contrastText, gradeToColor, vGradeToColor } from '@/lib/gradeColors'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -25,13 +26,27 @@ export function RouteCard({ route, onClick, onDelete }: Props) {
         ? String(route.gymGrade)
         : '—')
 
+  const gradeColor = route.vGrade
+    ? vGradeToColor(route.vGrade)
+    : route.ewbanksGrade != null
+      ? gradeToColor(route.ewbanksGrade)
+      : route.gymGrade != null
+        ? gradeToColor(route.gymGrade)
+        : null
+
   const card = (
     <button
       type="button"
       onClick={onClick}
       className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-3 text-left transition-colors active:bg-accent"
     >
-      <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-muted font-bold">
+      <div
+        className={cn(
+          'flex size-11 shrink-0 items-center justify-center rounded-lg font-bold',
+          gradeColor ? '' : 'bg-muted',
+        )}
+        style={gradeColor ? { backgroundColor: gradeColor, color: contrastText(gradeColor) } : undefined}
+      >
         {grade}
       </div>
       <div className="min-w-0 flex-1 space-y-1">

@@ -33,11 +33,11 @@ import {
 import { dayKey } from '@/lib/date'
 import { formatPace } from '@/lib/formatDuration'
 import { isCleanTick, vGradeFromIndex, vGradeIndex } from '@/lib/climbing'
+import { gradeToColor, vGradeToColor } from '@/lib/gradeColors'
 import type { CardioActivityType, ClimbingRoute, LoggedSet } from '@/types'
 
 const AXIS_TICK = { fill: 'var(--muted-foreground)', fontSize: 11 }
 const GOLD = '#f59e0b'
-const GREEN = '#22c55e'
 
 export default function ProgressScreen() {
   return (
@@ -320,9 +320,18 @@ function ClimbingTab() {
               }}
             />
             <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-              {data.map((row, i) => (
-                <Cell key={i} fill={row.gold ? GOLD : GREEN} />
-              ))}
+              {data.map((row, i) => {
+                const color = boulder ? vGradeToColor(row.grade) : gradeToColor(Number(row.grade))
+                // Onsight / flash sends get a gold outline over their grade colour.
+                return (
+                  <Cell
+                    key={i}
+                    fill={color}
+                    stroke={row.gold ? GOLD : undefined}
+                    strokeWidth={row.gold ? 2 : 0}
+                  />
+                )
+              })}
             </Bar>
           </BarChart>
         </ChartFrame>

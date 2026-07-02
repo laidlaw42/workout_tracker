@@ -7,8 +7,8 @@ import {
   STYLE_LABELS,
   TICK_TYPES,
   V_GRADES,
-  ewbanksBandClass,
 } from '@/lib/climbing'
+import { contrastText, gradeToColor, vGradeToColor } from '@/lib/gradeColors'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -130,12 +130,12 @@ export function LogRouteSheet({
   // Ewbanks for roped.
   const gradeMode: 'v' | 'ewbanks' | 'gym' =
     gradeSystem === 'gym' ? 'gym' : isBoulder ? 'v' : 'ewbanks'
-  const gradeOptions: { values: string[]; colored: boolean } =
+  const gradeValues: string[] =
     gradeMode === 'v'
-      ? { values: [...V_GRADES], colored: false }
+      ? [...V_GRADES]
       : gradeMode === 'gym'
-        ? { values: GYM_GRADES.map(String), colored: true }
-        : { values: EWBANKS_GRADES.map(String), colored: true }
+        ? GYM_GRADES.map(String)
+        : EWBANKS_GRADES.map(String)
   const primarySelected =
     gradeMode === 'v' ? vGrade : gradeMode === 'gym' ? (gymGrade != null ? String(gymGrade) : null) : ewbanks != null ? String(ewbanks) : null
 
@@ -230,13 +230,19 @@ export function LogRouteSheet({
                 <Label>
                   {gradeMode === 'gym' ? 'Grade — Gym (0–35)' : `Grade — ${STYLE_LABELS[style]}`}
                 </Label>
-                <GradeChips options={gradeOptions} selected={primarySelected} onSelect={setPrimary} />
+                <GradeChips
+                  mode={gradeMode}
+                  values={gradeValues}
+                  selected={primarySelected}
+                  onSelect={setPrimary}
+                />
               </div>
 
               <div className="space-y-2">
                 <Label>Felt like (optional)</Label>
                 <GradeChips
-                  options={gradeOptions}
+                  mode={gradeMode}
+                  values={gradeValues}
                   selected={feltLike}
                   onSelect={(v) => setFeltLike((cur) => (cur === v ? null : v))}
                 />
@@ -436,25 +442,29 @@ function HoldButton({
   )
 }
 
-// A scrollable row of grade chips. Values are strings; numeric scales
-// (Ewbanks, gym) are colour-banded, V-grades are not.
+// A scrollable row of grade chips. Every chip is coloured by its grade, using
+// the continuous bands in gradeColors: V-grades via vGradeToColor, numeric
+// scales (Ewbanks, gym) via gradeToColor.
 function GradeChips({
-  options,
+  mode,
+  values,
   selected,
   onSelect,
 }: {
-  options: { values: string[]; colored: boolean }
+  mode: 'v' | 'ewbanks' | 'gym'
+  values: string[]
   selected: string | null
   onSelect: (value: string) => void
 }) {
+  const colorFor = (v: string) => (mode === 'v' ? vGradeToColor(v) : gradeToColor(Number(v)))
   return (
     <div className="flex gap-2 overflow-x-auto pb-2">
-      {options.values.map((v) => (
+      {values.map((v) => (
         <GradeChip
           key={v}
           label={v}
           active={selected === v}
-          colorClass={options.colored ? ewbanksBandClass(Number(v)) : undefined}
+          color={colorFor(v)}
           onClick={() => onSelect(v)}
         />
       ))}
@@ -466,25 +476,18 @@ interface ChipProps {
   label: string
   active: boolean
   onClick: () => void
-  colorClass?: string
+  color: string
 }
 
-function GradeChip({ label, active, onClick, colorClass }: ChipProps) {
+function GradeChip({ label, active, onClick, color }: ChipProps) {
   return (
     <button
       type="button"
       onClick={onClick}
+      style={{ backgroundColor: color, color: contrastText(color) }}
       className={cn(
-        'flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border px-3 font-semibold transition-all',
-        colorClass
-          ? cn(
-              'border-transparent',
-              colorClass,
-              active ? 'ring-2 ring-foreground ring-offset-2 ring-offset-background' : 'opacity-80',
-            )
-          : active
-            ? 'border-primary bg-primary text-primary-foreground'
-            : 'border-border',
+        'flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-transparent px-3 font-semibold transition-all',
+        active ? 'ring-2 ring-foreground ring-offset-2 ring-offset-background' : 'opacity-80',
       )}
     >
       {label}

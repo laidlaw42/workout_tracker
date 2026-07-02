@@ -22,6 +22,7 @@ import {
   vGradeFromIndex,
   vGradeIndex,
 } from '@/lib/climbing'
+import { contrastText, gradeToColor, vGradeToColor } from '@/lib/gradeColors'
 import { cn } from '@/lib/utils'
 import type { ClimbingRoute, LoggedCardio, LoggedSet, PersonalRecord } from '@/types'
 
@@ -101,6 +102,17 @@ export default function SessionSummaryScreen() {
         </Button>
       </div>
     </div>
+  )
+}
+
+function gradePill(label: string, color: string): ReactNode {
+  return (
+    <span
+      style={{ backgroundColor: color, color: contrastText(color) }}
+      className="inline-flex items-center rounded-md px-2 py-0.5 text-base"
+    >
+      {label}
+    </span>
   )
 }
 
@@ -189,8 +201,13 @@ function ClimbingSummary({
   if (hangCount > 0) stats.push({ label: 'Hangs', value: hangCount })
   if (setCount > 0) stats.push({ label: 'Sets', value: setCount })
   if (routes.length > 0 || stats.length === 0) stats.push({ label: 'Routes', value: routes.length })
-  if (boulder) stats.push({ label: 'Hardest V', value: vGradeFromIndex(vGradeIndex(boulder.vGrade!)) })
-  if (roped) stats.push({ label: 'Hardest Ewb', value: roped.ewbanksGrade })
+  if (boulder)
+    stats.push({ label: 'Hardest V', value: gradePill(boulder.vGrade!, vGradeToColor(boulder.vGrade!)) })
+  if (roped)
+    stats.push({
+      label: 'Hardest Ewb',
+      value: gradePill(String(roped.ewbanksGrade), gradeToColor(roped.ewbanksGrade!)),
+    })
 
   return (
     <div className="space-y-4">

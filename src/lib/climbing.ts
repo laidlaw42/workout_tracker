@@ -2,20 +2,32 @@ import type { ClimbingStyle, ClimbingTick } from '@/types'
 
 // --- Grades -----------------------------------------------------------------
 
+// Full V-scale. VB and V0 carry -/base/+ sub-grades; V1+ are whole grades only.
 export const V_GRADES = [
-  'VB', 'V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8',
+  'VB-', 'VB', 'VB+',
+  'V0-', 'V0', 'V0+',
+  'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8',
   'V9', 'V10', 'V11', 'V12', 'V13', 'V14', 'V15', 'V16', 'V17',
 ] as const
 
-// VB = -1, V0 = 0, … V17 = 17
+// Monotonic sort value: VB = -1, V0 = 0, … V17 = 17, with sub-grades offsetting
+// the whole grade by ±0.33 ('-' below, '+' above). Whole grades stay integers so
+// values stored before sub-grades existed still round-trip correctly.
 export function vGradeIndex(grade: string): number {
-  if (grade === 'VB') return -1
-  const n = Number(grade.replace('V', ''))
-  return Number.isNaN(n) ? -1 : n
+  const m = /^V(B|\d+)([-+]?)$/.exec(grade)
+  if (!m) return -1
+  const base = m[1] === 'B' ? -1 : Number(m[1])
+  const off = m[2] === '-' ? -0.33 : m[2] === '+' ? 0.33 : 0
+  return base + off
 }
 
 export function vGradeFromIndex(index: number): string {
-  return index === -1 ? 'VB' : `V${index}`
+  const base = Math.round(index)
+  const frac = index - base
+  const g = base <= -1 ? 'VB' : `V${base}`
+  // Sub-grades only exist for VB and V0.
+  const suffix = base <= 0 && frac <= -0.25 ? '-' : base <= 0 && frac >= 0.25 ? '+' : ''
+  return g + suffix
 }
 
 // Full Ewbanks scale (1–39) for the grade picker.
@@ -23,15 +35,6 @@ export const EWBANKS_GRADES = Array.from({ length: 39 }, (_, i) => i + 1) // 1..
 
 // Gym-specific numeric scale (0–35), used when a gym session opts into gym grades.
 export const GYM_GRADES = Array.from({ length: 36 }, (_, i) => i) // 0..35
-
-// Colour bands for Ewbanks grades. Static class strings so Tailwind keeps them.
-export function ewbanksBandClass(grade: number): string {
-  if (grade <= 12) return 'bg-green-500 text-green-950'
-  if (grade <= 18) return 'bg-yellow-400 text-yellow-950'
-  if (grade <= 24) return 'bg-orange-500 text-orange-950'
-  if (grade <= 32) return 'bg-red-500 text-red-50'
-  return 'bg-fuchsia-500 text-fuchsia-50'
-}
 
 export const STYLE_LABELS: Record<ClimbingStyle, string> = {
   bouldering: 'Bouldering',
