@@ -564,6 +564,10 @@ export async function getHangsForSession(sessionId: string): Promise<LoggedHang[
   )
 }
 
+export async function getAllHangs(): Promise<LoggedHang[]> {
+  return run('getAllHangs', () => db.hangs.toArray())
+}
+
 // Classify a batch of sessions by their logged content, so cards can show the
 // right subtype emoji (route style / hangboard / climbing workout / cardio
 // activity). Loads only the tables relevant to the sessions passed in.

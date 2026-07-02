@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Bar,
   BarChart,
@@ -15,6 +15,7 @@ import { LineChart as LineIcon } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import {
   getAllExercises,
+  getAllHangs,
   getAllRoutes,
   getCardioByActivity,
   getPRsForExercise,
@@ -34,7 +35,7 @@ import { dayKey } from '@/lib/date'
 import { formatPace } from '@/lib/formatDuration'
 import { isCleanTick, vGradeFromIndex, vGradeIndex } from '@/lib/climbing'
 import { gradeToColor, vGradeToColor } from '@/lib/gradeColors'
-import type { CardioActivityType, ClimbingRoute, LoggedSet } from '@/types'
+import type { CardioActivityType, ClimbingRoute, LoggedHang, LoggedSet } from '@/types'
 
 const AXIS_TICK = { fill: 'var(--muted-foreground)', fontSize: 11 }
 const GOLD = '#f59e0b'
@@ -281,8 +282,9 @@ function buildPyramid(routes: ClimbingRoute[], boulder: boolean): PyramidRow[] {
 }
 
 function ClimbingTab() {
-  const [boulder, setBoulder] = useState(true)
+  const [view, setView] = useState<'boulder' | 'roped' | 'hangboard'>('boulder')
   const routes = useLiveQuery(() => getAllRoutes(), []) ?? []
+  const boulder = view === 'boulder'
   const data = buildPyramid(routes, boulder)
 
   return (
@@ -291,12 +293,15 @@ function ClimbingTab() {
         options={[
           { value: 'boulder', label: 'Bouldering' },
           { value: 'roped', label: 'Roped' },
+          { value: 'hangboard', label: 'Hangboard' },
         ]}
-        value={boulder ? 'boulder' : 'roped'}
-        onChange={(v) => setBoulder(v === 'boulder')}
+        value={view}
+        onChange={setView}
       />
 
-      {data.length === 0 ? (
+      {view === 'hangboard' ? (
+        <HangboardView />
+      ) : data.length === 0 ? (
         <EmptyState icon={LineIcon} title="No sends yet" subtitle="Clean sends build your pyramid." />
       ) : (
         <ChartFrame>
@@ -335,6 +340,121 @@ function ClimbingTab() {
             </Bar>
           </BarChart>
         </ChartFrame>
+      )}
+    </div>
+  )
+}
+
+// --- Hangboard --------------------------------------------------------------
+
+function bestHangPerDay(
+  hangs: LoggedHang[],
+  metric: 'weight' | 'duration',
+): { date: string; value: number }[] {
+  const byDay = new Map<string, { ts: number; value: number }>()
+  for (const h of hangs) {
+    const value = metric === 'weight' ? h.weightKg : (h.actualDurationSeconds ?? h.targetDurationSeconds)
+    if (value == null) continue
+    const key = dayKey(h.loggedAt)
+    const cur = byDay.get(key)
+    if (!cur || value > cur.value) byDay.set(key, { ts: h.loggedAt, value })
+  }
+  return [...byDay.values()]
+    .sort((a, b) => a.ts - b.ts)
+    .map((d) => ({
+      date: new Date(d.ts).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
+      value: d.value,
+    }))
+}
+
+function HangboardView() {
+  const hangs = useLiveQuery(() => getAllHangs(), []) ?? []
+  const grips = useMemo(() => [...new Set(hangs.map((h) => h.gripType))].sort(), [hangs])
+  const [grip, setGrip] = useState('')
+  const [metric, setMetric] = useState<'weight' | 'duration'>('weight')
+  const prs =
+    useLiveQuery(() => (grip ? getPRsForExercise(grip) : Promise.resolve([])), [grip]) ?? []
+  const hangPRs = prs.filter((p) => p.prType === 'weight' || p.prType === 'duration')
+  const data = bestHangPerDay(
+    hangs.filter((h) => h.gripType === grip),
+    metric,
+  )
+  const unit = metric === 'weight' ? 'kg' : 's'
+
+  if (grips.length === 0) {
+    return (
+      <EmptyState
+        icon={LineIcon}
+        title="No hangs yet"
+        subtitle="Log a hangboard session to track grip strength."
+      />
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <Select value={grip} onValueChange={setGrip}>
+        <SelectTrigger>
+          <SelectValue placeholder="Choose a grip" />
+        </SelectTrigger>
+        <SelectContent>
+          {grips.map((g) => (
+            <SelectItem key={g} value={g}>
+              {g}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <SegmentedControl
+        options={[
+          { value: 'weight', label: 'Added weight' },
+          { value: 'duration', label: 'Hang time' },
+        ]}
+        value={metric}
+        onChange={setMetric}
+      />
+
+      {!grip ? (
+        <EmptyState icon={LineIcon} title="Pick a grip" subtitle="See your best hang over time." />
+      ) : data.length === 0 ? (
+        <EmptyState icon={LineIcon} title="No data yet" subtitle="Log some hangs to chart progress." />
+      ) : (
+        <ChartFrame>
+          <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={false} />
+            <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} width={40} unit={unit} />
+            <Tooltip
+              formatter={(v) => `${Number(v)} ${unit}`}
+              contentStyle={{
+                background: 'var(--popover)',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                color: 'var(--popover-foreground)',
+              }}
+            />
+            <Line type="monotone" dataKey="value" stroke="var(--primary)" strokeWidth={2} dot />
+          </LineChart>
+        </ChartFrame>
+      )}
+
+      {hangPRs.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-muted-foreground">PR history</p>
+          {hangPRs.map((pr) => (
+            <div key={pr.id} className="flex justify-between rounded-lg bg-card px-3 py-2 text-sm">
+              <span>{pr.prType === 'weight' ? `${pr.value} kg` : `${pr.value}s hang`}</span>
+              <span className="text-muted-foreground">
+                {new Date(pr.achievedAt).toLocaleDateString(undefined, {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+              </span>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )

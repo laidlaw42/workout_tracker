@@ -26,7 +26,7 @@ export type ClimbingTick = BoulderTick | RopedTick
 
 export type ClimbingKind = 'hangboard' | 'workout'
 
-export type PRType = 'weight' | 'reps' | 'pace' | 'distance' | 'grade'
+export type PRType = 'weight' | 'reps' | 'pace' | 'distance' | 'grade' | 'duration'
 
 // ---------------------------------------------------------------------------
 // Exercise library

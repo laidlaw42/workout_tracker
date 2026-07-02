@@ -315,6 +315,29 @@ export default function ClimbingSessionScreen() {
         skipped: false,
         loggedAt: Date.now(),
       })
+      // Hangboard PRs are keyed per grip type: heaviest added load and longest
+      // hang. Assisted (negative) hangs don't count toward a weight PR.
+      const now = Date.now()
+      if (hs.weightKg > 0) {
+        await checkAndSavePR({
+          exerciseName: hs.gripType,
+          prType: 'weight',
+          value: hs.weightKg,
+          unit: 'kg',
+          sessionId: id,
+          achievedAt: now,
+        })
+      }
+      if (hs.durationSeconds > 0) {
+        await checkAndSavePR({
+          exerciseName: hs.gripType,
+          prType: 'duration',
+          value: hs.durationSeconds,
+          unit: 's',
+          sessionId: id,
+          achievedAt: now,
+        })
+      }
       restTimedRef.current = { kind: 'hang', uid: hs.id }
       rest.start(hs.restSeconds)
     } catch {

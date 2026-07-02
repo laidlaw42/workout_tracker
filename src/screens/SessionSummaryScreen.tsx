@@ -274,5 +274,7 @@ function prLabel(pr: PersonalRecord): string {
       return `${pr.exerciseName} · ${formatPace(pr.value)}`
     case 'grade':
       return `${pr.exerciseName} · ${pr.unit === 'vgrade' ? vGradeFromIndex(pr.value) : pr.value}`
+    case 'duration':
+      return `${pr.exerciseName} · ${pr.value}s hang`
   }
 }
