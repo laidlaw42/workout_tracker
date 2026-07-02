@@ -4,6 +4,7 @@
 //   • a double mountain peak  → climbing
 //   • a dumbbell (two plates) → strength
 //   • the dumbbell's bar is a heartbeat pulse → cardio
+// White mark on a forest-green tile.
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { deflateSync } from 'node:zlib'
 import { fileURLToPath } from 'node:url'
@@ -12,7 +13,7 @@ import { dirname, join } from 'node:path'
 const outDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'icons')
 mkdirSync(outDir, { recursive: true })
 
-const SLATE = [0x0f, 0x17, 0x2a] // #0f172a — theme surface
+const FOREST = [0x14, 0x53, 0x2d] // #14532d — forest green
 const WHITE = [0xf8, 0xfa, 0xfc] // #f8fafc
 
 // --- PNG encoding (RGBA) ----------------------------------------------------
@@ -140,7 +141,7 @@ function makeIcon(size, { rounded, scale = 1 }) {
       if (!rounded || inRoundRect(dx, dy, 0, 0, 512, 512, 112)) {
         const mx = scale === 1 ? dx : cx + (dx - cx) / scale
         const my = scale === 1 ? dy : cy + (dy - cy) / scale
-        const c = inMark(mx, my) ? WHITE : SLATE
+        const c = inMark(mx, my) ? WHITE : FOREST
         ;[r, g, b] = c
         a = 255
       }
