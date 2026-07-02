@@ -6,8 +6,9 @@ import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { useRestTimer } from '@/hooks/useRestTimer'
 import { useCountdownTimer } from '@/hooks/useCountdownTimer'
 import { useCountdownBeeps } from '@/hooks/useCountdownBeeps'
+import { usePrecountBeeps } from '@/hooks/usePrecountBeeps'
 import { useWakeLock } from '@/hooks/useWakeLock'
-import { getAutoAdvance, getKeepAwake } from '@/lib/prefs'
+import { getAutoAdvance, getKeepAwake, getPrecountSeconds } from '@/lib/prefs'
 import {
   addSet,
   checkAndSavePR,
@@ -21,6 +22,7 @@ import {
   updateSession,
   upsertTemplate,
 } from '@/db/helpers'
+import { Plus } from 'lucide-react'
 import { generateId } from '@/lib/id'
 import { SessionHeader } from '@/components/SessionHeader'
 import { ExerciseCard, type LoggedSetInput, type WorkExercise } from '@/components/ExerciseCard'
@@ -60,12 +62,16 @@ export default function StrengthSessionScreen() {
   const [confirmFinish, setConfirmFinish] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [confirmRemoveUid, setConfirmRemoveUid] = useState<string | null>(null)
+  const [confirmRemoveLastUid, setConfirmRemoveLastUid] = useState<string | null>(null)
+  const [addPickerOpen, setAddPickerOpen] = useState(false)
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
 
   const timer = useSessionTimer(session?.startedAt ?? Date.now())
   const rest = useRestTimer()
   const countdown = useCountdownTimer()
+  const precount = useCountdownTimer()
   useCountdownBeeps(countdown.remaining, countdown.isRunning)
+  usePrecountBeeps(precount.remaining, precount.isRunning)
   useWakeLock(getKeepAwake())
 
   // Build the working list once, from the linked template or (for a repeat
@@ -196,9 +202,14 @@ export default function StrengthSessionScreen() {
   function startTimedSet(ex: WorkExercise) {
     if (ex.durationSeconds == null) return
     rest.skip()
-    countdown.start(ex.uid, ex.durationSeconds, () =>
-      handleLog(ex, { durationSeconds: ex.durationSeconds }),
-    )
+    const run = () =>
+      countdown.start(ex.uid, ex.durationSeconds!, () =>
+        handleLog(ex, { durationSeconds: ex.durationSeconds }),
+      )
+    // Optional "Get ready" pre-count before the exercise countdown (A30).
+    const pre = getPrecountSeconds()
+    if (pre > 0) precount.start(ex.uid, pre, run)
+    else run()
   }
 
   // Re-assigned every render so the rest-expiry effect starts the next timed set
@@ -219,6 +230,46 @@ export default function StrengthSessionScreen() {
   function addSetTo(uid: string) {
     setWork((w) => w.map((e) => (e.uid === uid ? { ...e, targetSets: e.targetSets + 1 } : e)))
     markModified()
+  }
+
+  // Remove one incomplete set. If it's the exercise's only set, confirm removing
+  // the whole exercise. Logged sets are never affected (the button only shows on
+  // the active, not-yet-logged set).
+  function removeSet(uid: string) {
+    const ex = work.find((e) => e.uid === uid)
+    if (!ex) return
+    if (ex.targetSets <= 1) {
+      setConfirmRemoveLastUid(uid)
+      return
+    }
+    setWork((w) => w.map((e) => (e.uid === uid ? { ...e, targetSets: e.targetSets - 1 } : e)))
+    markModified()
+  }
+  function doRemoveLast() {
+    if (!confirmRemoveLastUid) return
+    setWork((w) => w.filter((e) => e.uid !== confirmRemoveLastUid))
+    markModified()
+    setConfirmRemoveLastUid(null)
+  }
+
+  // Append picked exercises to the end of the queue as fresh, incomplete work.
+  function appendExercises(exs: Exercise[]) {
+    if (!exs.length) return
+    setWork((w) => [
+      ...w,
+      ...exs.map((ex) => ({
+        uid: generateId(),
+        exerciseId: ex.id,
+        exerciseName: ex.name,
+        targetSets: 3,
+        targetReps: ex.trackingType === 'duration' ? undefined : 10,
+        durationSeconds: ex.trackingType === 'duration' ? 30 : undefined,
+        restSeconds: 90,
+        skipped: false,
+      })),
+    ])
+    markModified()
+    setAddPickerOpen(false)
   }
 
   function skip(uid: string) {
@@ -357,16 +408,23 @@ export default function StrengthSessionScreen() {
               supportsAdditionalWeight={exById.get(ex.exerciseId)?.supportsAdditionalWeight}
               onLog={(d) => handleLog(ex, d)}
               onAddSet={() => addSetTo(ex.uid)}
+              onRemoveSet={() => removeSet(ex.uid)}
               onSwap={isCurrent ? () => setPickerOpen(true) : undefined}
               onStartCountdown={() => startTimedSet(ex)}
               countdown={
-                isCurrent && countdown.activeUid === ex.uid
-                  ? { remaining: countdown.remaining, duration: countdown.duration }
-                  : null
+                isCurrent && precount.activeUid === ex.uid
+                  ? { remaining: precount.remaining, duration: precount.duration, precount: true }
+                  : isCurrent && countdown.activeUid === ex.uid
+                    ? { remaining: countdown.remaining, duration: countdown.duration }
+                    : null
               }
             />
           )}
         />
+
+        <Button variant="outline" className="mt-3 w-full" onClick={() => setAddPickerOpen(true)}>
+          <Plus className="size-4" /> Add exercise
+        </Button>
 
         {allDone && (
           <div className="mt-3 rounded-2xl border border-green-500/30 bg-green-500/10 p-4 text-center">
@@ -381,6 +439,7 @@ export default function StrengthSessionScreen() {
       )}
 
       <ExercisePicker open={pickerOpen} onOpenChange={setPickerOpen} onSelect={(exs) => exs[0] && swapCurrent(exs[0])} />
+      <ExercisePicker open={addPickerOpen} onOpenChange={setAddPickerOpen} multiple onSelect={appendExercises} />
 
       <AlertDialog open={confirmFinish} onOpenChange={setConfirmFinish}>
         <AlertDialogContent>
@@ -419,6 +478,24 @@ export default function StrengthSessionScreen() {
           <AlertDialogFooter>
             <AlertDialogCancel>Keep it</AlertDialogCancel>
             <AlertDialogAction onClick={doRemove}>Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={confirmRemoveLastUid !== null}
+        onOpenChange={(o) => !o && setConfirmRemoveLastUid(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove the last set?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the exercise from the workout.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep it</AlertDialogCancel>
+            <AlertDialogAction onClick={doRemoveLast}>Remove</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

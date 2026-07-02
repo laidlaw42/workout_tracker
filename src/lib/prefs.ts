@@ -44,6 +44,26 @@ export function setWeekStart(v: 0 | 1): void {
   }
 }
 
+// Pre-count ("Get ready") seconds before a timed exercise countdown (A30).
+// 0 disables it. Clamped 0–10, defaults to 5.
+export function getPrecountSeconds(): number {
+  try {
+    const raw = localStorage.getItem('precountSeconds')
+    if (raw == null) return 5
+    const v = Number(raw)
+    return Number.isFinite(v) ? Math.max(0, Math.min(10, Math.round(v))) : 5
+  } catch {
+    return 5
+  }
+}
+export function setPrecountSeconds(n: number): void {
+  try {
+    localStorage.setItem('precountSeconds', String(Math.max(0, Math.min(10, Math.round(n)))))
+  } catch {
+    /* ignore */
+  }
+}
+
 // --- Remembered location names (A17) ---------------------------------------
 
 export type LocationType = 'gym' | 'crag' | 'board'

@@ -5,18 +5,20 @@ import { ChevronRight, Combine, Download, Minus, Plus, RotateCcw, Trash2, Upload
 import { clearAllData, exportAllData, importAllData, mergeData } from '@/db/helpers'
 import { restoreDefaults } from '@/db/seed'
 import { getUserName, setUserName } from '@/lib/userName'
-import { THEMES, applyTheme, getTheme } from '@/lib/theme'
+import { THEMES, THEME_PREVIEWS, applyTheme, getTheme } from '@/lib/theme'
 import {
   deleteGym,
   getAutoAdvance,
   getGymGradeRanges,
   getKeepAwake,
+  getPrecountSeconds,
   getSavedLocations,
   getTimerSounds,
   getWeekStart,
   rememberLocation,
   renameGym,
   setAutoAdvance,
+  setPrecountSeconds,
   setGymGradeRanges,
   setKeepAwake,
   setTimerSounds,
@@ -75,6 +77,15 @@ export default function SettingsScreen() {
   const [timerSounds, setTimerSoundsState] = useState(getTimerSounds())
   const [keepAwake, setKeepAwakeState] = useState(getKeepAwake())
   const [weekStart, setWeekStartState] = useState<'mon' | 'sun'>(getWeekStart() === 0 ? 'sun' : 'mon')
+  const [precount, setPrecount] = useState(getPrecountSeconds)
+
+  useEffect(() => {
+    setPrecountSeconds(precount)
+  }, [precount])
+
+  function stepPrecount(delta: number) {
+    setPrecount((cur) => Math.max(0, Math.min(10, cur + delta)))
+  }
 
   async function handleExport() {
     try {
@@ -176,7 +187,10 @@ export default function SettingsScreen() {
             <SelectContent>
               {THEMES.map((t) => (
                 <SelectItem key={t.id} value={t.id}>
-                  {t.label}
+                  <span className="flex items-center gap-2">
+                    <ThemeSwatch id={t.id} />
+                    {t.label}
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -214,6 +228,27 @@ export default function SettingsScreen() {
                 setKeepAwakeState(v)
               }}
             />
+          </div>
+        </section>
+
+        <section className="space-y-2">
+          <h2 className="text-sm font-medium text-muted-foreground">Workout</h2>
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Exercise pre-count</p>
+              <p className="text-xs text-muted-foreground">
+                A “Get ready” countdown before timed exercises. 0 turns it off.
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <HoldButton aria-label="Decrease pre-count" onStep={() => stepPrecount(-1)}>
+                <Minus className="size-4" />
+              </HoldButton>
+              <span className="min-w-6 text-center text-lg font-semibold tabular-nums">{precount}</span>
+              <HoldButton aria-label="Increase pre-count" onStep={() => stepPrecount(1)}>
+                <Plus className="size-4" />
+              </HoldButton>
+            </div>
           </div>
         </section>
 
@@ -317,7 +352,7 @@ export default function SettingsScreen() {
             <p className="text-muted-foreground">Version {import.meta.env.VITE_APP_VERSION}</p>
             <p className="text-muted-foreground">Made with love for Britta ❤</p>
             <p className="mt-1 text-muted-foreground">
-              Offline-first. Weights in kg. Your data stays on this device.
+              Offline-first. Data stays on this device. Zero telemetry. No in-app purchases.
             </p>
             <a
               href={REPO_URL}
@@ -509,6 +544,23 @@ function GymEditSheet({
         </div>
       </SheetContent>
     </Sheet>
+  )
+}
+
+// Three 12px circles (background / primary / accent) previewing a theme (A28).
+function ThemeSwatch({ id }: { id: string }) {
+  const preview = THEME_PREVIEWS[id]
+  if (!preview) return null
+  return (
+    <span className="flex items-center gap-1">
+      {preview.map((c, i) => (
+        <span
+          key={i}
+          className="size-3 rounded-full border border-border/60"
+          style={{ backgroundColor: c }}
+        />
+      ))}
+    </span>
   )
 }
 

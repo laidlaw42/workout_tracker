@@ -1,4 +1,4 @@
-import { Check, Plus } from 'lucide-react'
+import { Check, Minus, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { SetCountdown } from '@/components/SetCountdown'
 import type { HangboardSet } from '@/types'
@@ -9,9 +9,11 @@ interface Props {
   isCurrent: boolean
   skipped: boolean
   onAddSet: () => void
+  /** Remove the current incomplete hang (last one → confirms hang removal). */
+  onRemoveSet?: () => void
   /** Start the hang countdown (session logs it + starts rest at zero). */
   onStartCountdown?: () => void
-  countdown?: { remaining: number; duration: number } | null
+  countdown?: { remaining: number; duration: number; precount?: boolean } | null
 }
 
 function weightLabel(kg: number): string {
@@ -27,6 +29,7 @@ export function HangCard({
   isCurrent,
   skipped,
   onAddSet,
+  onRemoveSet,
   onStartCountdown,
   countdown,
 }: Props) {
@@ -65,11 +68,27 @@ export function HangCard({
           {isCurrent &&
             !complete &&
             (countdown ? (
-              <SetCountdown remaining={countdown.remaining} duration={countdown.duration} label="Hang" />
+              <SetCountdown
+                remaining={countdown.remaining}
+                duration={countdown.duration}
+                label={countdown.precount ? 'Get ready' : 'Hang'}
+              />
             ) : (
-              <Button className="w-full" onClick={onStartCountdown}>
-                Start hang {currentHang} ({hangSet.durationSeconds}s)
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button className="flex-1" onClick={onStartCountdown}>
+                  Start hang {currentHang} ({hangSet.durationSeconds}s)
+                </Button>
+                {onRemoveSet && (
+                  <button
+                    type="button"
+                    aria-label="Remove hang"
+                    onClick={onRemoveSet}
+                    className="flex size-10 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors active:bg-accent"
+                  >
+                    <Minus className="size-4" />
+                  </button>
+                )}
+              </div>
             ))}
 
           <button

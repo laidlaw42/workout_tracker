@@ -51,3 +51,9 @@ export function playComplete() {
   if (!getTimerSounds()) return
   tone(660, 280)
 }
+
+/** Higher, distinct tone at the final pre-count second — imminent start (A30). */
+export function playPrecountGo() {
+  if (!getTimerSounds()) return
+  tone(1175, 150)
+}

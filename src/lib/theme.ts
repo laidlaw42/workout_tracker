@@ -31,6 +31,34 @@ export const THEMES: ThemeOption[] = [
   { id: 'crimson-light', label: 'Crimson Light', dark: false },
 ]
 
+// Three preview colours per theme — [background, primary, accent] — mirrored
+// from themes.css, for the swatch shown beside each option in the theme picker
+// (A28). Kept in sync with the [data-theme] rules there.
+export const THEME_PREVIEWS: Record<string, [string, string, string]> = {
+  dark: ['oklch(0.129 0.042 264.695)', 'oklch(0.929 0.013 255.508)', 'oklch(0.279 0.041 260.031)'],
+  light: ['oklch(1 0 0)', 'oklch(0.208 0.042 265.755)', 'oklch(0.968 0.007 247.896)'],
+  'solarized-dark': ['#002b36', '#268bd2', '#0a4b5a'],
+  'solarized-light': ['#fdf6e3', '#268bd2', '#e3ddc9'],
+  'forest-dark': ['#0e1a12', '#4ade80', '#24422e'],
+  'forest-light': ['#f3f7f2', '#16a34a', '#d6e5d9'],
+  darcula: ['#2b2b2b', '#9876aa', '#4b4b4b'],
+  'darcula-light': ['#f7f7f8', '#6c4f9c', '#e7dff3'],
+  nord: ['#2e3440', '#88c0d0', '#4c566a'],
+  'nord-light': ['#eceff4', '#5e81ac', '#d8dee9'],
+  'sunset-dark': ['#1c1113', '#fb923c', '#4a2a33'],
+  sunset: ['#fff7ed', '#f97316', '#fed7aa'],
+  'slate-dark': ['#0f172a', '#94a3b8', '#334155'],
+  slate: ['#f8fafc', '#475569', '#e2e8f0'],
+  'gruvbox-dark': ['#282828', '#fe8019', '#504945'],
+  'gruvbox-light': ['#fbf1c7', '#d65d0e', '#ecdcb0'],
+  'bubblegum-dark': ['#1a0f16', '#ec4899', '#4a2438'],
+  'bubblegum-light': ['#fdf2f8', '#db2777', '#fbcfe8'],
+  'synthwave-dark': ['#1b1036', '#ff5fd0', '#3c2280'],
+  'synthwave-light': ['#fdf0ff', '#c026d3', '#efc9f7'],
+  'crimson-dark': ['#1a0f11', '#ef4444', '#4a262b'],
+  'crimson-light': ['#fef2f2', '#dc2626', '#fecaca'],
+}
+
 /** Whether a stored theme id is still a valid, known theme. */
 export function isValidTheme(id: string | null | undefined): boolean {
   return !!id && THEMES.some((t) => t.id === id)

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowLeftRight, Check, Plus } from 'lucide-react'
+import { ArrowLeftRight, Check, Minus, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { SetCountdown } from '@/components/SetCountdown'
@@ -33,11 +33,13 @@ interface Props {
   supportsAdditionalWeight?: boolean
   onLog: (data: LoggedSetInput) => void
   onAddSet: () => void
+  /** Remove the current incomplete set (last set → confirms exercise removal). */
+  onRemoveSet?: () => void
   /** Inline swap is offered on the current exercise only. */
   onSwap?: () => void
   /** Timed exercises: start the set countdown (session logs it at zero). */
   onStartCountdown?: () => void
-  countdown?: { remaining: number; duration: number } | null
+  countdown?: { remaining: number; duration: number; precount?: boolean } | null
 }
 
 // The body of an exercise card. The card shell (border, drag handle, long-press
@@ -50,6 +52,7 @@ export function ExerciseCard({
   supportsAdditionalWeight,
   onLog,
   onAddSet,
+  onRemoveSet,
   onSwap,
   onStartCountdown,
   countdown,
@@ -116,20 +119,36 @@ export function ExerciseCard({
             !complete &&
             (timed ? (
               countdown ? (
-                <SetCountdown remaining={countdown.remaining} duration={countdown.duration} label="Hold" />
+                <SetCountdown
+                  remaining={countdown.remaining}
+                  duration={countdown.duration}
+                  label={countdown.precount ? 'Get ready' : 'Hold'}
+                />
               ) : (
-                <Button className="w-full" onClick={onStartCountdown}>
-                  Start {exercise.durationSeconds}s hold
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button className="flex-1" onClick={onStartCountdown}>
+                    Start {exercise.durationSeconds}s hold
+                  </Button>
+                  {onRemoveSet && (
+                    <button
+                      type="button"
+                      aria-label="Remove set"
+                      onClick={onRemoveSet}
+                      className="flex size-10 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors active:bg-accent"
+                    >
+                      <Minus className="size-4" />
+                    </button>
+                  )}
+                </div>
               )
             ) : (
               <SetRow
                 key={currentSetNumber}
-                setNumber={currentSetNumber}
                 targetReps={exercise.targetReps}
                 prefillWeight={prefillWeight}
                 supportsAdditionalWeight={supportsAdditionalWeight}
                 onLog={onLog}
+                onRemove={onRemoveSet}
               />
             ))}
 
@@ -147,14 +166,14 @@ export function ExerciseCard({
 }
 
 interface SetRowProps {
-  setNumber: number
   targetReps?: number
   prefillWeight?: number
   supportsAdditionalWeight?: boolean
   onLog: (data: LoggedSetInput) => void
+  onRemove?: () => void
 }
 
-function SetRow({ setNumber, targetReps, prefillWeight, supportsAdditionalWeight, onLog }: SetRowProps) {
+function SetRow({ targetReps, prefillWeight, supportsAdditionalWeight, onLog, onRemove }: SetRowProps) {
   const [weight, setWeight] = useState('')
   const [addl, setAddl] = useState('')
   const [reps, setReps] = useState(targetReps != null ? String(targetReps) : '')
@@ -175,8 +194,15 @@ function SetRow({ setNumber, targetReps, prefillWeight, supportsAdditionalWeight
 
   return (
     <div className="flex items-end gap-2 rounded-lg border border-primary/40 bg-background p-2">
-      {!supportsAdditionalWeight && (
-        <span className="pb-2.5 text-sm text-muted-foreground">Set {setNumber}</span>
+      {onRemove && (
+        <button
+          type="button"
+          aria-label="Remove set"
+          onClick={onRemove}
+          className="flex size-10 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors active:bg-accent"
+        >
+          <Minus className="size-4" />
+        </button>
       )}
       <label className="flex flex-1 flex-col gap-1">
         <span className="text-xs text-muted-foreground">Weight (kg)</span>

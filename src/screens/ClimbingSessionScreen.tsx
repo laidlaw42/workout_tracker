@@ -7,8 +7,9 @@ import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { useRestTimer } from '@/hooks/useRestTimer'
 import { useCountdownTimer } from '@/hooks/useCountdownTimer'
 import { useCountdownBeeps } from '@/hooks/useCountdownBeeps'
+import { usePrecountBeeps } from '@/hooks/usePrecountBeeps'
 import { useWakeLock } from '@/hooks/useWakeLock'
-import { getAutoAdvance, getGymGradeRanges, getKeepAwake } from '@/lib/prefs'
+import { getAutoAdvance, getGymGradeRanges, getKeepAwake, getPrecountSeconds } from '@/lib/prefs'
 import {
   addHang,
   addSet,
@@ -84,7 +85,9 @@ export default function ClimbingSessionScreen() {
   const clock = useSessionTimer(session?.startedAt ?? Date.now())
   const rest = useRestTimer()
   const countdown = useCountdownTimer()
+  const precount = useCountdownTimer()
   useCountdownBeeps(countdown.remaining, countdown.isRunning)
+  usePrecountBeeps(precount.remaining, precount.isRunning)
   useWakeLock(getKeepAwake())
 
   // Which venue field to show. Prefer the explicit discriminator; fall back to
@@ -162,8 +165,11 @@ export default function ClimbingSessionScreen() {
   const [hangWork, setHangWork] = useState<WorkHang[]>([])
   const [hangWorkInited, setHangWorkInited] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [addPickerOpen, setAddPickerOpen] = useState(false)
   const [confirmRemoveUid, setConfirmRemoveUid] = useState<string | null>(null)
+  const [confirmRemoveLastUid, setConfirmRemoveLastUid] = useState<string | null>(null)
   const [confirmRemoveHangId, setConfirmRemoveHangId] = useState<string | null>(null)
+  const [confirmRemoveLastHangId, setConfirmRemoveLastHangId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!workInited && template !== undefined && basePlanExercises.length > 0) {
@@ -238,6 +244,38 @@ export default function ClimbingSessionScreen() {
     setWork((w) => w.filter((e) => e.uid !== confirmRemoveUid))
     setConfirmRemoveUid(null)
   }
+  function removeSet(uid: string) {
+    const ex = work.find((e) => e.uid === uid)
+    if (!ex) return
+    if (ex.targetSets <= 1) {
+      setConfirmRemoveLastUid(uid)
+      return
+    }
+    setWork((w) => w.map((e) => (e.uid === uid ? { ...e, targetSets: e.targetSets - 1 } : e)))
+  }
+  function doRemoveLast() {
+    if (!confirmRemoveLastUid) return
+    setWork((w) => w.filter((e) => e.uid !== confirmRemoveLastUid))
+    setConfirmRemoveLastUid(null)
+  }
+  function appendExercises(exs: Exercise[]) {
+    if (!exs.length) return
+    const stamp = Date.now()
+    setWork((w) => [
+      ...w,
+      ...exs.map((ex, i) => ({
+        uid: `${ex.id}-add-${stamp}-${i}`,
+        exerciseId: ex.id,
+        exerciseName: ex.name,
+        targetSets: 3,
+        targetReps: ex.trackingType === 'duration' ? undefined : 10,
+        durationSeconds: ex.trackingType === 'duration' ? 30 : undefined,
+        restSeconds: 90,
+        skipped: false,
+      })),
+    ])
+    setAddPickerOpen(false)
+  }
 
   async function logExerciseSet(ex: WorkExercise, data: LoggedSetInput) {
     const setNumber = loggedForEx(ex).length + 1
@@ -275,9 +313,13 @@ export default function ClimbingSessionScreen() {
   function startTimedSet(ex: WorkExercise) {
     if (ex.durationSeconds == null) return
     rest.skip()
-    countdown.start(ex.uid, ex.durationSeconds, () =>
-      logExerciseSet(ex, { durationSeconds: ex.durationSeconds }),
-    )
+    const run = () =>
+      countdown.start(ex.uid, ex.durationSeconds!, () =>
+        logExerciseSet(ex, { durationSeconds: ex.durationSeconds }),
+      )
+    const pre = getPrecountSeconds()
+    if (pre > 0) precount.start(ex.uid, pre, run)
+    else run()
   }
 
   // --- Hang logging (hangboard) -------------------------------------------
@@ -307,6 +349,20 @@ export default function ClimbingSessionScreen() {
     if (!confirmRemoveHangId) return
     setHangWork((w) => w.filter((h) => h.id !== confirmRemoveHangId))
     setConfirmRemoveHangId(null)
+  }
+  function removeHangSet(hid: string) {
+    const h = hangWork.find((x) => x.id === hid)
+    if (!h) return
+    if (h.sets <= 1) {
+      setConfirmRemoveLastHangId(hid)
+      return
+    }
+    setHangWork((w) => w.map((x) => (x.id === hid ? { ...x, sets: x.sets - 1 } : x)))
+  }
+  function doRemoveLastHang() {
+    if (!confirmRemoveLastHangId) return
+    setHangWork((w) => w.filter((h) => h.id !== confirmRemoveLastHangId))
+    setConfirmRemoveLastHangId(null)
   }
 
   async function logHang(hs: HangboardSet) {
@@ -354,7 +410,10 @@ export default function ClimbingSessionScreen() {
   }
   function startHangCountdown(hs: HangboardSet) {
     rest.skip()
-    countdown.start(hs.id, hs.durationSeconds, () => logHang(hs))
+    const run = () => countdown.start(hs.id, hs.durationSeconds, () => logHang(hs))
+    const pre = getPrecountSeconds()
+    if (pre > 0) precount.start(hs.id, pre, run)
+    else run()
   }
 
   // Re-assigned every render so the rest-expiry effect starts the next timed
@@ -539,16 +598,22 @@ export default function ClimbingSessionScreen() {
                   prefillWeight={isCurrent ? prefill?.weightKg : undefined}
                   onLog={(d) => logExerciseSet(ex, d)}
                   onAddSet={() => addSetTo(ex.uid)}
+                  onRemoveSet={() => removeSet(ex.uid)}
                   onSwap={isCurrent ? () => setPickerOpen(true) : undefined}
                   onStartCountdown={() => startTimedSet(ex)}
                   countdown={
-                    isCurrent && countdown.activeUid === ex.uid
-                      ? { remaining: countdown.remaining, duration: countdown.duration }
-                      : null
+                    isCurrent && precount.activeUid === ex.uid
+                      ? { remaining: precount.remaining, duration: precount.duration, precount: true }
+                      : isCurrent && countdown.activeUid === ex.uid
+                        ? { remaining: countdown.remaining, duration: countdown.duration }
+                        : null
                   }
                 />
               )}
             />
+            <Button variant="outline" className="w-full" onClick={() => setAddPickerOpen(true)}>
+              <Plus className="size-4" /> Add exercise
+            </Button>
           </div>
         )}
 
@@ -573,11 +638,14 @@ export default function ClimbingSessionScreen() {
                   isCurrent={isCurrent}
                   skipped={h.skipped}
                   onAddSet={() => addSetToHang(h.id)}
+                  onRemoveSet={() => removeHangSet(h.id)}
                   onStartCountdown={() => startHangCountdown(h)}
                   countdown={
-                    isCurrent && countdown.activeUid === h.id
-                      ? { remaining: countdown.remaining, duration: countdown.duration }
-                      : null
+                    isCurrent && precount.activeUid === h.id
+                      ? { remaining: precount.remaining, duration: precount.duration, precount: true }
+                      : isCurrent && countdown.activeUid === h.id
+                        ? { remaining: countdown.remaining, duration: countdown.duration }
+                        : null
                   }
                 />
               )}
@@ -657,6 +725,48 @@ export default function ClimbingSessionScreen() {
           onSelect={(exs) => exs[0] && swapCurrent(exs[0])}
         />
       )}
+      <ExercisePicker
+        open={addPickerOpen}
+        onOpenChange={setAddPickerOpen}
+        multiple
+        onSelect={appendExercises}
+      />
+
+      <AlertDialog
+        open={confirmRemoveLastUid !== null}
+        onOpenChange={(o) => !o && setConfirmRemoveLastUid(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove the last set?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the exercise from the workout.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep it</AlertDialogCancel>
+            <AlertDialogAction onClick={doRemoveLast}>Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={confirmRemoveLastHangId !== null}
+        onOpenChange={(o) => !o && setConfirmRemoveLastHangId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove the last set?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the exercise from the workout.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep it</AlertDialogCancel>
+            <AlertDialogAction onClick={doRemoveLastHang}>Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog
         open={confirmRemoveUid !== null}
