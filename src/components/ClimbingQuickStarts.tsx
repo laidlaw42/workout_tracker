@@ -98,7 +98,7 @@ const CARD_TONE: Record<Kind, string> = {
 }
 
 function QuickCard({ venue, onClick }: { venue: Kind; onClick: () => void }) {
-  const badge = VENUE_BADGES[venue]
+  const { Icon, label } = VENUE_BADGES[venue]
   return (
     <button
       type="button"
@@ -108,10 +108,8 @@ function QuickCard({ venue, onClick }: { venue: Kind; onClick: () => void }) {
         CARD_TONE[venue],
       )}
     >
-      <span className="text-2xl" aria-hidden>
-        {badge.emoji}
-      </span>
-      {badge.label}
+      <Icon className="size-6" aria-hidden />
+      {label}
     </button>
   )
 }

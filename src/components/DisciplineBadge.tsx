@@ -7,6 +7,7 @@ interface Props {
 }
 
 export function DisciplineBadge({ badge, className }: Props) {
+  const { Icon } = badge
   return (
     <span
       className={cn(
@@ -15,7 +16,7 @@ export function DisciplineBadge({ badge, className }: Props) {
         className,
       )}
     >
-      <span aria-hidden>{badge.emoji}</span>
+      <Icon className="size-3" aria-hidden />
       {badge.label}
     </span>
   )

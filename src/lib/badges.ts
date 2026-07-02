@@ -1,3 +1,19 @@
+import type { LucideIcon } from 'lucide-react'
+import {
+  Activity,
+  Anchor,
+  Bike,
+  Box,
+  Building2,
+  Cable,
+  Dumbbell,
+  Footprints,
+  Hand,
+  Home,
+  Mountain,
+  Waves,
+  Zap,
+} from 'lucide-react'
 import type {
   CardioActivityType,
   ClimbingRoute,
@@ -6,10 +22,10 @@ import type {
   WorkoutTemplate,
 } from '@/types'
 
-// A rendered badge: an emoji glyph, a short label, and static Tailwind colour
+// A rendered badge: a vector icon, a short label, and static Tailwind colour
 // classes (never build `bg-${x}` — Tailwind would purge it).
 export interface Badge {
-  emoji: string
+  Icon: LucideIcon
   label: string
   classes: string
 }
@@ -25,40 +41,40 @@ const TONE = {
   home: 'bg-green-500/15 text-green-300 ring-green-500/30', // #22c55e
 } as const
 
-const CARDIO: Record<CardioActivityType, { emoji: string; label: string }> = {
-  run: { emoji: '🏃🏼‍♀️', label: 'Run' },
-  ride: { emoji: '🚴🏽', label: 'Ride' },
-  row: { emoji: '🚣🏼‍♀️', label: 'Row' },
-  other: { emoji: '⚡', label: 'Cardio' },
+const CARDIO: Record<CardioActivityType, { Icon: LucideIcon; label: string }> = {
+  run: { Icon: Footprints, label: 'Run' },
+  ride: { Icon: Bike, label: 'Ride' },
+  row: { Icon: Waves, label: 'Row' },
+  other: { Icon: Zap, label: 'Cardio' },
 }
 
-const STYLE: Record<ClimbingStyle, { emoji: string; label: string }> = {
-  bouldering: { emoji: '🧗', label: 'Bouldering' },
-  top_rope: { emoji: '🪢', label: 'Top rope' },
-  lead: { emoji: '⚓', label: 'Lead' },
+const STYLE: Record<ClimbingStyle, { Icon: LucideIcon; label: string }> = {
+  bouldering: { Icon: Box, label: 'Bouldering' },
+  top_rope: { Icon: Cable, label: 'Top rope' },
+  lead: { Icon: Anchor, label: 'Lead' },
 }
 
-// Venue quick-start entries in the Library.
+// Venue quick-start entries in the Library (lucide icons, per-venue colour).
 export const VENUE_BADGES: Record<'gym' | 'crag' | 'home', Badge> = {
-  gym: { emoji: '🏛️', label: 'Gym', classes: TONE.gym },
-  crag: { emoji: '🏔️', label: 'Crag', classes: TONE.crag },
-  home: { emoji: '🏠', label: 'Home', classes: TONE.home },
+  gym: { Icon: Building2, label: 'Gym', classes: TONE.gym },
+  crag: { Icon: Mountain, label: 'Crag', classes: TONE.crag },
+  home: { Icon: Home, label: 'Home', classes: TONE.home },
 }
 
-const STRENGTH: Badge = { emoji: '🏋️', label: 'Strength', classes: TONE.strength }
+const STRENGTH: Badge = { Icon: Dumbbell, label: 'Strength', classes: TONE.strength }
+const HANGBOARD = (classes: string): Badge => ({ Icon: Hand, label: 'Hangboard', classes })
+const CLIMB_WORKOUT = (classes: string): Badge => ({ Icon: Activity, label: 'Workout', classes })
 
 function cardioBadge(activity: CardioActivityType = 'other'): Badge {
   const c = CARDIO[activity]
-  return { emoji: c.emoji, label: c.label, classes: TONE.cardio }
+  return { Icon: c.Icon, label: c.label, classes: TONE.cardio }
 }
 
 export function badgeForTemplate(t: WorkoutTemplate): Badge {
   if (t.type === 'strength') return STRENGTH
   if (t.type === 'cardio') return cardioBadge(t.cardioActivity)
   // climbing template — hangboard or workout
-  return t.climbingKind === 'hangboard'
-    ? { emoji: '🤜', label: 'Hangboard', classes: TONE.climbing }
-    : { emoji: '💪', label: 'Workout', classes: TONE.climbing }
+  return t.climbingKind === 'hangboard' ? HANGBOARD(TONE.climbing) : CLIMB_WORKOUT(TONE.climbing)
 }
 
 // Extra per-session info needed to pick a climbing/cardio subtype. Sessions don't
@@ -74,18 +90,18 @@ export function badgeForSession(s: WorkoutSession, kind?: SessionKind): Badge {
   if (s.type === 'strength') return STRENGTH
   if (s.type === 'cardio') return cardioBadge(kind?.cardioActivity ?? s.plannedActivity)
 
-  // Climbing: colour follows the venue (blue/amber/green); the emoji follows the
+  // Climbing: colour follows the venue (blue/amber/green); the icon follows the
   // logged subtype so a crag-lead and a gym-boulder read apart.
   const classes = s.climbingVenue ? TONE[s.climbingVenue] : TONE.climbing
   if (kind?.climbingStyle) {
     const st = STYLE[kind.climbingStyle]
-    return { emoji: st.emoji, label: st.label, classes }
+    return { Icon: st.Icon, label: st.label, classes }
   }
-  if (kind?.climbingIsHangboard) return { emoji: '🤜', label: 'Hangboard', classes }
-  if (kind?.climbingIsWorkout) return { emoji: '💪', label: 'Workout', classes }
+  if (kind?.climbingIsHangboard) return HANGBOARD(classes)
+  if (kind?.climbingIsWorkout) return CLIMB_WORKOUT(classes)
   // Nothing logged yet — fall back to the venue identity, else generic climbing.
   if (s.climbingVenue) return VENUE_BADGES[s.climbingVenue]
-  return { emoji: '🧗', label: 'Climbing', classes: TONE.climbing }
+  return { Icon: Mountain, label: 'Climbing', classes: TONE.climbing }
 }
 
 function dominantStyle(routes: ClimbingRoute[]): ClimbingStyle {
