@@ -6,6 +6,7 @@ import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { useRestTimer } from '@/hooks/useRestTimer'
 import { useCountdownTimer } from '@/hooks/useCountdownTimer'
 import { useCountdownBeeps } from '@/hooks/useCountdownBeeps'
+import { getAutoAdvance } from '@/lib/prefs'
 import {
   addSet,
   checkAndSavePR,
@@ -112,13 +113,17 @@ export default function StrengthSessionScreen() {
     [currentEx?.exerciseId],
   )
 
-  // Rest-timer completion: haptic (no-op on iOS) + auto-dismiss.
+  // Rest-timer completion: haptic (no-op on iOS) + auto-dismiss. For a timed
+  // set, reaching 0 auto-starts the next set's countdown (A8, if enabled).
   const firedRef = useRef(false)
+  const restTimedRef = useRef<string | null>(null) // timed exercise uid the rest follows, else null
+  const autoAdvanceRef = useRef<() => boolean>(() => false)
   useEffect(() => {
     if (rest.isRunning && rest.remaining === 0) {
       if (!firedRef.current) {
         firedRef.current = true
         navigator.vibrate?.([200, 100, 200])
+        if (autoAdvanceRef.current()) return // began the next timed set instead of dismissing
         const t = setTimeout(() => rest.skip(), 2000)
         return () => clearTimeout(t)
       }
@@ -162,6 +167,7 @@ export default function StrengthSessionScreen() {
           achievedAt: Date.now(),
         })
       }
+      restTimedRef.current = ex.durationSeconds != null ? ex.uid : null
       rest.start(ex.restSeconds)
     } catch {
       toast.error('Could not log set')
@@ -169,11 +175,28 @@ export default function StrengthSessionScreen() {
   }
 
   // Timed exercises: run the countdown, then log the set (which starts rest).
+  // Starting a set dismisses any running rest timer immediately (A8).
   function startTimedSet(ex: WorkExercise) {
     if (ex.durationSeconds == null) return
+    rest.skip()
     countdown.start(ex.uid, ex.durationSeconds, () =>
       handleLog(ex, { durationSeconds: ex.durationSeconds }),
     )
+  }
+
+  // Re-assigned every render so the rest-expiry effect starts the next timed set
+  // using the latest state. Returns true when it began a countdown.
+  autoAdvanceRef.current = () => {
+    if (!getAutoAdvance()) return false
+    const uid = restTimedRef.current
+    restTimedRef.current = null
+    if (!uid) return false
+    const ex = work.find((e) => e.uid === uid)
+    if (ex && ex.durationSeconds != null && !isComplete(ex)) {
+      startTimedSet(ex)
+      return true
+    }
+    return false
   }
 
   function addSetTo(uid: string) {

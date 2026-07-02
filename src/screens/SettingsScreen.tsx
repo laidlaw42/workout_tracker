@@ -5,6 +5,7 @@ import { Combine, Download, Trash2, Upload } from 'lucide-react'
 import { clearAllData, exportAllData, importAllData, mergeData } from '@/db/helpers'
 import { getUserName, setUserName } from '@/lib/userName'
 import { THEMES, applyTheme, getTheme } from '@/lib/theme'
+import { getAutoAdvance, setAutoAdvance } from '@/lib/prefs'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -32,6 +33,7 @@ export default function SettingsScreen() {
   const [confirmClear2, setConfirmClear2] = useState(false)
   const [name, setName] = useState(getUserName())
   const [theme, setTheme] = useState(getTheme())
+  const [autoAdvance, setAutoAdvanceState] = useState(getAutoAdvance())
 
   async function handleExport() {
     try {
@@ -127,6 +129,40 @@ export default function SettingsScreen() {
                 <span className="text-sm font-medium text-foreground">{t.label}</span>
               </button>
             ))}
+          </div>
+        </section>
+
+        <section className="space-y-2">
+          <h2 className="text-sm font-medium text-muted-foreground">Session</h2>
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Auto-start next timed set</p>
+              <p className="text-xs text-muted-foreground">
+                When a rest timer ends, automatically begin the next hang/hold countdown.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={autoAdvance}
+              aria-label="Auto-start next timed set"
+              onClick={() => {
+                const next = !autoAdvance
+                setAutoAdvance(next)
+                setAutoAdvanceState(next)
+              }}
+              className={cn(
+                'relative h-6 w-11 shrink-0 rounded-full transition-colors',
+                autoAdvance ? 'bg-primary' : 'bg-muted',
+              )}
+            >
+              <span
+                className={cn(
+                  'absolute top-0.5 size-5 rounded-full bg-background shadow transition-transform',
+                  autoAdvance ? 'translate-x-5' : 'translate-x-0.5',
+                )}
+              />
+            </button>
           </div>
         </section>
 

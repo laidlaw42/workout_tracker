@@ -7,6 +7,7 @@ import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { useRestTimer } from '@/hooks/useRestTimer'
 import { useCountdownTimer } from '@/hooks/useCountdownTimer'
 import { useCountdownBeeps } from '@/hooks/useCountdownBeeps'
+import { getAutoAdvance } from '@/lib/prefs'
 import {
   addHang,
   addSet,
@@ -78,13 +79,17 @@ export default function ClimbingSessionScreen() {
 
   const isBoard = session?.board !== undefined
 
-  // Rest-timer completion: haptic + auto-dismiss (component beeps are in RestTimer).
+  // Rest-timer completion: haptic + auto-dismiss. For a timed set/hang, reaching
+  // 0 auto-starts the next set's countdown (A8, if enabled).
   const firedRef = useRef(false)
+  const restTimedRef = useRef<{ kind: 'exercise' | 'hang'; uid: string } | null>(null)
+  const autoAdvanceRef = useRef<() => boolean>(() => false)
   useEffect(() => {
     if (rest.isRunning && rest.remaining === 0) {
       if (!firedRef.current) {
         firedRef.current = true
         navigator.vibrate?.([200, 100, 200])
+        if (autoAdvanceRef.current()) return // began the next timed set instead of dismissing
         const t = setTimeout(() => rest.skip(), 2000)
         return () => clearTimeout(t)
       }
@@ -240,6 +245,7 @@ export default function ClimbingSessionScreen() {
           achievedAt: Date.now(),
         })
       }
+      restTimedRef.current = ex.durationSeconds != null ? { kind: 'exercise', uid: ex.uid } : null
       rest.start(ex.restSeconds)
     } catch {
       toast.error('Could not log set')
@@ -247,6 +253,7 @@ export default function ClimbingSessionScreen() {
   }
   function startTimedSet(ex: WorkExercise) {
     if (ex.durationSeconds == null) return
+    rest.skip()
     countdown.start(ex.uid, ex.durationSeconds, () =>
       logExerciseSet(ex, { durationSeconds: ex.durationSeconds }),
     )
@@ -295,13 +302,38 @@ export default function ClimbingSessionScreen() {
         skipped: false,
         loggedAt: Date.now(),
       })
+      restTimedRef.current = { kind: 'hang', uid: hs.id }
       rest.start(hs.restSeconds)
     } catch {
       toast.error('Could not log hang')
     }
   }
   function startHangCountdown(hs: HangboardSet) {
+    rest.skip()
     countdown.start(hs.id, hs.durationSeconds, () => logHang(hs))
+  }
+
+  // Re-assigned every render so the rest-expiry effect starts the next timed
+  // item using the latest state. Returns true when it began a countdown.
+  autoAdvanceRef.current = () => {
+    if (!getAutoAdvance()) return false
+    const info = restTimedRef.current
+    restTimedRef.current = null
+    if (!info) return false
+    if (info.kind === 'exercise') {
+      const ex = work.find((e) => e.uid === info.uid)
+      if (ex && ex.durationSeconds != null && !isComplete(ex)) {
+        startTimedSet(ex)
+        return true
+      }
+    } else {
+      const h = hangWork.find((x) => x.id === info.uid)
+      if (h && !isCompleteHang(h)) {
+        startHangCountdown(h)
+        return true
+      }
+    }
+    return false
   }
 
   async function saveGradePRs() {
