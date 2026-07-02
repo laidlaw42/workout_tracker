@@ -113,6 +113,7 @@ export interface WorkoutSession {
   modifiedFromTemplate: boolean
   notes?: string
   // climbing-only metadata
+  climbingVenue?: 'gym' | 'crag' | 'home' // which venue a quick-start session is; undefined for template/repeat sessions
   gym?: string
   crag?: string
   board?: string // set (possibly '') for a "Home" board session; distinguishes it from gym/crag

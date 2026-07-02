@@ -79,7 +79,18 @@ export default function ClimbingSessionScreen() {
   useCountdownBeeps(countdown.remaining, countdown.isRunning)
   useWakeLock(getKeepAwake())
 
-  const isBoard = session?.board !== undefined
+  // Which venue field to show. Prefer the explicit discriminator; fall back to
+  // field presence for sessions created before it existed.
+  const venue: 'gym' | 'crag' | 'home' | undefined =
+    session?.climbingVenue ??
+    (session?.board !== undefined
+      ? 'home'
+      : session?.crag !== undefined
+        ? 'crag'
+        : session?.gym !== undefined
+          ? 'gym'
+          : undefined)
+  const isBoard = venue === 'home'
 
   // Rest-timer completion: haptic + auto-dismiss. For a timed set/hang, reaching
   // 0 auto-starts the next set's countdown (A8, if enabled).
@@ -423,19 +434,8 @@ export default function ClimbingSessionScreen() {
 
       <div className="space-y-5 p-4">
         {showRoutes &&
-          (isBoard ? (
-            <div className="space-y-1.5">
-              <Label htmlFor="board">Board</Label>
-              <Input
-                id="board"
-                value={board}
-                onChange={(e) => setBoard(e.target.value)}
-                onBlur={() => void updateSession(id, { board: board.trim() })}
-                placeholder="optional"
-              />
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-3">
+          (() => {
+            const gymField = (
               <div className="space-y-1.5">
                 <Label htmlFor="gym">Gym</Label>
                 <Input
@@ -446,6 +446,8 @@ export default function ClimbingSessionScreen() {
                   placeholder="optional"
                 />
               </div>
+            )
+            const cragField = (
               <div className="space-y-1.5">
                 <Label htmlFor="crag">Crag</Label>
                 <Input
@@ -456,8 +458,30 @@ export default function ClimbingSessionScreen() {
                   placeholder="optional"
                 />
               </div>
-            </div>
-          ))}
+            )
+            if (venue === 'home')
+              return (
+                <div className="space-y-1.5">
+                  <Label htmlFor="board">Board</Label>
+                  <Input
+                    id="board"
+                    value={board}
+                    onChange={(e) => setBoard(e.target.value)}
+                    onBlur={() => void updateSession(id, { board: board.trim() })}
+                    placeholder="optional"
+                  />
+                </div>
+              )
+            if (venue === 'gym') return gymField
+            if (venue === 'crag') return cragField
+            // Template / repeat climbing sessions: offer both.
+            return (
+              <div className="grid grid-cols-2 gap-3">
+                {gymField}
+                {cragField}
+              </div>
+            )
+          })()}
 
         {showExercises && (
           <div className="space-y-3">

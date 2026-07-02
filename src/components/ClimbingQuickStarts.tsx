@@ -38,10 +38,10 @@ export function ClimbingQuickStarts() {
     const trimmed = name.trim() || undefined
     const venue: Partial<WorkoutSession> =
       prompt === 'gym'
-        ? { gym: trimmed }
+        ? { climbingVenue: 'gym', gym: trimmed }
         : prompt === 'crag'
-          ? { crag: trimmed }
-          : { board: trimmed ?? '' } // always defined for Home, so the board flavour is detectable
+          ? { climbingVenue: 'crag', crag: trimmed }
+          : { climbingVenue: 'home', board: trimmed ?? '' } // board defined so the flavour stays detectable
     try {
       const id = await createSession({
         type: 'climbing',
