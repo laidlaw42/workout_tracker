@@ -211,7 +211,7 @@ export default function LibraryScreen() {
       )}
 
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
-        <DialogContent>
+        <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>{climbingCreate ? 'New climbing workout' : 'New workout'}</DialogTitle>
           </DialogHeader>
@@ -222,7 +222,6 @@ export default function LibraryScreen() {
                 id="new-name"
                 value={newName}
                 placeholder="e.g. Upper B"
-                autoFocus
                 onChange={(e) => setNewName(e.target.value)}
               />
             </div>

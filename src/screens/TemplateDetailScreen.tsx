@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useLiveQuery } from '@/hooks/useDb'
-import { createSession, getTemplate, markTemplateUsed } from '@/db/helpers'
+import { getTemplate, startSessionFromTemplate } from '@/db/helpers'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -33,15 +33,12 @@ export default function TemplateDetailScreen() {
 
   async function start(t: WorkoutTemplate) {
     try {
-      const sessionId = await createSession({
-        templateId: t.id,
-        templateName: t.name,
-        type: t.type,
-        startedAt: Date.now(),
-        modifiedFromTemplate: false,
-      })
-      await markTemplateUsed(t.id)
-      navigate(`/session/${t.type}/${sessionId}`)
+      const res = await startSessionFromTemplate(t.id)
+      if (!res) {
+        toast.error('Could not start workout')
+        return
+      }
+      navigate(`/session/${res.type}/${res.sessionId}`)
     } catch {
       toast.error('Could not start workout')
     }

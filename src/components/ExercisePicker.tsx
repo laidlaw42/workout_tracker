@@ -98,7 +98,11 @@ export function ExercisePicker({ open, onOpenChange, multiple = false, onSelect 
         if (!o) reset()
       }}
     >
-      <SheetContent side="bottom" className="flex h-[85dvh] flex-col gap-0 p-0">
+      <SheetContent
+        side="bottom"
+        className="flex h-[85dvh] flex-col gap-0 p-0"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+      >
         <SheetHeader className="border-b border-border">
           <SheetTitle>{creating ? 'New exercise' : 'Add exercise'}</SheetTitle>
           <SheetDescription className="sr-only">
@@ -115,7 +119,6 @@ export function ExercisePicker({ open, onOpenChange, multiple = false, onSelect 
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Front squat"
-                autoFocus
               />
             </div>
             <div className="space-y-2">
@@ -147,7 +150,6 @@ export function ExercisePicker({ open, onOpenChange, multiple = false, onSelect 
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search exercises…"
-                autoFocus
               />
             </div>
             <div className="flex-1 overflow-y-auto p-2">

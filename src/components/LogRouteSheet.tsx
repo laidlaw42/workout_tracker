@@ -28,6 +28,8 @@ interface Props {
   onOpenChange: (open: boolean) => void
   sessionId: string
   editing: ClimbingRoute | null
+  /** Home board: fix style to bouldering (skip step 1) and enter wall angle in degrees. */
+  boardMode?: boolean
   onSaved: () => void
 }
 
@@ -43,12 +45,21 @@ const WALL_ANGLES: { value: WallAngle; label: string }[] = [
   { value: 'overhang', label: 'Overhang' },
 ]
 
-export function LogRouteSheet({ open, onOpenChange, sessionId, editing, onSaved }: Props) {
-  const [step, setStep] = useState(1)
+export function LogRouteSheet({
+  open,
+  onOpenChange,
+  sessionId,
+  editing,
+  boardMode = false,
+  onSaved,
+}: Props) {
+  const firstStep = boardMode ? 2 : 1
+  const [step, setStep] = useState(firstStep)
   const [style, setStyle] = useState<ClimbingStyle>('bouldering')
   const [vGrade, setVGrade] = useState<string | null>(null)
   const [ewbanks, setEwbanks] = useState<number | null>(null)
   const [wallAngle, setWallAngle] = useState<WallAngle | undefined>(undefined)
+  const [wallAngleDeg, setWallAngleDeg] = useState('')
   const [tick, setTick] = useState<ClimbingTick | null>(null)
   const [routeName, setRouteName] = useState('')
   const [colour, setColour] = useState('')
@@ -58,12 +69,13 @@ export function LogRouteSheet({ open, onOpenChange, sessionId, editing, onSaved 
   // Initialise each time the sheet opens (fresh for new, populated for edit).
   useEffect(() => {
     if (!open) return
-    setStep(1)
+    setStep(firstStep)
     if (editing) {
-      setStyle(editing.style)
+      setStyle(boardMode ? 'bouldering' : editing.style)
       setVGrade(editing.vGrade ?? null)
       setEwbanks(editing.ewbanksGrade ?? null)
       setWallAngle(editing.wallAngle)
+      setWallAngleDeg(editing.wallAngleDegrees != null ? String(editing.wallAngleDegrees) : '')
       setTick(editing.tick)
       setRouteName(editing.routeName ?? '')
       setColour(editing.colour ?? '')
@@ -74,13 +86,14 @@ export function LogRouteSheet({ open, onOpenChange, sessionId, editing, onSaved 
       setVGrade(null)
       setEwbanks(null)
       setWallAngle(undefined)
+      setWallAngleDeg('')
       setTick(null)
       setRouteName('')
       setColour('')
       setAttempts('')
       setNotes('')
     }
-  }, [open, editing])
+  }, [open, editing, boardMode, firstStep])
 
   const isBoulder = style === 'bouldering'
   const validTicks = TICK_TYPES[style]
@@ -93,15 +106,23 @@ export function LogRouteSheet({ open, onOpenChange, sessionId, editing, onSaved 
 
   const canNextStep2 = isBoulder ? vGrade !== null : ewbanks !== null
   const canSave = tick !== null
+  const totalSteps = boardMode ? 2 : 3
+  const displayStep = boardMode ? step - 1 : step
 
   async function save() {
     if (!tick) return
+    const degParsed = wallAngleDeg.trim() === '' ? undefined : Number(wallAngleDeg)
+    const degClamped =
+      degParsed != null && !Number.isNaN(degParsed)
+        ? Math.max(-45, Math.min(90, Math.round(degParsed)))
+        : undefined
     const record = {
       sessionId,
-      style,
+      style: boardMode ? ('bouldering' as ClimbingStyle) : style,
       vGrade: isBoulder ? (vGrade ?? undefined) : undefined,
       ewbanksGrade: isBoulder ? undefined : (ewbanks ?? undefined),
-      wallAngle, // optional for every style
+      wallAngle: boardMode ? undefined : wallAngle, // enum for gym/crag
+      wallAngleDegrees: boardMode ? degClamped : undefined, // degrees for Home board
       routeName: routeName.trim() || undefined,
       colour: colour.trim() || undefined,
       attempts: attempts.trim() ? Number(attempts) : undefined,
@@ -124,7 +145,9 @@ export function LogRouteSheet({ open, onOpenChange, sessionId, editing, onSaved 
       <SheetContent side="bottom" className="flex max-h-[90dvh] flex-col gap-0 p-0">
         <SheetHeader className="border-b border-border">
           <SheetTitle>{editing ? 'Edit route' : 'Log a route'}</SheetTitle>
-          <SheetDescription>Step {step} of 3</SheetDescription>
+          <SheetDescription>
+            Step {displayStep} of {totalSteps}
+          </SheetDescription>
         </SheetHeader>
 
         <div className="flex-1 space-y-5 overflow-y-auto p-4">
@@ -162,24 +185,43 @@ export function LogRouteSheet({ open, onOpenChange, sessionId, editing, onSaved 
               </div>
 
               <div className="space-y-2">
-                <Label>Wall angle</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {WALL_ANGLES.map((a) => (
-                    <button
-                      key={a.value}
-                      type="button"
-                      onClick={() => setWallAngle((cur) => (cur === a.value ? undefined : a.value))}
-                      className={cn(
-                        'min-h-10 rounded-lg border text-sm font-medium transition-colors',
-                        wallAngle === a.value
-                          ? 'border-primary bg-primary/10 text-foreground'
-                          : 'border-border text-muted-foreground',
-                      )}
-                    >
-                      {a.label}
-                    </button>
-                  ))}
-                </div>
+                <Label htmlFor="wall-deg">Wall angle</Label>
+                {boardMode ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="wall-deg"
+                        inputMode="numeric"
+                        value={wallAngleDeg}
+                        placeholder="0"
+                        className="w-24"
+                        onChange={(e) => setWallAngleDeg(e.target.value.replace(/[^0-9-]/g, ''))}
+                      />
+                      <span className="text-xl text-muted-foreground">°</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      −45 to +90 · 0° = vertical, 45° = overhang
+                    </p>
+                  </>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2">
+                    {WALL_ANGLES.map((a) => (
+                      <button
+                        key={a.value}
+                        type="button"
+                        onClick={() => setWallAngle((cur) => (cur === a.value ? undefined : a.value))}
+                        className={cn(
+                          'min-h-10 rounded-lg border text-sm font-medium transition-colors',
+                          wallAngle === a.value
+                            ? 'border-primary bg-primary/10 text-foreground'
+                            : 'border-border text-muted-foreground',
+                        )}
+                      >
+                        {a.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -252,7 +294,7 @@ export function LogRouteSheet({ open, onOpenChange, sessionId, editing, onSaved 
         </div>
 
         <div className="flex gap-3 border-t border-border p-4">
-          {step > 1 && (
+          {step > firstStep && (
             <Button variant="outline" className="flex-1" onClick={() => setStep((s) => s - 1)}>
               Back
             </Button>

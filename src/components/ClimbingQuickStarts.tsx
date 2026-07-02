@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Building2, Mountain } from 'lucide-react'
+import { Building2, Home, Mountain } from 'lucide-react'
 import { createSession } from '@/db/helpers'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,8 +13,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import type { WorkoutSession } from '@/types'
 
-type Kind = 'gym' | 'crag'
+type Kind = 'gym' | 'crag' | 'home'
+
+const LABELS: Record<Kind, { title: string; field: string; placeholder: string }> = {
+  gym: { title: 'Gym climbing', field: 'Gym name', placeholder: 'optional' },
+  crag: { title: 'Crag climbing', field: 'Crag name', placeholder: 'optional' },
+  home: { title: 'Home board', field: 'Board name (optional)', placeholder: 'e.g. garage wall' },
+}
 
 export function ClimbingQuickStarts() {
   const navigate = useNavigate()
@@ -29,14 +36,19 @@ export function ClimbingQuickStarts() {
   async function start() {
     if (!prompt) return
     const trimmed = name.trim() || undefined
+    const venue: Partial<WorkoutSession> =
+      prompt === 'gym'
+        ? { gym: trimmed }
+        : prompt === 'crag'
+          ? { crag: trimmed }
+          : { board: trimmed ?? '' } // always defined for Home, so the board flavour is detectable
     try {
       const id = await createSession({
         type: 'climbing',
-        templateName: prompt === 'gym' ? 'Gym climbing' : 'Crag climbing',
+        templateName: prompt === 'home' ? (trimmed ?? 'Home board') : LABELS[prompt].title,
         startedAt: Date.now(),
         modifiedFromTemplate: false,
-        gym: prompt === 'gym' ? trimmed : undefined,
-        crag: prompt === 'crag' ? trimmed : undefined,
+        ...venue,
       })
       setPrompt(null)
       navigate(`/session/climbing/${id}`)
@@ -46,22 +58,22 @@ export function ClimbingQuickStarts() {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-2">
-      <QuickCard icon={Building2} label="Gym climbing" onClick={() => open('gym')} />
-      <QuickCard icon={Mountain} label="Crag climbing" onClick={() => open('crag')} />
+    <div className="grid grid-cols-3 gap-2">
+      <QuickCard icon={Building2} label="Gym" onClick={() => open('gym')} />
+      <QuickCard icon={Mountain} label="Crag" onClick={() => open('crag')} />
+      <QuickCard icon={Home} label="Home" onClick={() => open('home')} />
 
       <Dialog open={prompt !== null} onOpenChange={(o) => !o && setPrompt(null)}>
-        <DialogContent>
+        <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
-            <DialogTitle>{prompt === 'gym' ? 'Gym climbing' : 'Crag climbing'}</DialogTitle>
+            <DialogTitle>{prompt ? LABELS[prompt].title : ''}</DialogTitle>
           </DialogHeader>
           <div className="space-y-2">
-            <Label htmlFor="place-name">{prompt === 'gym' ? 'Gym name' : 'Crag name'}</Label>
+            <Label htmlFor="place-name">{prompt ? LABELS[prompt].field : ''}</Label>
             <Input
               id="place-name"
               value={name}
-              autoFocus
-              placeholder="optional"
+              placeholder={prompt ? LABELS[prompt].placeholder : ''}
               onChange={(e) => setName(e.target.value)}
             />
           </div>

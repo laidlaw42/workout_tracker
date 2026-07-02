@@ -18,10 +18,9 @@ import {
 } from '@/db/helpers'
 import { generateId } from '@/lib/id'
 import { SessionHeader } from '@/components/SessionHeader'
-import { ExerciseCard, type LoggedSetInput, type WorkExercise } from '@/components/ExerciseCard'
+import { type LoggedSetInput, type WorkExercise } from '@/components/ExerciseCard'
+import { SortableExerciseList } from '@/components/SortableExerciseList'
 import { RestTimer } from '@/components/RestTimer'
-import { ModifyFab } from '@/components/ModifyFab'
-import { ModifySheet } from '@/components/ModifySheet'
 import { ExercisePicker } from '@/components/ExercisePicker'
 import { Button } from '@/components/ui/button'
 import {
@@ -50,12 +49,10 @@ export default function StrengthSessionScreen() {
   const [work, setWork] = useState<WorkExercise[]>([])
   const [inited, setInited] = useState(false)
   const [modified, setModified] = useState(false)
-  const [modifyOpen, setModifyOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
-  const [pickerMode, setPickerMode] = useState<'swap' | 'add'>('swap')
   const [confirmFinish, setConfirmFinish] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
-  const [confirmRemove, setConfirmRemove] = useState(false)
+  const [confirmRemoveUid, setConfirmRemoveUid] = useState<string | null>(null)
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
 
   const timer = useSessionTimer(session?.startedAt ?? Date.now())
@@ -165,19 +162,15 @@ export default function StrengthSessionScreen() {
     }
   }
 
-  function addSetToCurrent() {
-    if (!currentEx) return
-    setWork((w) => w.map((e) => (e.uid === currentEx.uid ? { ...e, targetSets: e.targetSets + 1 } : e)))
+  function addSetTo(uid: string) {
+    setWork((w) => w.map((e) => (e.uid === uid ? { ...e, targetSets: e.targetSets + 1 } : e)))
     markModified()
-    setModifyOpen(false)
   }
 
-  function skipCurrent() {
-    if (!currentEx) return
-    setWork((w) => w.map((e) => (e.uid === currentEx.uid ? { ...e, skipped: true } : e)))
-    rest.skip()
+  function skip(uid: string) {
+    setWork((w) => w.map((e) => (e.uid === uid ? { ...e, skipped: true } : e)))
+    if (uid === currentEx?.uid) rest.skip()
     markModified()
-    setModifyOpen(false)
   }
 
   function swapCurrent(ex: Exercise) {
@@ -193,35 +186,11 @@ export default function StrengthSessionScreen() {
     setPickerOpen(false)
   }
 
-  function addNewExercises(exs: Exercise[]) {
-    setWork((w) => [
-      ...w,
-      ...exs.map((ex) => ({
-        uid: generateId(),
-        exerciseId: ex.id,
-        exerciseName: ex.name,
-        targetSets: 3,
-        // No target reps for a mid-session add — the reps field starts blank
-        // rather than pre-filling a template/default value.
-        targetReps: undefined,
-        restSeconds: 90,
-        skipped: false,
-      })),
-    ])
-    markModified()
-    setPickerOpen(false)
-  }
-
-  function onPickerSelect(exs: Exercise[]) {
-    if (pickerMode === 'add') addNewExercises(exs)
-    else if (exs[0]) swapCurrent(exs[0])
-  }
-
-  function reorderRemaining(uids: string[]) {
+  function reorderActive(activeUids: string[]) {
     setWork((w) => {
       const completed = w.filter((e) => isComplete(e))
       const byUid = new Map(w.map((e) => [e.uid, e]))
-      const reordered = uids
+      const reordered = activeUids
         .map((u) => byUid.get(u))
         .filter((e): e is WorkExercise => e != null)
       return [...completed, ...reordered]
@@ -229,12 +198,12 @@ export default function StrengthSessionScreen() {
     markModified()
   }
 
-  // Removes the current exercise from the queue; logged sets stay in the DB.
-  function removeCurrent() {
-    if (!currentEx) return
-    setWork((w) => w.filter((e) => e.uid !== currentEx.uid))
+  // Removes an exercise from the queue; logged sets stay in the DB.
+  function doRemove() {
+    if (!confirmRemoveUid) return
+    setWork((w) => w.filter((e) => e.uid !== confirmRemoveUid))
     markModified()
-    setConfirmRemove(false)
+    setConfirmRemoveUid(null)
   }
 
   async function endAndGo() {
@@ -301,9 +270,7 @@ export default function StrengthSessionScreen() {
     )
   }
 
-  const remainingItems = work
-    .filter((ex) => !isComplete(ex) || ex.uid === currentEx?.uid)
-    .map((ex) => ({ uid: ex.uid, name: ex.exerciseName, isCurrent: ex.uid === currentEx?.uid }))
+  const removeName = work.find((e) => e.uid === confirmRemoveUid)?.exerciseName
 
   return (
     <div className="min-h-dvh pb-32">
@@ -317,63 +284,34 @@ export default function StrengthSessionScreen() {
         onFinish={() => (allDone ? proceedFinish() : setConfirmFinish(true))}
       />
 
-      <div className="space-y-3 p-4">
-        {work.map((ex) => (
-          <ExerciseCard
-            key={ex.uid}
-            exercise={ex}
-            loggedSets={loggedFor(ex)}
-            isCurrent={ex.uid === currentEx?.uid}
-            prefillWeight={ex.uid === currentEx?.uid ? prefill?.weightKg : undefined}
-            onLog={(data) => handleLog(ex, data)}
-          />
-        ))}
+      <div className="p-4">
+        <SortableExerciseList
+          work={work}
+          loggedFor={loggedFor}
+          isComplete={isComplete}
+          currentUid={currentEx?.uid}
+          prefillWeight={prefill?.weightKg}
+          onLog={handleLog}
+          onAddSet={addSetTo}
+          onSkip={skip}
+          onRemove={setConfirmRemoveUid}
+          onSwap={() => setPickerOpen(true)}
+          onReorder={reorderActive}
+        />
 
         {allDone && (
-          <div className="rounded-2xl border border-green-500/30 bg-green-500/10 p-4 text-center">
+          <div className="mt-3 rounded-2xl border border-green-500/30 bg-green-500/10 p-4 text-center">
             <p className="font-medium text-green-300">All sets logged</p>
             <p className="text-sm text-muted-foreground">Tap Finish to see your summary.</p>
           </div>
         )}
       </div>
 
-      {/* Edit-workout FAB — lifted above the rest bar when it's showing. */}
-      <ModifyFab onClick={() => setModifyOpen(true)} raised={rest.isRunning} />
-
       {rest.isRunning && (
         <RestTimer remaining={rest.remaining} duration={rest.duration} onSkip={rest.skip} />
       )}
 
-      <ModifySheet
-        open={modifyOpen}
-        onOpenChange={setModifyOpen}
-        currentName={currentEx?.exerciseName}
-        remaining={remainingItems}
-        onAddSet={addSetToCurrent}
-        onSkip={skipCurrent}
-        onSwap={() => {
-          setModifyOpen(false)
-          setPickerMode('swap')
-          setPickerOpen(true)
-        }}
-        onRemove={() => {
-          setModifyOpen(false)
-          setConfirmRemove(true)
-        }}
-        onAddExercise={() => {
-          setModifyOpen(false)
-          setPickerMode('add')
-          setPickerOpen(true)
-        }}
-        onReorder={reorderRemaining}
-      />
-
-      <ExercisePicker
-        open={pickerOpen}
-        onOpenChange={setPickerOpen}
-        multiple={pickerMode === 'add'}
-        onSelect={onPickerSelect}
-      />
+      <ExercisePicker open={pickerOpen} onOpenChange={setPickerOpen} onSelect={(exs) => exs[0] && swapCurrent(exs[0])} />
 
       <AlertDialog open={confirmFinish} onOpenChange={setConfirmFinish}>
         <AlertDialogContent>
@@ -403,15 +341,15 @@ export default function StrengthSessionScreen() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
+      <AlertDialog open={confirmRemoveUid !== null} onOpenChange={(o) => !o && setConfirmRemoveUid(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove “{currentEx?.exerciseName}” from this workout?</AlertDialogTitle>
+            <AlertDialogTitle>Remove “{removeName}” from this workout?</AlertDialogTitle>
             <AlertDialogDescription>Logged sets will be kept.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep it</AlertDialogCancel>
-            <AlertDialogAction onClick={removeCurrent}>Remove</AlertDialogAction>
+            <AlertDialogAction onClick={doRemove}>Remove</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

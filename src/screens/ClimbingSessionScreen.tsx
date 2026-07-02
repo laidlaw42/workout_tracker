@@ -5,7 +5,6 @@ import { Mountain, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { useRestTimer } from '@/hooks/useRestTimer'
-import { generateId } from '@/lib/id'
 import {
   addHang,
   addSet,
@@ -24,11 +23,10 @@ import { STYLE_LABELS, isCleanTick, vGradeIndex } from '@/lib/climbing'
 import { SessionHeader } from '@/components/SessionHeader'
 import { RouteCard } from '@/components/RouteCard'
 import { LogRouteSheet } from '@/components/LogRouteSheet'
-import { ExerciseCard, type LoggedSetInput, type WorkExercise } from '@/components/ExerciseCard'
+import { type LoggedSetInput, type WorkExercise } from '@/components/ExerciseCard'
+import { SortableExerciseList } from '@/components/SortableExerciseList'
 import { HangCard } from '@/components/HangCard'
-import { ModifyFab } from '@/components/ModifyFab'
 import { RestTimer } from '@/components/RestTimer'
-import { ModifySheet } from '@/components/ModifySheet'
 import { ExercisePicker } from '@/components/ExercisePicker'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
@@ -61,6 +59,7 @@ export default function ClimbingSessionScreen() {
 
   const [gym, setGym] = useState('')
   const [crag, setCrag] = useState('')
+  const [board, setBoard] = useState('')
   const [inited, setInited] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editing, setEditing] = useState<ClimbingRoute | null>(null)
@@ -69,8 +68,12 @@ export default function ClimbingSessionScreen() {
   const clock = useSessionTimer(session?.startedAt ?? Date.now())
   const rest = useRestTimer()
 
+  // A "Home board" session (board flavour) fixes routes to bouldering and uses
+  // a degree-based wall angle in the route logger.
+  const isBoard = session?.board !== undefined
+
   // Rest-timer completion: haptic (no-op on iOS) + auto-dismiss. Mirrors the
-  // strength screen so logging a climbing-workout set shows the same rest bar.
+  // strength screen so logging a set/hang shows the same rest bar.
   const firedRef = useRef(false)
   useEffect(() => {
     if (rest.isRunning && rest.remaining === 0) {
@@ -89,6 +92,7 @@ export default function ClimbingSessionScreen() {
     if (session && !inited) {
       setGym(session.gym ?? '')
       setCrag(session.crag ?? '')
+      setBoard(session.board ?? '')
       setInited(true)
     }
   }, [session, inited])
@@ -124,10 +128,8 @@ export default function ClimbingSessionScreen() {
 
   const [work, setWork] = useState<WorkExercise[]>([])
   const [workInited, setWorkInited] = useState(false)
-  const [modifyOpen, setModifyOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
-  const [pickerMode, setPickerMode] = useState<'swap' | 'add'>('add')
-  const [confirmRemove, setConfirmRemove] = useState(false)
+  const [confirmRemoveUid, setConfirmRemoveUid] = useState<string | null>(null)
 
   useEffect(() => {
     if (!workInited && template !== undefined && basePlanExercises.length > 0) {
@@ -162,16 +164,12 @@ export default function ClimbingSessionScreen() {
     [currentEx?.exerciseId],
   )
 
-  function addSetToCurrent() {
-    if (!currentEx) return
-    setWork((w) => w.map((e) => (e.uid === currentEx.uid ? { ...e, targetSets: e.targetSets + 1 } : e)))
-    setModifyOpen(false)
+  function addSetTo(uid: string) {
+    setWork((w) => w.map((e) => (e.uid === uid ? { ...e, targetSets: e.targetSets + 1 } : e)))
   }
-  function skipCurrent() {
-    if (!currentEx) return
-    setWork((w) => w.map((e) => (e.uid === currentEx.uid ? { ...e, skipped: true } : e)))
-    rest.skip()
-    setModifyOpen(false)
+  function skip(uid: string) {
+    setWork((w) => w.map((e) => (e.uid === uid ? { ...e, skipped: true } : e)))
+    if (uid === currentEx?.uid) rest.skip()
   }
   function swapCurrent(ex: Exercise) {
     if (!currentEx) return
@@ -184,41 +182,19 @@ export default function ClimbingSessionScreen() {
     )
     setPickerOpen(false)
   }
-  function addNewExercises(exs: Exercise[]) {
-    setWork((w) => [
-      ...w,
-      ...exs.map((ex) => ({
-        uid: generateId(),
-        exerciseId: ex.id,
-        exerciseName: ex.name,
-        targetSets: 3,
-        targetReps: undefined,
-        restSeconds: 90,
-        skipped: false,
-      })),
-    ])
-    setPickerOpen(false)
-  }
-  function onPickerSelect(exs: Exercise[]) {
-    if (pickerMode === 'add') addNewExercises(exs)
-    else if (exs[0]) swapCurrent(exs[0])
-  }
-  function reorderRemaining(uids: string[]) {
+  function reorderActive(activeUids: string[]) {
     setWork((w) => {
       const completed = w.filter((e) => isComplete(e))
       const byUid = new Map(w.map((e) => [e.uid, e]))
-      const reordered = uids.map((u) => byUid.get(u)).filter((e): e is WorkExercise => e != null)
+      const reordered = activeUids.map((u) => byUid.get(u)).filter((e): e is WorkExercise => e != null)
       return [...completed, ...reordered]
     })
   }
-  function removeCurrent() {
-    if (!currentEx) return
-    setWork((w) => w.filter((e) => e.uid !== currentEx.uid))
-    setConfirmRemove(false)
+  function doRemove() {
+    if (!confirmRemoveUid) return
+    setWork((w) => w.filter((e) => e.uid !== confirmRemoveUid))
+    setConfirmRemoveUid(null)
   }
-  const remainingItems = work
-    .filter((ex) => !isComplete(ex) || ex.uid === currentEx?.uid)
-    .map((ex) => ({ uid: ex.uid, name: ex.exerciseName, isCurrent: ex.uid === currentEx?.uid }))
 
   async function logExerciseSet(ex: WorkExercise, data: LoggedSetInput) {
     const setNumber = loggedForEx(ex).length + 1
@@ -271,6 +247,7 @@ export default function ClimbingSessionScreen() {
         skipped: false,
         loggedAt: Date.now(),
       })
+      rest.start(hs.restSeconds)
     } catch {
       toast.error('Could not log hang')
     }
@@ -337,6 +314,8 @@ export default function ClimbingSessionScreen() {
     )
   }
 
+  const removeName = work.find((e) => e.uid === confirmRemoveUid)?.exerciseName
+
   return (
     <div className="min-h-dvh pb-32">
       <SessionHeader
@@ -350,44 +329,59 @@ export default function ClimbingSessionScreen() {
       />
 
       <div className="space-y-5 p-4">
-        {showRoutes && (
-          <div className="grid grid-cols-2 gap-3">
+        {showRoutes &&
+          (isBoard ? (
             <div className="space-y-1.5">
-              <Label htmlFor="gym">Gym</Label>
+              <Label htmlFor="board">Board</Label>
               <Input
-                id="gym"
-                value={gym}
-                onChange={(e) => setGym(e.target.value)}
-                onBlur={() => void updateSession(id, { gym: gym.trim() || undefined })}
+                id="board"
+                value={board}
+                onChange={(e) => setBoard(e.target.value)}
+                onBlur={() => void updateSession(id, { board: board.trim() })}
                 placeholder="optional"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="crag">Crag</Label>
-              <Input
-                id="crag"
-                value={crag}
-                onChange={(e) => setCrag(e.target.value)}
-                onBlur={() => void updateSession(id, { crag: crag.trim() || undefined })}
-                placeholder="optional"
-              />
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="gym">Gym</Label>
+                <Input
+                  id="gym"
+                  value={gym}
+                  onChange={(e) => setGym(e.target.value)}
+                  onBlur={() => void updateSession(id, { gym: gym.trim() || undefined })}
+                  placeholder="optional"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="crag">Crag</Label>
+                <Input
+                  id="crag"
+                  value={crag}
+                  onChange={(e) => setCrag(e.target.value)}
+                  onBlur={() => void updateSession(id, { crag: crag.trim() || undefined })}
+                  placeholder="optional"
+                />
+              </div>
             </div>
-          </div>
-        )}
+          ))}
 
         {showExercises && (
           <div className="space-y-3">
             <p className="text-sm font-medium text-muted-foreground">Exercises</p>
-            {work.map((ex) => (
-              <ExerciseCard
-                key={ex.uid}
-                exercise={ex}
-                loggedSets={loggedForEx(ex)}
-                isCurrent={ex.uid === currentEx?.uid}
-                prefillWeight={ex.uid === currentEx?.uid ? prefill?.weightKg : undefined}
-                onLog={(data) => logExerciseSet(ex, data)}
-              />
-            ))}
+            <SortableExerciseList
+              work={work}
+              loggedFor={loggedForEx}
+              isComplete={isComplete}
+              currentUid={currentEx?.uid}
+              prefillWeight={prefill?.weightKg}
+              onLog={logExerciseSet}
+              onAddSet={addSetTo}
+              onSkip={skip}
+              onRemove={setConfirmRemoveUid}
+              onSwap={() => setPickerOpen(true)}
+              onReorder={reorderActive}
+            />
           </div>
         )}
 
@@ -437,6 +431,7 @@ export default function ClimbingSessionScreen() {
         onOpenChange={setSheetOpen}
         sessionId={id}
         editing={editing}
+        boardMode={isBoard}
         onSaved={() => setEditing(null)}
       />
 
@@ -446,47 +441,23 @@ export default function ClimbingSessionScreen() {
 
       {showExercises && (
         <>
-          <ModifyFab onClick={() => setModifyOpen(true)} raised={rest.isRunning} />
-          <ModifySheet
-            open={modifyOpen}
-            onOpenChange={setModifyOpen}
-            currentName={currentEx?.exerciseName}
-            remaining={remainingItems}
-            onAddSet={addSetToCurrent}
-            onSkip={skipCurrent}
-            onSwap={() => {
-              setModifyOpen(false)
-              setPickerMode('swap')
-              setPickerOpen(true)
-            }}
-            onRemove={() => {
-              setModifyOpen(false)
-              setConfirmRemove(true)
-            }}
-            onAddExercise={() => {
-              setModifyOpen(false)
-              setPickerMode('add')
-              setPickerOpen(true)
-            }}
-            onReorder={reorderRemaining}
-          />
           <ExercisePicker
             open={pickerOpen}
             onOpenChange={setPickerOpen}
-            multiple={pickerMode === 'add'}
-            onSelect={onPickerSelect}
+            onSelect={(exs) => exs[0] && swapCurrent(exs[0])}
           />
-          <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
+          <AlertDialog
+            open={confirmRemoveUid !== null}
+            onOpenChange={(o) => !o && setConfirmRemoveUid(null)}
+          >
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>
-                  Remove “{currentEx?.exerciseName}” from this workout?
-                </AlertDialogTitle>
+                <AlertDialogTitle>Remove “{removeName}” from this workout?</AlertDialogTitle>
                 <AlertDialogDescription>Logged sets will be kept.</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Keep it</AlertDialogCancel>
-                <AlertDialogAction onClick={removeCurrent}>Remove</AlertDialogAction>
+                <AlertDialogAction onClick={doRemove}>Remove</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>

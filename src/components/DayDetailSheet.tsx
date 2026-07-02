@@ -1,4 +1,4 @@
-import { CheckCircle2, ChevronRight, Pencil, Plus, Trash2 } from 'lucide-react'
+import { CheckCircle2, ChevronRight, Pencil, Play, Plus, Trash2 } from 'lucide-react'
 import { DISCIPLINE_BADGE, DISCIPLINE_DOT, DISCIPLINE_LABEL } from '@/lib/discipline'
 import { formatTimeOfDay, fullDayLabel } from '@/lib/date'
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,7 @@ interface Props {
   onAdd: () => void
   onEditPlan: (plan: PlannedWorkout) => void
   onDeletePlan: (plan: PlannedWorkout) => void
+  onStartPlan: (plan: PlannedWorkout) => void
   onOpenSession: (sessionId: string) => void
 }
 
@@ -30,6 +31,7 @@ export function DayDetailSheet({
   onAdd,
   onEditPlan,
   onDeletePlan,
+  onStartPlan,
   onOpenSession,
 }: Props) {
   return (
@@ -47,45 +49,52 @@ export function DayDetailSheet({
             ) : (
               <ul className="space-y-2">
                 {planned.map((p) => (
-                  <li
-                    key={p.id}
-                    className="flex items-center gap-3 rounded-xl border border-border bg-card p-3"
-                  >
-                    <span className={cn('size-2.5 shrink-0 rounded-full', DISCIPLINE_DOT[p.disciplineType])} />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">
-                        {p.templateName}
-                        {p.completedSessionId && (
-                          <CheckCircle2 className="ml-1.5 inline size-4 text-green-500" />
-                        )}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        <span
-                          className={cn('rounded px-1.5 py-0.5', DISCIPLINE_BADGE[p.disciplineType])}
-                        >
-                          {DISCIPLINE_LABEL[p.disciplineType]}
-                        </span>
-                        {p.plannedTimeOfDay != null && (
-                          <span className="ml-2">{formatTimeOfDay(p.plannedTimeOfDay)}</span>
-                        )}
-                      </p>
+                  <li key={p.id} className="space-y-2 rounded-xl border border-border bg-card p-3">
+                    <div className="flex items-center gap-3">
+                      <span className={cn('size-2.5 shrink-0 rounded-full', DISCIPLINE_DOT[p.disciplineType])} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">
+                          {p.templateName}
+                          {p.completedSessionId && (
+                            <CheckCircle2 className="ml-1.5 inline size-4 text-green-500" />
+                          )}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          <span
+                            className={cn('rounded px-1.5 py-0.5', DISCIPLINE_BADGE[p.disciplineType])}
+                          >
+                            {DISCIPLINE_LABEL[p.disciplineType]}
+                          </span>
+                          {p.plannedTimeOfDay != null && (
+                            <span className="ml-2">{formatTimeOfDay(p.plannedTimeOfDay)}</span>
+                          )}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        aria-label="Edit plan"
+                        onClick={() => onEditPlan(p)}
+                        className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground active:bg-accent"
+                      >
+                        <Pencil className="size-4" />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Delete plan"
+                        onClick={() => onDeletePlan(p)}
+                        className="flex size-8 shrink-0 items-center justify-center rounded-md text-destructive active:bg-accent"
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      aria-label="Edit plan"
-                      onClick={() => onEditPlan(p)}
-                      className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground active:bg-accent"
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => onStartPlan(p)}
                     >
-                      <Pencil className="size-4" />
-                    </button>
-                    <button
-                      type="button"
-                      aria-label="Delete plan"
-                      onClick={() => onDeletePlan(p)}
-                      className="flex size-8 shrink-0 items-center justify-center rounded-md text-destructive active:bg-accent"
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
+                      <Play className="size-4" /> Start workout
+                    </Button>
                   </li>
                 ))}
               </ul>

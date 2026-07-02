@@ -373,6 +373,29 @@ export async function getSessionById(id: string): Promise<WorkoutSession | undef
   return run('getSessionById', () => db.sessions.get(id))
 }
 
+// Creates a live session from a template and marks the template used. Returns
+// the new id + type so the caller can navigate. Shared by the template detail
+// screen and the planner's "Start workout".
+export async function startSessionFromTemplate(
+  templateId: string,
+): Promise<{ sessionId: string; type: DisciplineType } | null> {
+  return run('startSessionFromTemplate', async () => {
+    const t = await db.templates.get(templateId)
+    if (!t) return null
+    const sessionId = generateId()
+    await db.sessions.put({
+      id: sessionId,
+      templateId: t.id,
+      templateName: t.name,
+      type: t.type,
+      startedAt: Date.now(),
+      modifiedFromTemplate: false,
+    })
+    await db.templates.update(t.id, { lastUsedAt: Date.now() })
+    return { sessionId, type: t.type }
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Sets
 // ---------------------------------------------------------------------------

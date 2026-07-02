@@ -168,9 +168,8 @@ export default function CardioSessionScreen() {
       />
 
       <div className="space-y-6 p-4">
-        <div className="pt-4 text-center">
-          <p className="text-sm text-muted-foreground">{ACTIVITY_LABELS[activity]}</p>
-          <p className="font-mono text-6xl font-bold tabular-nums">{formatElapsed(elapsed)}</p>
+        <div className="pt-2 text-center">
+          <p className="text-lg font-medium text-muted-foreground">{ACTIVITY_LABELS[activity]}</p>
         </div>
 
         {timer.hasIntervals && (

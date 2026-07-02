@@ -8,6 +8,7 @@ import {
   deletePlannedWorkout,
   getAllSessions,
   getPlannedWorkoutsForRange,
+  startSessionFromTemplate,
   updatePlannedWorkout,
 } from '@/db/helpers'
 import {
@@ -148,6 +149,21 @@ export default function PlannerScreen() {
     }
   }
 
+  // Start a session from the planned template. endSession() best-effort links it
+  // back to the plan (same template + day) via completedSessionId.
+  async function handleStartPlan(p: PlannedWorkout) {
+    try {
+      const res = await startSessionFromTemplate(p.templateId)
+      if (!res) {
+        toast.error('That workout no longer exists')
+        return
+      }
+      navigate(`/session/${res.type}/${res.sessionId}`)
+    } catch {
+      toast.error('Could not start workout')
+    }
+  }
+
   useEffect(() => {
     if (editingPlan) {
       setEditTime(editingPlan.plannedTimeOfDay != null ? minutesToHHMM(editingPlan.plannedTimeOfDay) : '')
@@ -235,6 +251,7 @@ export default function PlannerScreen() {
         onAdd={() => setPickerOpen(true)}
         onEditPlan={setEditingPlan}
         onDeletePlan={handleDeletePlan}
+        onStartPlan={handleStartPlan}
         onOpenSession={(id) => navigate(`/history/${id}`)}
       />
 

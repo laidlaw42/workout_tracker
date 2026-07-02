@@ -33,9 +33,17 @@ export function RouteCard({ route, onClick }: Props) {
             {STYLE_LABELS[route.style]}
           </span>
         </div>
-        {(route.routeName || route.colour || (route.attempts ?? 0) > 1) && (
+        {(route.routeName ||
+          route.colour ||
+          (route.attempts ?? 0) > 1 ||
+          route.wallAngleDegrees != null) && (
           <p className="truncate text-xs text-muted-foreground">
-            {[route.routeName, route.colour, (route.attempts ?? 0) > 1 ? `${route.attempts} attempts` : null]
+            {[
+              route.routeName,
+              route.colour,
+              route.wallAngleDegrees != null ? `${route.wallAngleDegrees}°` : null,
+              (route.attempts ?? 0) > 1 ? `${route.attempts} attempts` : null,
+            ]
               .filter(Boolean)
               .join(' · ')}
           </p>
