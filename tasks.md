@@ -288,7 +288,13 @@ without navigation.
 
 ### Exercise categories
 
-#### ⬜ A36. Exercise categories
+#### ✅ A36. Exercise categories
+
+_Done (committed):_ `category` added to `Exercise` (Dexie v6 `exercises: '&id, name, category'`
+with a backfill upgrade — distance→cardio, else strength), a segmented **Category** control at
+the top of `ExerciseFormSheet`, a `categories?` filter prop on `ExercisePicker` wired per
+context (strength/climbing/detail/template), import backfill via `withCategory()`, and a
+`category === 'strength'` filter on the Progress strength picker. _Browser-verified._
 
 Add a required `category: 'strength' | 'cardio' | 'climbing'` to the `Exercise` type, shown as
 a segmented control at the top of the create/edit form.
@@ -306,7 +312,13 @@ a segmented control at the top of the create/edit form.
 - **Progress filter** — this augments/replaces the existing F17 `trackingType` + logged-set
   filter in `ProgressScreen`.
 
-#### ⬜ A42. Rehab exercise category — _depends on A36_
+#### ✅ A42. Rehab exercise category — _depends on A36_
+
+_Done (committed):_ `'rehab'` added to `ExerciseCategory` + the form control; 8 rehab exercises
+seeded (`ex_theraband_external_rotation`, `ex_wrist_roller`, `ex_rice_bucket`,
+`ex_reverse_wrist_curl`, `ex_pronation_supination`, `ex_shoulder_cars`, `ex_hip_90_90`,
+`ex_dead_hang`); rehab included in the strength/climbing pickers; a **Rehab** tab added to
+Progress with a per-exercise chart (metric by tracking type). _Browser-verified._
 
 Add `'rehab'` as a fourth `category` value (extends A36's enum + segmented control). Include
 rehab exercises in the ExercisePicker for strength and climbing contexts (discipline-agnostic).
@@ -318,7 +330,11 @@ _Keep separate from A36; land as a fast follow-up._
 
 ### Bodyweight
 
-#### ⬜ A38. Bodyweight field in Settings
+#### ✅ A38. Bodyweight field in Settings
+
+_Done (committed):_ new `src/lib/bodyweight.ts` (`getBodyweight`/`setBodyweight`, kg-only,
+`localStorage` key `bodyweight`); a **Bodyweight** `NumberStepper` field in Settings → "You".
+_Browser-verified._
 
 Add a "Bodyweight" field near the existing Name field. _Corrected:_ the Name field lives under
 a section headed **"You"** (via `src/lib/userName.ts`), not "Profile" — create a Profile
@@ -327,7 +343,12 @@ storing under `localStorage` key `bodyweight`. **Implement kg-only** (drop the "
 units setting / converts on unit change" clause — there is no units toggle; gate that behaviour
 on a future units feature). `NumberStepper` can be reused for the input.
 
-#### ⬜ A39. Bodyweight percentage on weight inputs — _depends on A38 (hard), A37 (hang part only)_
+#### ✅ A39. Bodyweight percentage on weight inputs — _depends on A38 (hard), A37 (hang part only)_
+
+_Done (committed):_ `ExerciseCard` shows a reactive % hint beside the weight field
+(`round(weight/bw*100)`) and the additional-weight field (`round((bw+addl)/bw*100)`), hidden
+when no bodyweight is set. Scoped to the two existing inputs per the task; hang-weight % remains
+deferred with A37's new inputs. _Browser-verified._
 
 Show effort as a % of bodyweight beside each active-session weight input, updating reactively:
 `(weight / bw) * 100` for added load; `((bw + additional) / bw) * 100` for
@@ -344,7 +365,14 @@ Hidden only when no bodyweight is set.
 These three all touch `LogRouteSheet`, the `ClimbingRoute` type, the shared `RouteCard`, and
 the Progress climbing tab. Do them as one unit; **A46 is the smallest and can ship first**.
 
-#### ⬜ A45. Climb character (supersedes wall angle)
+#### ✅ A45. Climb character (supersedes wall angle)
+
+_Done (committed):_ `climbCharacter` (slab/vertical/overhang/roof/cave/crack) added to
+`ClimbingRoute` + a 6-option Character selector in `LogRouteSheet` (replaces the old 3-way
+toggle); Gym gained an optional degree input (`showDegrees = isBoard || isGym`, board −45..90 /
+gym 0..90). Legacy `wallAngle` migrated via a meta-flagged `migrateWallAngles()` + a RouteCard
+fallback, then cleared on save. RouteCard shows the character; Progress gained a
+sends-by-character breakdown. _Browser-verified._
 
 Add a required single-select **Character** — Slab, Vertical, Overhang, **Roof, Cave, Crack** —
 stored in a new `climbCharacter?: 'slab'|'vertical'|'overhang'|'roof'|'cave'|'crack'` on
@@ -367,7 +395,12 @@ The attempts display (singular/plural, including the `1` for Onsight/Flash) ship
 above. The remaining "alongside … character" wording still depends on A45's `climbCharacter`
 being added to the card.
 
-#### ⬜ A47. Climb style tags (multi-select) — _depends on A45_
+#### ✅ A47. Climb style tags (multi-select) — _depends on A45_
+
+_Done (committed):_ `climbStyles?: string[]` added to `ClimbingRoute`; a 17-tag `CLIMB_STYLE_TAGS`
+constant (Crimpy…Thuggish) drives an optional multi-select **Style** field in `LogRouteSheet`
+after Character; pills render (wrapping) on the shared `RouteCard`; Progress gained a
+style-breakdown of clean sends. _Browser-verified._
 
 Add an optional multi-select **Style** to `LogRouteSheet` (after the Character field), stored
 as `climbStyles?: string[]` on `ClimbingRoute` (unindexed — no version bump). Introduce the
@@ -378,7 +411,15 @@ breakdown of clean sends** in Progress (net-new; use existing `CLEAN_TICKS`). `a
 `updateRoute` already spread all fields, so persistence just needs the field added in
 `LogRouteSheet.save()`.
 
-### ⬜ A37. Hang types for hangboard exercises
+### ✅ A37. Hang types for hangboard exercises
+
+_Done (committed):_ `HangType` (`sub_max` | `max_hang` | `abrahang`) added — required on
+`HangboardSet`, optional on `LoggedHang` (+ `abrahangReps`, `intraRestSeconds`). Per-row hang-type
+`SegmentedControl` and abrahang reps/intra-rest fields in `HangboardSetsEditor`; `startAbrahang()`
+runs the automated precount → work/intra-rest ×N → inter-set rest sequence in
+`ClimbingSessionScreen`, storing one `LoggedHang` with `abrahangReps`. Repeaters→sub_max,
+Max hangs→max_hang, plus a new Abrahangs seed template; `BUILTIN_SET_VERSION` bumped 4→5.
+_Browser-verified._
 
 Add a hang type — `sub_max` | `max_hang` | `abrahang` — required on **`HangboardSet`**
 (template-level) and optional on **`LoggedHang`** (session-level), overridable per set.
@@ -403,7 +444,14 @@ editor is `HangboardSetsEditor.tsx`, card is `HangCard.tsx`._
   third template demonstrating `abrahang`.
 - New fields are unindexed → no Dexie version bump. Drop the "kg/lbs" unit (kg-only).
 
-### ⬜ A43. User-defined gym route colours in Settings
+### ✅ A43. User-defined gym route colours in Settings
+
+_Done (committed):_ 8 new built-ins added (Black, White, Grey, Teal, Lime, Cyan, Maroon, Navy —
+20 total); a Settings **Route colours** section (built-ins non-deletable, custom add form with a
+native `<input type="color">` + name, delete, case-insensitive uniqueness with inline error);
+customs persist to `localStorage` `custom_route_colours` as `[{name,hex}]` (populating both
+`swatch` and `solid`); the `LogRouteSheet` grid merges built-ins + customs under a "Custom"
+divider; `findRouteColour` resolves customs. _Browser-verified._
 
 Extend the fixed gym-tape palette with user-defined colours.
 
@@ -422,7 +470,12 @@ Extend the fixed gym-tape palette with user-defined colours.
   RouteCard pill) — a custom hex must populate **both**. Mixed/Wood/Feature keep their
   gradient/neutral placeholders._
 
-### ⬜ A44. Route height in metres
+### ✅ A44. Route height in metres
+
+_Done (committed):_ optional `heightMetres?: number` added to `ClimbingRoute` (unindexed); a
+"Height (m)" `HoldButton` ± stepper (0.5 m steps, decimal, optional) in `LogRouteSheet` after
+the route name; RouteCard shows "12.5m"; SessionSummary gains a "Metres" tile and the Progress
+climbing tab a "Metres climbed per session" line chart. _Browser-verified._
 
 Add optional `heightMetres?: number` to `ClimbingRoute` (**type only** — unindexed display
 field, no Dexie index/version bump). Add a "Height (m)" input to `LogRouteSheet` for all venues
