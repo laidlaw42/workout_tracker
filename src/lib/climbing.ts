@@ -73,6 +73,7 @@ export const TICK_TYPES: Record<ClimbingStyle, TickOption[]> = {
     { value: 'send', label: 'Send', desc: 'Clean, after attempts' },
     { value: 'working', label: 'Working', desc: 'Active project' },
     { value: 'repeat', label: 'Repeat', desc: 'Done it before' },
+    { value: 'attempt', label: 'Attempt', desc: 'Tried, did not top out' },
     { value: 'dab', label: 'Dab', desc: 'Touched ground / person' },
   ],
   top_rope: [
@@ -81,6 +82,7 @@ export const TICK_TYPES: Record<ClimbingStyle, TickOption[]> = {
     { value: 'clean', label: 'Clean', desc: 'No falls, after attempts' },
     { value: 'hang_dog', label: 'Hang dog', desc: 'Fell or rested, topped' },
     { value: 'attempt', label: 'Attempt', desc: 'Did not top out' },
+    { value: 'retreat', label: 'Retreat', desc: 'Lowered off / bailed' },
   ],
   lead: [
     { value: 'onsight', label: 'Onsight', desc: 'First try, no beta, led' },

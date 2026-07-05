@@ -6,6 +6,8 @@ import { EWBANKS_GRADES, STYLE_LABELS, TICK_TYPES, V_GRADES } from '@/lib/climbi
 import { contrastText, gradeToColor, vGradeToColor } from '@/lib/gradeColors'
 import { getGymGradeRanges, type GradeRange } from '@/lib/prefs'
 import { ROUTE_COLOURS, findRouteColour } from '@/lib/routeColours'
+import { tickIndicator } from '@/lib/tickTypes'
+import { useTickDisplayStyle } from '@/hooks/useTickSymbol'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { HoldButton } from '@/components/HoldButton'
 import { Button } from '@/components/ui/button'
@@ -122,6 +124,7 @@ export function LogRouteSheet({
 
   const isBoulder = style === 'bouldering'
   const validTicks = TICK_TYPES[style]
+  const tickStyle = useTickDisplayStyle()
   // Onsight / flash imply a single attempt, so the field is locked to 1 (A23).
   const attemptsLocked = tick === 'onsight' || tick === 'flash'
 
@@ -280,7 +283,12 @@ export function LogRouteSheet({
                     tick === t.value ? 'border-primary bg-primary/10' : 'border-border',
                   )}
                 >
-                  <span className="text-sm font-medium">{t.label}</span>
+                  <span className="text-sm font-medium">
+                    <span aria-hidden className="mr-1">
+                      {tickIndicator(t.value, tickStyle)}
+                    </span>
+                    {t.label}
+                  </span>
                   <span className="text-xs text-muted-foreground">{t.desc}</span>
                 </button>
               ))}
