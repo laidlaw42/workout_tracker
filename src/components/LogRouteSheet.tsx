@@ -300,7 +300,55 @@ export function LogRouteSheet({
             />
           </div>
 
-          {/* 3 — Tick type */}
+          {/* 3 — Colour (Gym only) — sits beneath Felt like. Inline 44px swatch
+              grid rather than a Radix Select popover: avoids nested popover/Sheet
+              event + z-index issues and gives a reliable touch target (F28). */}
+          {isGym && (
+            <div className="space-y-1.5">
+              <Label>Colour{colour ? ` — ${findRouteColour(colour)?.label ?? colour}` : ''}</Label>
+              <div className="flex flex-wrap gap-2">
+                {ROUTE_COLOURS.map((c) => (
+                  <ColourSwatch
+                    key={c.value}
+                    colour={c}
+                    selected={colour === c.value}
+                    onSelect={() => setColour(colour === c.value ? '' : c.value)}
+                  />
+                ))}
+              </div>
+              {customColours.length > 0 && (
+                <>
+                  <p className="pt-1 text-xs text-muted-foreground">Custom</p>
+                  <div className="flex flex-wrap gap-2">
+                    {customColours.map((c) => (
+                      <ColourSwatch
+                        key={c.value}
+                        colour={c}
+                        selected={colour === c.value}
+                        onSelect={() => setColour(colour === c.value ? '' : c.value)}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* 4 — Attempts (above Tick type; locked to 1 for onsight / flash) */}
+          <div className="space-y-1.5">
+            <Label htmlFor="route-attempts">Attempts</Label>
+            <Input
+              id="route-attempts"
+              inputMode="numeric"
+              readOnly={attemptsLocked}
+              value={attemptsLocked ? '1' : attempts}
+              placeholder="optional"
+              className={cn(attemptsLocked && 'text-muted-foreground')}
+              onChange={(e) => setAttempts(e.target.value.replace(/[^0-9]/g, ''))}
+            />
+          </div>
+
+          {/* 5 — Tick type */}
           <div className="space-y-2">
             <Label>Tick type</Label>
             <div className="grid grid-cols-2 gap-2">
@@ -326,7 +374,7 @@ export function LogRouteSheet({
             </div>
           </div>
 
-          {/* 4 — Character (A45) — replaces the old Slab/Vertical/Overhang toggle. */}
+          {/* 6 — Character (A45) — replaces the old Slab/Vertical/Overhang toggle. */}
           <div className="space-y-2">
             <Label>Character</Label>
             <div className="grid grid-cols-3 gap-2">
@@ -389,7 +437,7 @@ export function LogRouteSheet({
             )}
           </div>
 
-          {/* 4b — Style tags (A47) */}
+          {/* 6b — Style tags (A47) */}
           <div className="space-y-2">
             <Label>Style</Label>
             <div className="flex flex-wrap gap-2">
@@ -416,54 +464,6 @@ export function LogRouteSheet({
               })}
             </div>
           </div>
-
-          {/* 5 — Attempts (locked to 1 for onsight / flash) */}
-          <div className="space-y-1.5">
-            <Label htmlFor="route-attempts">Attempts</Label>
-            <Input
-              id="route-attempts"
-              inputMode="numeric"
-              readOnly={attemptsLocked}
-              value={attemptsLocked ? '1' : attempts}
-              placeholder="optional"
-              className={cn(attemptsLocked && 'text-muted-foreground')}
-              onChange={(e) => setAttempts(e.target.value.replace(/[^0-9]/g, ''))}
-            />
-          </div>
-
-          {/* 6 — Colour (Gym only). Inline 44px swatch grid rather than a Radix
-              Select popover: avoids nested popover/Sheet event + z-index issues
-              and gives a reliable touch target (F28). */}
-          {isGym && (
-            <div className="space-y-1.5">
-              <Label>Colour{colour ? ` — ${findRouteColour(colour)?.label ?? colour}` : ''}</Label>
-              <div className="flex flex-wrap gap-2">
-                {ROUTE_COLOURS.map((c) => (
-                  <ColourSwatch
-                    key={c.value}
-                    colour={c}
-                    selected={colour === c.value}
-                    onSelect={() => setColour(colour === c.value ? '' : c.value)}
-                  />
-                ))}
-              </div>
-              {customColours.length > 0 && (
-                <>
-                  <p className="pt-1 text-xs text-muted-foreground">Custom</p>
-                  <div className="flex flex-wrap gap-2">
-                    {customColours.map((c) => (
-                      <ColourSwatch
-                        key={c.value}
-                        colour={c}
-                        selected={colour === c.value}
-                        onSelect={() => setColour(colour === c.value ? '' : c.value)}
-                      />
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
 
           {/* 7 — Route name */}
           <div className="space-y-1.5">
