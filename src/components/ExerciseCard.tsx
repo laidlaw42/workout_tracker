@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowLeftRight, Check, Minus, Pencil, Plus } from 'lucide-react'
+import { getBodyweight } from '@/lib/bodyweight'
 import { Button } from '@/components/ui/button'
 import { NumberStepper } from '@/components/NumberStepper'
 import { SetCountdown } from '@/components/SetCountdown'
@@ -327,6 +328,16 @@ function SetRow({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefill?.weightKg, prefill?.additionalWeightKg, prefill?.actualReps])
 
+  // Effort as a % of bodyweight (A39), if a bodyweight is set. The bar weight is
+  // shown relative to bodyweight; for a bodyweight+load move the % is the total
+  // (bodyweight + added load) relative to bodyweight. Recomputed each render, so
+  // it tracks the +/- steppers and typing live.
+  const bw = getBodyweight()
+  const wNum = weight.trim() === '' ? null : Number(weight)
+  const aNum = addl.trim() === '' ? null : Number(addl)
+  const weightPct = bw != null && wNum != null && Number.isFinite(wNum) && wNum > 0 ? Math.round((wNum / bw) * 100) : null
+  const addlPct = bw != null && aNum != null && Number.isFinite(aNum) && aNum > 0 ? Math.round(((bw + aNum) / bw) * 100) : null
+
   function log() {
     const w = weight.trim() === '' ? undefined : Number(weight)
     const a = addl.trim() === '' ? undefined : Number(addl)
@@ -354,6 +365,11 @@ function SetRow({
           onChange={markDirty(setWeight)}
         />
       </SetField>
+      {weightPct != null && (
+        <p className="-mt-2 pr-1 text-right text-xs text-muted-foreground">
+          {weightPct}% of bodyweight
+        </p>
+      )}
       {supportsAdditionalWeight && (
         <SetField label="Additional (kg)">
           <NumberStepper
@@ -366,6 +382,11 @@ function SetRow({
             onChange={markDirty(setAddl)}
           />
         </SetField>
+      )}
+      {addlPct != null && (
+        <p className="-mt-2 pr-1 text-right text-xs text-muted-foreground">
+          {addlPct}% of bodyweight
+        </p>
       )}
       <SetField label="Reps">
         <NumberStepper value={reps} ariaLabel="reps" min={0} onChange={markDirty(setReps)} />

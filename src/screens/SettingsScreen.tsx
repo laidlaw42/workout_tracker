@@ -5,6 +5,8 @@ import { ChevronRight, Combine, Download, Minus, Plus, RotateCcw, Trash2, Upload
 import { clearAllData, exportAllData, importAllData, mergeData } from '@/db/helpers'
 import { restoreDefaults } from '@/db/seed'
 import { getUserName, setUserName } from '@/lib/userName'
+import { getBodyweight, setBodyweight } from '@/lib/bodyweight'
+import { NumberStepper } from '@/components/NumberStepper'
 import { THEMES, THEME_PREVIEWS, applyTheme, getTheme } from '@/lib/theme'
 import {
   deleteGym,
@@ -78,6 +80,10 @@ export default function SettingsScreen() {
   const [newGym, setNewGym] = useState('')
   const [editGym, setEditGym] = useState<string | null>(null)
   const [name, setName] = useState(getUserName())
+  const [bwInput, setBwInput] = useState(() => {
+    const bw = getBodyweight()
+    return bw != null ? String(bw) : ''
+  })
   const [theme, setTheme] = useState(getTheme())
   const [autoAdvance, setAutoAdvanceState] = useState(getAutoAdvance())
   const [timerSounds, setTimerSoundsState] = useState(getTimerSounds())
@@ -178,6 +184,22 @@ export default function SettingsScreen() {
             }}
           />
           <p className="px-1 text-xs text-muted-foreground">Used in your home greeting.</p>
+          <Label htmlFor="user-bw">Bodyweight (kg)</Label>
+          <NumberStepper
+            value={bwInput}
+            ariaLabel="bodyweight"
+            step={0.5}
+            min={0}
+            inputMode="decimal"
+            placeholder="optional"
+            onChange={(v) => {
+              setBwInput(v)
+              setBodyweight(v.trim() === '' ? null : Number(v))
+            }}
+          />
+          <p className="px-1 text-xs text-muted-foreground">
+            Shows effort as a % of bodyweight on session weight inputs.
+          </p>
         </section>
 
         <section className="space-y-2">
