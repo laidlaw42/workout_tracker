@@ -60,6 +60,20 @@ export class WorkoutDB extends Dexie {
     this.version(5).stores({
       tags: '&name, order',
     })
+    // v6 adds a category index on exercises (A36) and backfills existing rows:
+    // distance-tracked exercises are cardio, everything else strength.
+    this.version(6)
+      .stores({ exercises: '&id, name, category' })
+      .upgrade(async (tx) => {
+        await tx
+          .table('exercises')
+          .toCollection()
+          .modify((e: { category?: string; trackingType?: string }) => {
+            if (e.category == null) {
+              e.category = e.trackingType === 'distance' ? 'cardio' : 'strength'
+            }
+          })
+      })
   }
 }
 

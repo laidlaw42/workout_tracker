@@ -35,6 +35,14 @@ async function run<T>(label: string, fn: () => Promise<T>): Promise<T> {
   }
 }
 
+// A pre-A36 backup may lack `category`; derive it on import so imported exercises
+// aren't filtered out of pickers/progress (distance → cardio, else strength).
+function withCategory(e: Exercise): Exercise {
+  return (e as { category?: string }).category
+    ? e
+    : { ...e, category: e.trackingType === 'distance' ? 'cardio' : 'strength' }
+}
+
 const MIN = Dexie.minKey
 const MAX = Dexie.maxKey
 
@@ -962,7 +970,7 @@ export async function importAllData(json: string): Promise<void> {
           db.plannedWorkouts.clear(),
           db.tags.clear(),
         ])
-        if (d.exercises?.length) await db.exercises.bulkAdd(d.exercises)
+        if (d.exercises?.length) await db.exercises.bulkAdd(d.exercises.map(withCategory))
         if (d.templates?.length) await db.templates.bulkAdd(d.templates)
         if (d.sessions?.length) await db.sessions.bulkAdd(d.sessions)
         if (d.sets?.length) await db.sets.bulkAdd(d.sets)
@@ -1072,7 +1080,7 @@ export async function mergeData(json: string): Promise<{ inserted: number; skipp
           }
         }
 
-        await mergeInto(db.exercises, d.exercises)
+        await mergeInto(db.exercises, d.exercises?.map(withCategory))
         await mergeInto(db.templates, d.templates)
         await mergeInto(db.sessions, d.sessions)
         await mergeInto(db.sets, d.sets, (s) => newSets.push(s))

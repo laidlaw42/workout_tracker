@@ -475,8 +475,8 @@ export default function StrengthSessionScreen() {
         <RestTimer remaining={rest.remaining} duration={rest.duration} onSkip={rest.skip} />
       )}
 
-      <ExercisePicker open={pickerOpen} onOpenChange={setPickerOpen} onSelect={(exs) => exs[0] && swapCurrent(exs[0])} />
-      <ExercisePicker open={addPickerOpen} onOpenChange={setAddPickerOpen} multiple onSelect={appendExercises} />
+      <ExercisePicker open={pickerOpen} onOpenChange={setPickerOpen} categories={['strength']} onSelect={(exs) => exs[0] && swapCurrent(exs[0])} />
+      <ExercisePicker open={addPickerOpen} onOpenChange={setAddPickerOpen} multiple categories={['strength']} onSelect={appendExercises} />
 
       <AlertDialog open={confirmFinish} onOpenChange={setConfirmFinish}>
         <AlertDialogContent>

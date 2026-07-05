@@ -102,14 +102,16 @@ function bestWeightPerDay(sets: LoggedSet[]): { date: string; weight: number }[]
 function StrengthTab() {
   const allExercises = useLiveQuery(() => getAllExercises(), []) ?? []
   const idsWithSets = useLiveQuery(() => getExerciseIdsWithSets(), [])
-  // Only reps/duration exercises that have at least one logged set — cardio
-  // activities (tracked via the cardio table) never appear here (F17).
+  // Strength-category exercises with at least one logged set (A36) — cardio is
+  // excluded by category, and reps/duration keeps out any distance oddities (F17).
   const loggedIds = useMemo(() => new Set(idsWithSets ?? []), [idsWithSets])
   const exercises = useMemo(
     () =>
       allExercises.filter(
         (e) =>
-          (e.trackingType === 'reps' || e.trackingType === 'duration') && loggedIds.has(e.id),
+          e.category === 'strength' &&
+          (e.trackingType === 'reps' || e.trackingType === 'duration') &&
+          loggedIds.has(e.id),
       ),
     [allExercises, loggedIds],
   )

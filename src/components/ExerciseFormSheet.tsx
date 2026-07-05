@@ -23,7 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import type { Exercise, TrackingType } from '@/types'
+import type { Exercise, ExerciseCategory, TrackingType } from '@/types'
 
 interface Props {
   open: boolean
@@ -41,6 +41,12 @@ const TRACKING: { value: TrackingType; label: string }[] = [
   { value: 'distance', label: 'Distance' },
 ]
 
+const CATEGORIES: { value: ExerciseCategory; label: string }[] = [
+  { value: 'strength', label: 'Strength' },
+  { value: 'cardio', label: 'Cardio' },
+  { value: 'climbing', label: 'Climbing' },
+]
+
 export function ExerciseFormSheet({
   open,
   onOpenChange,
@@ -50,6 +56,7 @@ export function ExerciseFormSheet({
   onSaved,
 }: Props) {
   const [name, setName] = useState('')
+  const [category, setCategory] = useState<ExerciseCategory>('strength')
   const [muscles, setMuscles] = useState('')
   const [tracking, setTracking] = useState<TrackingType>('reps')
   const [tags, setTags] = useState<string[]>([])
@@ -61,6 +68,7 @@ export function ExerciseFormSheet({
   useEffect(() => {
     if (!open) return
     setName(exercise?.name ?? '')
+    setCategory(exercise?.category ?? 'strength')
     setMuscles(exercise?.muscleGroups.join(', ') ?? '')
     setTracking(exercise?.trackingType ?? 'reps')
     setTags(exercise?.tags ?? defaultTags)
@@ -76,10 +84,10 @@ export function ExerciseFormSheet({
     try {
       let id: string
       if (exercise) {
-        await updateExercise(exercise.id, { name: trimmed, muscleGroups, trackingType: tracking, tags })
+        await updateExercise(exercise.id, { name: trimmed, category, muscleGroups, trackingType: tracking, tags })
         id = exercise.id
       } else {
-        id = await upsertExercise({ name: trimmed, muscleGroups, trackingType: tracking, tags })
+        id = await upsertExercise({ name: trimmed, category, muscleGroups, trackingType: tracking, tags })
       }
       onSaved?.(id)
       onOpenChange(false)
@@ -113,6 +121,10 @@ export function ExerciseFormSheet({
         </SheetHeader>
 
         <div className="flex-1 space-y-4 overflow-y-auto p-4">
+          <div className="space-y-2">
+            <Label>Category</Label>
+            <SegmentedControl options={CATEGORIES} value={category} onChange={setCategory} />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="ex-form-name">Name</Label>
             <Input

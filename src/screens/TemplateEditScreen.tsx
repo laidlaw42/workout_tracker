@@ -336,6 +336,7 @@ export default function TemplateEditScreen() {
         open={pickerOpen}
         onOpenChange={setPickerOpen}
         multiple
+        categories={template?.type === 'climbing' ? ['climbing'] : ['strength']}
         onSelect={addExercises}
       />
 

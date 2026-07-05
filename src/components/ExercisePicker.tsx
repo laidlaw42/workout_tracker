@@ -15,13 +15,16 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
-import type { Exercise, TrackingType } from '@/types'
+import type { Exercise, ExerciseCategory, TrackingType } from '@/types'
 
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   /** Multi-select with checkboxes + confirm; otherwise tap-to-add one. */
   multiple?: boolean
+  /** Restrict the list (and default new exercises) to these categories (A36).
+   *  Omit to show every exercise. */
+  categories?: ExerciseCategory[]
   onSelect: (exercises: Exercise[]) => void
 }
 
@@ -31,12 +34,20 @@ const TRACKING: { value: TrackingType; label: string }[] = [
   { value: 'distance', label: 'Distance' },
 ]
 
-export function ExercisePicker({ open, onOpenChange, multiple = false, onSelect }: Props) {
+const CATEGORIES: { value: ExerciseCategory; label: string }[] = [
+  { value: 'strength', label: 'Strength' },
+  { value: 'cardio', label: 'Cardio' },
+  { value: 'climbing', label: 'Climbing' },
+]
+
+export function ExercisePicker({ open, onOpenChange, multiple = false, categories, onSelect }: Props) {
   const exercises = useLiveQuery(() => getAllExercises(), [])
+  const defaultCategory = categories?.[0] ?? 'strength'
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<string[]>([]) // ids, in selection order
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
+  const [category, setCategory] = useState<ExerciseCategory>(defaultCategory)
   const [muscles, setMuscles] = useState('')
   const [tracking, setTracking] = useState<TrackingType>('reps')
 
@@ -45,6 +56,7 @@ export function ExercisePicker({ open, onOpenChange, multiple = false, onSelect 
     setSelected([])
     setCreating(false)
     setName('')
+    setCategory(defaultCategory)
     setMuscles('')
     setTracking('reps')
   }
@@ -79,15 +91,17 @@ export function ExercisePicker({ open, onOpenChange, multiple = false, onSelect 
       .map((s) => s.trim())
       .filter(Boolean)
     try {
-      const id = await upsertExercise({ name: trimmed, muscleGroups, trackingType: tracking, tags: [] })
-      finish([{ id, name: trimmed, muscleGroups, trackingType: tracking, tags: [], createdAt: Date.now() }])
+      const id = await upsertExercise({ name: trimmed, category, muscleGroups, trackingType: tracking, tags: [] })
+      finish([{ id, name: trimmed, category, muscleGroups, trackingType: tracking, tags: [], createdAt: Date.now() }])
     } catch {
       toast.error('Could not create exercise')
     }
   }
 
-  const filtered = (exercises ?? []).filter((e) =>
-    e.name.toLowerCase().includes(query.trim().toLowerCase()),
+  const filtered = (exercises ?? []).filter(
+    (e) =>
+      e.name.toLowerCase().includes(query.trim().toLowerCase()) &&
+      (!categories || categories.includes(e.category)),
   )
 
   return (
@@ -112,6 +126,10 @@ export function ExercisePicker({ open, onOpenChange, multiple = false, onSelect 
 
         {creating ? (
           <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <SegmentedControl options={CATEGORIES} value={category} onChange={setCategory} />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="ex-name">Name</Label>
               <Input

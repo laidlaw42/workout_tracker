@@ -7,6 +7,8 @@ export type CardioActivityType = 'run' | 'ride' | 'row' | 'other'
 export type ClimbingStyle = 'bouldering' | 'top_rope' | 'lead'
 export type WallAngle = 'slab' | 'vertical' | 'overhang'
 export type TrackingType = 'reps' | 'duration' | 'distance'
+// Discipline bucket an exercise belongs to (A36).
+export type ExerciseCategory = 'strength' | 'cardio' | 'climbing'
 
 // theCrag tick types — bouldering subset
 export type BoulderTick = 'onsight' | 'flash' | 'send' | 'working' | 'repeat' | 'dab'
@@ -35,6 +37,7 @@ export type PRType = 'weight' | 'reps' | 'pace' | 'distance' | 'grade' | 'durati
 export interface Exercise {
   id: string
   name: string
+  category: ExerciseCategory
   muscleGroups: string[]
   trackingType: TrackingType
   tags: string[]

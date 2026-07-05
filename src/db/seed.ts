@@ -1,6 +1,7 @@
 import { db } from './db'
 import type {
   Exercise,
+  ExerciseCategory,
   IntervalBlock,
   TemplateExercise,
   TrackingType,
@@ -47,6 +48,14 @@ interface ExerciseSeed {
   muscleGroups: string[]
   trackingType: TrackingType
   supportsAdditionalWeight?: boolean
+  // Explicit category (A36). Optional here — omit it and it's derived from
+  // trackingType (distance → cardio, else strength). A42's rehab seeds set it.
+  category?: ExerciseCategory
+}
+
+// Category for a seeded exercise: explicit if given, else derived (A36).
+function seedCategory(e: ExerciseSeed): ExerciseCategory {
+  return e.category ?? (e.trackingType === 'distance' ? 'cardio' : 'strength')
 }
 
 const EXERCISES: ExerciseSeed[] = [
@@ -413,7 +422,7 @@ export async function seedIfNeeded(): Promise<void> {
       const haveEx = new Set((await db.exercises.toArray()).map((e) => e.id))
       const toInsert = unseededEx
         .filter((e) => !haveEx.has(e.id))
-        .map<Exercise>((e) => ({ ...e, tags: [], createdAt: now }))
+        .map<Exercise>((e) => ({ ...e, category: seedCategory(e), tags: [], createdAt: now }))
       if (toInsert.length) await db.exercises.bulkPut(toInsert)
       for (const e of unseededEx) seededEx.add(e.id)
       await db.meta.put({ key: 'seededExerciseIds', value: [...seededEx] })
@@ -478,6 +487,7 @@ export async function restoreDefaults(): Promise<void> {
     const haveEx = new Set((await db.exercises.toArray()).map((e) => e.id))
     const exToAdd = EXERCISES.filter((e) => !haveEx.has(e.id)).map<Exercise>((e) => ({
       ...e,
+      category: seedCategory(e),
       tags: [],
       createdAt: now,
     }))
