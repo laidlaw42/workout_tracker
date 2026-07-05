@@ -32,6 +32,25 @@ export const setKeepAwake = (on: boolean) => setBool('keep_awake', on)
 export const getConfettiEnabled = () => getBool('confettiEnabled')
 export const setConfettiEnabled = (on: boolean) => setBool('confettiEnabled', on)
 
+// Tick-type indicator style (A49): 'symbols' (Unicode) or 'emojis' (default).
+// setTickDisplayStyle fires a custom event so useTickSymbol re-renders live.
+export const TICK_STYLE_EVENT = 'tickdisplaystylechange'
+export function getTickDisplayStyle(): 'symbols' | 'emojis' {
+  try {
+    return localStorage.getItem('tickDisplayStyle') === 'symbols' ? 'symbols' : 'emojis'
+  } catch {
+    return 'emojis'
+  }
+}
+export function setTickDisplayStyle(style: 'symbols' | 'emojis'): void {
+  try {
+    localStorage.setItem('tickDisplayStyle', style)
+    window.dispatchEvent(new Event(TICK_STYLE_EVENT))
+  } catch {
+    /* ignore */
+  }
+}
+
 // First day of the week for the planner calendar: 1 = Monday (default), 0 = Sunday.
 export function getWeekStart(): 0 | 1 {
   try {
@@ -129,10 +148,12 @@ export interface GradeRange {
 }
 export type GymGradeRanges = Record<GymStyle, GradeRange>
 
+// Fallback range when a gym has no saved config (F25 revised this from 0–35 to
+// 1–10). Stored per-gym configs are untouched; only this default changes.
 const DEFAULT_GYM_RANGES: GymGradeRanges = {
-  bouldering: { min: 0, max: 35 },
-  top_rope: { min: 0, max: 35 },
-  lead: { min: 0, max: 35 },
+  bouldering: { min: 1, max: 10 },
+  top_rope: { min: 1, max: 10 },
+  lead: { min: 1, max: 10 },
 }
 
 function clampGrade(n: unknown, fallback: number): number {

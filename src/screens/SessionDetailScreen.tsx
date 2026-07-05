@@ -47,7 +47,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { formatPace, formatWorkoutLength, workoutDurationSeconds } from '@/lib/formatDuration'
-import { getGymGradeRanges, type GymGradeRanges } from '@/lib/prefs'
 import type {
   ClimbingRoute,
   ClimbingStyle,
@@ -191,7 +190,6 @@ export default function SessionDetailScreen() {
         : session.gym !== undefined
           ? 'gym'
           : undefined)
-  const gymRanges = venue === 'gym' ? getGymGradeRanges(session.gym ?? '') : null
 
   return (
     <div className="min-h-dvh pb-6">
@@ -255,7 +253,6 @@ export default function SessionDetailScreen() {
             sets={sets}
             editing={editing}
             venue={venue}
-            gymRanges={gymRanges}
             onAddExercise={() => setPickerOpen(true)}
             onAddSet={addSetToExercise}
             onEditRoute={(r) => {
@@ -580,7 +577,6 @@ function ClimbingDetail({
   sets,
   editing,
   venue,
-  gymRanges,
   onAddExercise,
   onAddSet,
   onEditRoute,
@@ -592,14 +588,12 @@ function ClimbingDetail({
   sets: LoggedSet[]
   editing: boolean
   venue?: 'gym' | 'crag' | 'home'
-  gymRanges: GymGradeRanges | null
   onAddExercise: () => void
   onAddSet: (exerciseId: string, exerciseName: string) => void
   onEditRoute: (r: ClimbingRoute) => void
   onNewRoute: (style: ClimbingStyle) => void
   onDeleteRoute: (id: string) => void
 }) {
-  const rangeFor = (r: ClimbingRoute) => (r.gymGrade != null ? (gymRanges?.[r.style] ?? undefined) : undefined)
   const setsByExercise = new Map<string, number>()
   for (const s of sets) setsByExercise.set(s.exerciseName, (setsByExercise.get(s.exerciseName) ?? 0) + 1)
   const hasRoutes = routes.length > 0 || editing
@@ -674,7 +668,7 @@ function ClimbingDetail({
               editing ? (
                 <div key={r.id} className="flex items-center gap-2">
                   <div className="min-w-0 flex-1">
-                    <RouteCard route={r} gymRange={rangeFor(r)} onClick={() => onEditRoute(r)} />
+                    <RouteCard route={r} onClick={() => onEditRoute(r)} />
                   </div>
                   <button
                     type="button"
@@ -686,7 +680,7 @@ function ClimbingDetail({
                   </button>
                 </div>
               ) : (
-                <RouteCard key={r.id} route={r} gymRange={rangeFor(r)} />
+                <RouteCard key={r.id} route={r} />
               ),
             )
           )}

@@ -372,12 +372,11 @@ function ClimbingTab() {
             />
             <Bar dataKey="count" radius={[0, 4, 4, 0]}>
               {data.map((row, i) => {
-                // Gym grades use the global 0–35 numeric scale — the per-gym
-                // range isn't available in the Progress context (routes are
-                // fetched flat, without their session/gym), so fall back to it.
+                // Gym grades are not hue-mapped (F25) — render bars in a neutral
+                // colour, matching the neutral gym-grade pills elsewhere.
                 const color =
                   effectiveMode === 'gym'
-                    ? gradeToColor(Number(row.grade), { min: 0, max: 35 })
+                    ? 'var(--muted-foreground)'
                     : boulder
                       ? vGradeToColor(row.grade)
                       : gradeToColor(Number(row.grade))

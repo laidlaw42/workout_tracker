@@ -12,7 +12,6 @@ import { useWakeLock } from '@/hooks/useWakeLock'
 import {
   getAutoAdvance,
   getGymGradePreference,
-  getGymGradeRanges,
   getKeepAwake,
   getPrecountSeconds,
   setGymGradePreference,
@@ -90,6 +89,8 @@ export default function ClimbingSessionScreen() {
   // Active grade system for gym routes — seeded from this gym's saved preference,
   // kept across route logs, and re-applied on remount/resume (F20).
   const [gradeSystem, setGradeSystem] = useState<'standard' | 'gym'>('standard')
+  // Once the user picks a mode, stop auto-applying the gym's remembered default.
+  const gradeManualRef = useRef(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [confirmDeleteRouteId, setConfirmDeleteRouteId] = useState<string | null>(null)
 
@@ -139,12 +140,17 @@ export default function ClimbingSessionScreen() {
       setGym(session.gym ?? '')
       setCrag(session.crag ?? '')
       setBoard(session.board ?? '')
-      // Default a gym session to whichever grade system this gym was last logged
-      // in (F20); non-gym sessions never show the toggle, so 'standard' is fine.
-      setGradeSystem(getGymGradePreference(session.gym ?? '') ?? 'standard')
       setInited(true)
     }
   }, [session, inited])
+
+  // Default a gym session to whichever grade system this gym was last logged in
+  // (F20). Keyed on the resolved gym name so it also applies once a gym typed
+  // after mount is saved — but never overrides a mode the user picked manually.
+  useEffect(() => {
+    if (gradeManualRef.current) return
+    setGradeSystem(session?.gym ? (getGymGradePreference(session.gym) ?? 'standard') : 'standard')
+  }, [session?.gym])
 
   useEffect(() => {
     if (session && session.type !== 'climbing') navigate('/home', { replace: true })
@@ -558,6 +564,7 @@ export default function ClimbingSessionScreen() {
   }
   // Remember the session's grade system and persist it as this gym's default (F20).
   function handleGradeSystemChange(next: 'standard' | 'gym') {
+    gradeManualRef.current = true
     setGradeSystem(next)
     if (venue === 'gym' && gymName) setGymGradePreference(gymName, next)
   }
@@ -721,7 +728,6 @@ export default function ClimbingSessionScreen() {
             const styles: ClimbingStyle[] = isBoard
               ? ['bouldering']
               : ['bouldering', 'top_rope', 'lead']
-            const gymRanges = venue === 'gym' ? getGymGradeRanges(gym.trim() || session?.gym || '') : null
             return (
               <div className="space-y-3">
                 {isBoard ? (
@@ -753,7 +759,6 @@ export default function ClimbingSessionScreen() {
                       <RouteCard
                         key={r.id}
                         route={r}
-                        gymRange={r.gymGrade != null ? gymRanges?.[r.style] : undefined}
                         onClick={() => openEdit(r)}
                         onDelete={() => setConfirmDeleteRouteId(r.id)}
                       />

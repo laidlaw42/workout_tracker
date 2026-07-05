@@ -14,6 +14,7 @@ import {
   getKeepAwake,
   getPrecountSeconds,
   getSavedLocations,
+  getTickDisplayStyle,
   getTimerSounds,
   getWeekStart,
   rememberLocation,
@@ -21,6 +22,7 @@ import {
   setAutoAdvance,
   setConfettiEnabled,
   setPrecountSeconds,
+  setTickDisplayStyle,
   setGymGradeRanges,
   setKeepAwake,
   setTimerSounds,
@@ -81,6 +83,7 @@ export default function SettingsScreen() {
   const [timerSounds, setTimerSoundsState] = useState(getTimerSounds())
   const [keepAwake, setKeepAwakeState] = useState(getKeepAwake())
   const [confettiOn, setConfettiOnState] = useState(getConfettiEnabled())
+  const [tickStyle, setTickStyleState] = useState(getTickDisplayStyle())
   const [weekStart, setWeekStartState] = useState<'mon' | 'sun'>(getWeekStart() === 0 ? 'sun' : 'mon')
   const [precount, setPrecount] = useState(getPrecountSeconds)
 
@@ -280,6 +283,25 @@ export default function SettingsScreen() {
               setWeekStartState(v)
             }}
           />
+        </section>
+
+        <section className="space-y-2">
+          <h2 className="text-sm font-medium text-muted-foreground">Climbing</h2>
+          <Label>Tick indicators</Label>
+          <SegmentedControl
+            options={[
+              { value: 'emojis', label: 'Emojis' },
+              { value: 'symbols', label: 'Symbols' },
+            ]}
+            value={tickStyle}
+            onChange={(v) => {
+              setTickDisplayStyle(v)
+              setTickStyleState(v)
+            }}
+          />
+          <p className="px-1 text-xs text-muted-foreground">
+            Shown next to each tick type on route cards.
+          </p>
         </section>
 
         <section className="space-y-2">

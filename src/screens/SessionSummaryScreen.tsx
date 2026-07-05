@@ -27,6 +27,8 @@ import {
   vGradeIndex,
 } from '@/lib/climbing'
 import { contrastText, gradeToColor, vGradeToColor } from '@/lib/gradeColors'
+import { tickIndicator } from '@/lib/tickTypes'
+import { useTickDisplayStyle } from '@/hooks/useTickSymbol'
 import { cn } from '@/lib/utils'
 import type { ClimbingRoute, LoggedCardio, LoggedSet, PersonalRecord } from '@/types'
 
@@ -248,6 +250,7 @@ function ClimbingSummary({
   hangCount: number
   setCount: number
 }) {
+  const tickStyle = useTickDisplayStyle()
   const boulder = hardestBoulder(routes)
   const roped = hardestRoped(routes)
   const tickCounts = new Map<ClimbingRoute['tick'], number>()
@@ -284,6 +287,9 @@ function ClimbingSummary({
                   tickBadgeClass(tick),
                 )}
               >
+                <span aria-hidden className="mr-0.5">
+                  {tickIndicator(tick, tickStyle)}
+                </span>
                 {tickLabel(tick)} × {count}
               </span>
             ))}

@@ -179,8 +179,6 @@ export function LogRouteSheet({
 
   const canSave = tick !== null && primarySelected !== null
   const styleLabel = STYLE_LABELS[style]
-  // Colour bands for gym grades are scoped to this gym's configured range (A22).
-  const chipRange = gradeMode === 'gym' ? gymRange : undefined
 
   async function save() {
     if (!tick) return
@@ -247,7 +245,6 @@ export function LogRouteSheet({
             <Label>{gradeMode === 'gym' ? 'Grade — Gym' : `Grade — ${styleLabel}`}</Label>
             <GradeChips
               mode={gradeMode}
-              range={chipRange}
               values={gradeValues}
               selected={primarySelected}
               onSelect={setPrimary}
@@ -259,7 +256,6 @@ export function LogRouteSheet({
             <Label>Felt like</Label>
             <GradeChips
               mode={gradeMode}
-              range={chipRange}
               values={gradeValues}
               selected={feltLike}
               onSelect={(v) => setFeltLike((cur) => (cur === v ? null : v))}
@@ -419,23 +415,21 @@ export function LogRouteSheet({
 }
 
 // A scrollable row of grade chips. Every chip is coloured by its grade: V-grades
-// via vGradeToColor; numeric scales via gradeToColor (gym chips scoped to the
-// gym's configured range so it always spans green→magenta).
+// via vGradeToColor; Ewbanks via gradeToColor. Gym grades are not hue-mapped
+// (F25) — those chips render in a neutral style (color === undefined).
 function GradeChips({
   mode,
-  range,
   values,
   selected,
   onSelect,
 }: {
   mode: 'v' | 'ewbanks' | 'gym'
-  range?: GradeRange
   values: string[]
   selected: string | null
   onSelect: (value: string) => void
 }) {
-  const colorFor = (v: string) =>
-    mode === 'v' ? vGradeToColor(v) : gradeToColor(Number(v), mode === 'gym' ? range : undefined)
+  const colorFor = (v: string): string | undefined =>
+    mode === 'v' ? vGradeToColor(v) : mode === 'gym' ? undefined : gradeToColor(Number(v))
   return (
     // min-h + vertical padding: overflow-x-auto also clips the Y axis, so the
     // chips (and the active ring-offset) need headroom or the top row is cut off.
@@ -457,7 +451,8 @@ interface ChipProps {
   label: string
   active: boolean
   onClick: () => void
-  color: string
+  /** Grade colour; undefined renders the neutral style (gym grades, F25). */
+  color?: string
 }
 
 function GradeChip({ label, active, onClick, color }: ChipProps) {
@@ -465,10 +460,15 @@ function GradeChip({ label, active, onClick, color }: ChipProps) {
     <button
       type="button"
       onClick={onClick}
-      style={{ backgroundColor: color, color: contrastText(color) }}
+      style={color ? { backgroundColor: color, color: contrastText(color) } : undefined}
       className={cn(
-        'flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-transparent px-3 font-semibold transition-all',
-        active ? 'ring-2 ring-foreground ring-offset-2 ring-offset-background' : 'opacity-80',
+        'flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border px-3 font-semibold transition-all',
+        color ? 'border-transparent' : 'border-border bg-muted text-foreground',
+        active
+          ? 'ring-2 ring-foreground ring-offset-2 ring-offset-background'
+          : color
+            ? 'opacity-80'
+            : 'text-muted-foreground',
       )}
     >
       {label}

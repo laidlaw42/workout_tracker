@@ -132,11 +132,9 @@ derives its mode from the route's own `gymGrade`. Browser-verified: mode survive
 and a full remount, the Flash tick is preserved across a toggle (no field reset), and the
 preference writes/reads correctly.
 
-- _Known narrow limitation:_ the per-gym default is seeded once on session init from
-  `session.gym`. A gym quick-start created **without** a name (the user types the gym only after
-  the screen mounts) won't auto-apply that gym's remembered mode — the toggle stays 'standard'
-  until manually changed. Gym sessions started from the gym picker (the common path) carry the
-  name at creation, so they're unaffected.
+- _Post-review fix:_ the per-gym default is now seeded from an effect keyed on the resolved
+  `session.gym`, so it also applies when a gym is typed after the screen mounts — guarded by a
+  `gradeManualRef` so it never overrides a mode the user picked by hand.
 
 ### ✅ A48. Background session persistence — heartbeat done
 
@@ -243,6 +241,49 @@ blocks the Done / View details buttons. Also respects `prefers-reduced-motion`
 
 ---
 
+## Climbing display (F25–F27, A49) — added 2026-07-06
+
+### ✅ F25. Neutral gym grades + default range 1–10
+
+_Done (committed):_ gym grades (`gymGrade`) are no longer hue-mapped. Removed every
+`gradeToColor()` call for gym values — `RouteCard`, the `LogRouteSheet` grade/felt chips, and the
+Progress pyramid bars now render gym grades neutral. `gradeToColor()` itself is unchanged (still
+serves V-grade and Ewbanks). The default gym range fell from 0–35 to **1–10** for all three
+styles (`DEFAULT_GYM_RANGES`), which drives both the fallback and the Settings editor's initial
+values; stored `gym_grade_ranges` configs are untouched. Removed the now-dead `gymRange` prop
+from `RouteCard` and its plumbing in both screens. _Browser-verified:_ gym chips render 1–10 all
+neutral; gym pyramid bars neutral.
+
+### ✅ F26. Hold colour on the gym grade pill
+
+_Done (committed):_ when a gym route has a hold colour with a representative hex, the grade pill
+on the shared `RouteCard` renders in that colour with contrasting text (so the badge looks like
+the tape on the wall). No colour, or Mixed/Wood/Feature (no single hex), falls back to the F25
+neutral pill. Covers active session, SessionDetailScreen, and History via the one shared card.
+_Browser-verified:_ a red-hold gym grade → red pill (`#ef4444`); no-colour / Mixed → neutral.
+
+### ✅ F27. Attempt count on every RouteCard (completes A46)
+
+_Done (committed):_ the shared `RouteCard` now shows a compact "N attempts" / "1 attempt" pill
+whenever a count applies — Onsight/Flash always read "1 attempt" (A23); other ticks show the
+entered value; omitted when unknown for a non-defaulting tick. Display-only (no storage /
+LogRouteSheet change). This delivers the remaining part of **A46** for attempts.
+_Browser-verified:_ "3 attempts", "1 attempt" (onsight & flash), "2 attempts".
+
+### ✅ A49. Tick indicators (symbols / emojis)
+
+_Done (committed):_ `src/lib/tickTypes.ts` exports `TICK_SYMBOLS` (Unicode) and `TICK_EMOJIS`
+maps + `tickIndicator(tick, style)`. A reactive `useTickSymbol(tick)` / `useTickDisplayStyle()`
+hook (`src/hooks/useTickSymbol.ts`, `useSyncExternalStore` on a custom event) reads the
+`tickDisplayStyle` pref (`localStorage`, default `'emojis'`). A "Tick indicators" segmented
+control in a new Settings → **Climbing** section switches Emojis/Symbols. The indicator renders
+to the left of the tick label inside the existing coloured tick pill on RouteCards and the
+summary tick breakdown, and does not replace the badge colour. _Browser-verified:_ emojis by
+default (👁️/⚡/✅/🔧…), and flipping the setting updates all cards **live** to symbols (◎/↯/✓/◐…)
+without navigation.
+
+---
+
 ## Tier 3 — Feature groups (ordered by priority; each internally dependency-ordered)
 
 ### Exercise categories
@@ -320,14 +361,11 @@ the Slab/Vertical/Overhang toggle for Gym & Crag and augments Home.
 - **Display** on the shared `RouteCard` (which currently renders neither the `wallAngle` enum
   nor any character). Add a **sends-by-character breakdown** in Progress (net-new).
 
-#### 🟡 A46. Attempt count on route cards — _character line depends on A45_
+#### ✅ A46. Attempt count on route cards — done via F27
 
-`attempts?: number` already exists, is captured in `LogRouteSheet`, and is locked to 1 for
-Onsight/Flash. The shared `RouteCard` **already renders** attempts, but only when `> 1` and
-plural-only ("N attempts"). **Change the display** to show `1 attempt` / `N attempts`
-(singular/plural) whenever `attempts` is set — including the `1` stored for Onsight/Flash —
-and omit only when unset. _Corrected: "alongside … character" depends on A45; drop or defer
-that clause if shipping A46 first. Both views stay consistent automatically (one shared card)._
+The attempts display (singular/plural, including the `1` for Onsight/Flash) shipped as **F27**
+above. The remaining "alongside … character" wording still depends on A45's `climbCharacter`
+being added to the card.
 
 #### ⬜ A47. Climb style tags (multi-select) — _depends on A45_
 
