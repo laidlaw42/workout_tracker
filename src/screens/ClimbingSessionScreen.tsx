@@ -93,6 +93,8 @@ export default function ClimbingSessionScreen() {
   const gradeManualRef = useRef(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [confirmDeleteRouteId, setConfirmDeleteRouteId] = useState<string | null>(null)
+  // Current abrahang phase label ('Hang' | 'Rest'), shown on the countdown (A37).
+  const [abrahangLabel, setAbrahangLabel] = useState<string | null>(null)
 
   const clock = useSessionTimer(id, session?.startedAt ?? Date.now(), session?.pausedDuration ?? 0)
   const rest = useRestTimer()
@@ -433,7 +435,7 @@ export default function ClimbingSessionScreen() {
     setConfirmRemoveLastHangId(null)
   }
 
-  async function logHang(hs: HangboardSet) {
+  async function logHang(hs: HangboardSet, opts?: { abrahangReps?: number }) {
     clock.resume() // logging activity lifts any pause (F19)
     try {
       await addHang({
@@ -445,6 +447,8 @@ export default function ClimbingSessionScreen() {
         targetDurationSeconds: hs.durationSeconds,
         actualDurationSeconds: hs.durationSeconds,
         weightKg: hs.weightKg,
+        hangType: hs.hangType ?? 'sub_max',
+        abrahangReps: opts?.abrahangReps,
         skipped: false,
         loggedAt: Date.now(),
       })
@@ -486,6 +490,39 @@ export default function ClimbingSessionScreen() {
     else run()
   }
 
+  // Abrahang (A37): precount → work / short intra-rest, alternating for N reps,
+  // then log one hang and start the full inter-set rest. Both phases reuse the
+  // countdown timer (so A7 beeps fire); the label drives the on-screen phase.
+  function startAbrahang(hs: HangboardSet) {
+    clock.resume() // starting a hang lifts any pause (F19)
+    rest.skip()
+    const reps = hs.abrahangReps ?? 6
+    const intra = hs.intraRestSeconds ?? 3
+    let rep = 0
+    const doWork = () => {
+      rep += 1
+      setAbrahangLabel('Hang')
+      countdown.start(hs.id, hs.durationSeconds, () => {
+        if (rep >= reps) {
+          setAbrahangLabel(null)
+          void logHang(hs, { abrahangReps: reps })
+        } else {
+          setAbrahangLabel('Rest')
+          countdown.start(hs.id, intra, doWork)
+        }
+      })
+    }
+    const pre = getPrecountSeconds()
+    if (pre > 0) precount.start(hs.id, pre, doWork)
+    else doWork()
+  }
+
+  // Route a hang to the right runner by its type.
+  function startHang(hs: HangboardSet) {
+    if ((hs.hangType ?? 'sub_max') === 'abrahang') startAbrahang(hs)
+    else startHangCountdown(hs)
+  }
+
   // Re-assigned every render so the rest-expiry effect starts the next timed
   // item using the latest state. Returns true when it began a countdown.
   autoAdvanceRef.current = () => {
@@ -502,7 +539,7 @@ export default function ClimbingSessionScreen() {
     } else {
       const h = hangWork.find((x) => x.id === info.uid)
       if (h && !isCompleteHang(h)) {
-        startHangCountdown(h)
+        startHang(h)
         return true
       }
     }
@@ -716,12 +753,16 @@ export default function ClimbingSessionScreen() {
                   onAddSet={() => addSetToHang(h.id)}
                   onRemoveSet={() => removeHangSet(h.id)}
                   onEdit={(u) => editHang(h.id, u)}
-                  onStartCountdown={() => startHangCountdown(h)}
+                  onStartCountdown={() => startHang(h)}
                   countdown={
                     isCurrent && precount.activeUid === h.id
                       ? { remaining: precount.remaining, duration: precount.duration, precount: true }
                       : isCurrent && countdown.activeUid === h.id
-                        ? { remaining: countdown.remaining, duration: countdown.duration }
+                        ? {
+                            remaining: countdown.remaining,
+                            duration: countdown.duration,
+                            label: abrahangLabel ?? undefined,
+                          }
                         : null
                   }
                 />

@@ -475,11 +475,13 @@ function planHangsFromHangs(hangs: LoggedHang[]): HangboardSet[] {
     return {
       id: generateId(),
       gripType: first.gripType,
+      hangType: first.hangType ?? 'sub_max',
       edgeDepthMm: first.edgeDepthMm,
       durationSeconds: first.targetDurationSeconds,
       weightKg: first.weightKg,
       sets: groups.get(k)!.length,
       restSeconds: first.restTakenSeconds ?? 60,
+      abrahangReps: first.abrahangReps,
       order: i,
     }
   })

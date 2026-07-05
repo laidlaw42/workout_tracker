@@ -21,7 +21,7 @@ interface Props {
   onEdit?: (updates: HangEdit) => void
   /** Start the hang countdown (session logs it + starts rest at zero). */
   onStartCountdown?: () => void
-  countdown?: { remaining: number; duration: number; precount?: boolean } | null
+  countdown?: { remaining: number; duration: number; precount?: boolean; label?: string } | null
 }
 
 function weightLabel(kg: number): string {
@@ -109,12 +109,14 @@ export function HangCard({
               <SetCountdown
                 remaining={countdown.remaining}
                 duration={countdown.duration}
-                label={countdown.precount ? 'Get ready' : 'Hang'}
+                label={countdown.precount ? 'Get ready' : (countdown.label ?? 'Hang')}
               />
             ) : (
               <div className="flex items-center gap-2">
                 <Button className="flex-1" onClick={onStartCountdown}>
-                  Start hang {currentHang} ({hangSet.durationSeconds}s)
+                  {hangSet.hangType === 'abrahang'
+                    ? `Start Abrahang (${hangSet.abrahangReps ?? 6}×${hangSet.durationSeconds}s)`
+                    : `Start hang ${currentHang} (${hangSet.durationSeconds}s)`}
                 </Button>
                 {onRemoveSet && (
                   <button

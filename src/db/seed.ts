@@ -2,6 +2,7 @@ import { db } from './db'
 import type {
   Exercise,
   ExerciseCategory,
+  HangType,
   IntervalBlock,
   TemplateExercise,
   TrackingType,
@@ -12,7 +13,7 @@ import type {
 // time: new built-ins are added on upgrade, user-deleted ones are not
 // resurrected, and user-created templates (uuid ids) are never touched.
 
-const BUILTIN_SET_VERSION = 4
+const BUILTIN_SET_VERSION = 5 // A37: hang types on built-in hangboard templates
 
 // Evidence-based rest defaults. Heavy compound lifts at low reps need long rests
 // for full neuromuscular recovery and to preserve subsequent-set volume; longer
@@ -302,12 +303,15 @@ interface HangboardRow {
   weightKg: number
   sets: number
   restSeconds: number
+  abrahangReps?: number
+  intraRestSeconds?: number
 }
 
 interface HangboardSeed {
   id: string
   name: string
   tags: string[]
+  hangType: HangType // A37 — applies to every hang in the template
   hangs: HangboardRow[]
 }
 
@@ -316,6 +320,7 @@ const HANGBOARD: HangboardSeed[] = [
     id: 'tpl_hangboard_repeaters',
     name: 'Repeaters',
     tags: ['hangboard', 'endurance'],
+    hangType: 'sub_max',
     hangs: [
       { grip: 'Half crimp', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 6, restSeconds: HANGBOARD_REPEATER_REST },
       { grip: 'Open hand', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 6, restSeconds: HANGBOARD_REPEATER_REST },
@@ -326,9 +331,21 @@ const HANGBOARD: HangboardSeed[] = [
     id: 'tpl_hangboard_maxhangs',
     name: 'Max hangs',
     tags: ['hangboard', 'strength'],
+    hangType: 'max_hang',
     hangs: [
       { grip: 'Half crimp', edgeMm: 20, durationSeconds: 10, weightKg: 0, sets: 5, restSeconds: HANGBOARD_MAX_REST },
       { grip: 'Open hand', edgeMm: 20, durationSeconds: 10, weightKg: 0, sets: 5, restSeconds: HANGBOARD_MAX_REST },
+    ],
+  },
+  {
+    // Abrahangs (A37) — 6×(7s work / 3s rest) repeaters, 180s between sets.
+    id: 'tpl_hangboard_abrahangs',
+    name: 'Abrahangs',
+    tags: ['hangboard', 'endurance'],
+    hangType: 'abrahang',
+    hangs: [
+      { grip: 'Half crimp', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_REPEATER_REST, abrahangReps: 6, intraRestSeconds: 3 },
+      { grip: 'Open hand', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_REPEATER_REST, abrahangReps: 6, intraRestSeconds: 3 },
     ],
   },
 ]
@@ -349,11 +366,14 @@ function buildTemplate(
       hangboardSets: seed.hangs.map((h, order) => ({
         id: `${seed.id}_h${order}`, // stable across refreshes
         gripType: h.grip,
+        hangType: seed.hangType,
         edgeDepthMm: h.edgeMm,
         durationSeconds: h.durationSeconds,
         weightKg: h.weightKg,
         sets: h.sets,
         restSeconds: h.restSeconds,
+        abrahangReps: h.abrahangReps,
+        intraRestSeconds: h.intraRestSeconds,
         order,
       })),
     }

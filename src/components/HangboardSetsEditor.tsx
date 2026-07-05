@@ -1,6 +1,7 @@
 import { Plus, Trash2 } from 'lucide-react'
 import { generateId } from '@/lib/id'
 import { GRIP_TYPES } from '@/lib/climbing'
+import { SegmentedControl } from '@/components/SegmentedControl'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -10,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { HangboardSet } from '@/types'
+import type { HangboardSet, HangType } from '@/types'
 
 interface Props {
   value: HangboardSet[]
@@ -20,6 +21,12 @@ interface Props {
 const OTHER = '__other__'
 const KNOWN = GRIP_TYPES as readonly string[]
 const int = (s: string) => (s.trim() === '' ? 0 : Number(s.replace(/[^0-9]/g, '')))
+
+const HANG_TYPES: { value: HangType; label: string }[] = [
+  { value: 'sub_max', label: 'Sub-max' },
+  { value: 'max_hang', label: 'Max hang' },
+  { value: 'abrahang', label: 'Abrahang' },
+]
 
 export function HangboardSetsEditor({ value, onChange }: Props) {
   const patch = (i: number, p: Partial<HangboardSet>) =>
@@ -31,6 +38,7 @@ export function HangboardSetsEditor({ value, onChange }: Props) {
       {
         id: generateId(),
         gripType: 'Half crimp',
+        hangType: 'sub_max',
         edgeDepthMm: 20,
         durationSeconds: 7,
         weightKg: 0,
@@ -85,6 +93,12 @@ export function HangboardSetsEditor({ value, onChange }: Props) {
               />
             )}
 
+            <SegmentedControl
+              options={HANG_TYPES}
+              value={h.hangType ?? 'sub_max'}
+              onChange={(v) => patch(i, { hangType: v })}
+            />
+
             <div className="grid grid-cols-3 gap-2">
               <Field label="Sets" value={h.sets} onChange={(v) => patch(i, { sets: v })} />
               <Field
@@ -117,6 +131,21 @@ export function HangboardSetsEditor({ value, onChange }: Props) {
                 />
               </label>
             </div>
+
+            {(h.hangType ?? 'sub_max') === 'abrahang' && (
+              <div className="grid grid-cols-2 gap-2">
+                <Field
+                  label="Reps"
+                  value={h.abrahangReps ?? 6}
+                  onChange={(v) => patch(i, { abrahangReps: v })}
+                />
+                <Field
+                  label="Intra-rest (s)"
+                  value={h.intraRestSeconds ?? 3}
+                  onChange={(v) => patch(i, { intraRestSeconds: v })}
+                />
+              </div>
+            )}
           </div>
         )
       })}

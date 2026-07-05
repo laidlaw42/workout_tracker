@@ -29,6 +29,9 @@ export type RopedTick =
 export type ClimbingTick = BoulderTick | RopedTick
 
 export type ClimbingKind = 'hangboard' | 'workout'
+// Hangboard protocol type (A37). sub_max = sustained sub-maximal hang; max_hang =
+// short near-max hang (added/assisted load); abrahang = Abrahamsson repeaters.
+export type HangType = 'sub_max' | 'max_hang' | 'abrahang'
 
 export type PRType = 'weight' | 'reps' | 'pace' | 'distance' | 'grade' | 'duration'
 
@@ -81,11 +84,16 @@ export interface IntervalBlock {
 export interface HangboardSet {
   id: string
   gripType: string
+  hangType: HangType // A37 — defaults to 'sub_max' for legacy rows
   edgeDepthMm: number
-  durationSeconds: number // hang duration
+  durationSeconds: number // hang duration (for abrahang: work per rep)
   weightKg: number // + added / - assisted
   sets: number // number of hangs
-  restSeconds: number
+  restSeconds: number // inter-set rest
+  // Abrahang-only (A37): reps per set (default 6) and the short intra-set rest
+  // between reps (default 3s). durationSeconds is the work duration per rep.
+  abrahangReps?: number
+  intraRestSeconds?: number
   order: number
 }
 
@@ -199,6 +207,8 @@ export interface LoggedHang {
   actualDurationSeconds?: number
   weightKg: number
   restTakenSeconds?: number
+  hangType?: HangType // A37
+  abrahangReps?: number // A37 — reps completed in an abrahang set
   skipped: boolean
   loggedAt: number
 }
