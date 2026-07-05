@@ -19,7 +19,7 @@ export const CLIMB_CHARACTER_LABEL: Record<ClimbCharacter, string> = Object.from
 export const CLIMB_STYLE_TAGS = [
   'Crimpy', 'Juggy', 'Pumpy', 'Slopey', 'Pinchy', 'Dynamic', 'Static', 'Technical',
   'Powerful', 'Endurance', 'Compression', 'Balancy', 'Mantle', 'Stemmy', 'Roofed',
-  'Fingery', 'Thuggish',
+  'Fingery', 'Thuggish', 'Garbage', 'Sandbagged', 'Chossy', 'Painful',
 ] as const
 
 // --- Grades -----------------------------------------------------------------

@@ -32,6 +32,10 @@ export const ROUTE_COLOURS: RouteColour[] = [
   { value: 'cyan', label: 'Cyan', swatch: '#06b6d4', solid: '#06b6d4' },
   { value: 'maroon', label: 'Maroon', swatch: '#7f1d1d', solid: '#7f1d1d' },
   { value: 'navy', label: 'Navy', swatch: '#1e3a8a', solid: '#1e3a8a' },
+  { value: 'pale_yellow', label: 'Pale yellow', swatch: '#fdf3a0', solid: '#fdf3a0' },
+  { value: 'dark_green', label: 'Dark green', swatch: '#14532d', solid: '#14532d' },
+  { value: 'pale_pink', label: 'Pale pink', swatch: '#fbcfe8', solid: '#fbcfe8' },
+  { value: 'cream', label: 'Cream', swatch: '#f5eccb', solid: '#f5eccb' },
   {
     value: 'mixed',
     label: 'Mixed',
