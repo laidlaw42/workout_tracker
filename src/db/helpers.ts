@@ -619,9 +619,11 @@ export async function getLastSetForExercise(
       .where('[exerciseId+loggedAt]')
       .between([exerciseId, MIN], [exerciseId, MAX])
       .toArray()
-    // Most recent logged, non-skipped set that recorded a weight (for pre-fill).
+    // Most recent non-skipped set, for pre-filling the next set's inputs (F22):
+    // weight, additional weight, and reps. Not gated on weightKg, so bodyweight
+    // and additional-load moves (pull-up "BW +10") pre-fill too.
     for (let i = sets.length - 1; i >= 0; i--) {
-      if (!sets[i].skipped && sets[i].weightKg != null) return sets[i]
+      if (!sets[i].skipped) return sets[i]
     }
     return undefined
   })

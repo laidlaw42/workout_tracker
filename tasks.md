@@ -155,31 +155,27 @@ pre-fill). The remaining heartbeat is now _done (committed):_
 Both build on the now-complete A34 (resume / `pausedDuration`) and A48 (`lastActiveAt`
 heartbeat) work. Queued after the current tier; sequence at the backlog owner's discretion.
 
-### 🟡 F22. Pre-fill set inputs from the last logged set (any session)
+### ✅ F22. Pre-fill set inputs from the last logged set (any session)
 
-Make the active set row open with the last logged **weight and reps** as real, editable input
-values (not placeholder text), so an unchanged set logs in one tap and adjusts via the A32
-steppers; blank when no prior set exists.
+_Done (committed):_ the active `SetRow` now seeds its inputs as **actual editable values** from
+the last logged set. `getLastSetForExercise` was relaxed to return the most recent non-skipped
+set regardless of `weightKg` (so bodyweight / additional-load moves pre-fill too), and
+`ExerciseCard` takes a `prefill` object (`weightKg` / `additionalWeightKg` / `actualReps`)
+instead of the old placeholder-only `prefillWeight`.
 
-- **Partly present:** `StrengthSessionScreen` already queries `getLastSetForExercise(currentEx.
-  exerciseId)` and passes `prefillWeight` into `ExerciseCard`, but the `SetRow` uses it as
-  **placeholder text only**, and reps default to the template `targetReps`, not the last logged
-  reps. The change is: seed both the weight and reps inputs as **actual values** from the last
-  set.
-- **"Every set, not just the first" already falls out** — `getLastSetForExercise` returns the
-  most recent non-skipped set across *all* sessions (including the one just logged in the
-  current session), and the `prefill` live query re-fires when the `sets` table changes, so
-  set 2/3 pre-fill from set 1 automatically. Verify this holds once reps are seeded too.
-- **Codebase constraint:** `getLastSetForExercise` (`helpers.ts`) currently only returns a set
-  with `weightKg != null`, so it skips bodyweight / additional-weight-only sets (e.g. a pull-up
-  logged as "BW +10 × 8"). To pre-fill reps for those, relax that guard (return the most recent
-  non-skipped set regardless of weight) and seed whatever fields it has (`weightKg`,
-  `additionalWeightKg`, `actualReps`).
-- **Hangboard clause is misaligned:** hangboard hangs are logged via the countdown "Start hang"
-  flow from the `HangboardSet` definition — there are **no typed per-set weight/duration inputs
-  in `HangCard`** to pre-fill, and hang load lives in `weightKg` on `LoggedHang` (not
-  `additionalWeightKg`). The target duration/weight already come from the template. Treat F22 as
-  **strength-only** unless hangboard first gains typed per-set inputs.
+- **Precedence** (keeps A31 working): weight = `plannedWeight ?? lastWeight`, additional =
+  `lastAdditional`, reps = `targetReps ?? lastReps`. An inline A31 edit still wins; otherwise the
+  last logged values fill in; blank when neither exists (`BW` placeholder on the weight field).
+- **Every set, not just the first** — the `SetRow` re-keys on `currentSetNumber` and the prefill
+  values, and the `prefill` live query re-fires when the `sets` table changes, so set 2/3
+  pre-fill from set 1 of the current session automatically.
+- **Browser-verified:** weight opens at the last-logged `62.5` (was placeholder-only); logging
+  set 1 pre-fills set 2 at `62.5`; a Pull-up's Additional field pre-fills `10` from a prior
+  "BW +10" set with weight left blank.
+- **Hangboard was correctly out of scope:** hangboard hangs log via the countdown "Start hang"
+  flow (no typed per-set inputs in `HangCard`; load lives in `LoggedHang.weightKg`), so there is
+  no `SetRow` to pre-fill there. F22 applies to `ExerciseCard` (strength + climbing-workout
+  exercises).
 
 ### ⬜ F23. Resume a completed workout as an active session
 

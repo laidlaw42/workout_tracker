@@ -436,7 +436,7 @@ export default function StrengthSessionScreen() {
               exercise={ex}
               loggedSets={loggedFor(ex)}
               isCurrent={isCurrent}
-              prefillWeight={isCurrent ? prefill?.weightKg : undefined}
+              prefill={isCurrent ? prefill : undefined}
               supportsAdditionalWeight={exById.get(ex.exerciseId)?.supportsAdditionalWeight}
               onLog={(d) => handleLog(ex, d)}
               onAddSet={() => addSetTo(ex.uid)}

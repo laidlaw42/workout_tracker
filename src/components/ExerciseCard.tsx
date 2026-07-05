@@ -34,7 +34,8 @@ interface Props {
   exercise: WorkExercise
   loggedSets: LoggedSet[]
   isCurrent: boolean
-  prefillWeight?: number
+  /** Last logged set for this exercise (any session) — pre-fills the row (F22). */
+  prefill?: Pick<LoggedSet, 'weightKg' | 'additionalWeightKg' | 'actualReps'>
   /** Bodyweight movement that can carry extra load — shows the +kg field. */
   supportsAdditionalWeight?: boolean
   onLog: (data: LoggedSetInput) => void
@@ -56,7 +57,7 @@ export function ExerciseCard({
   exercise,
   loggedSets,
   isCurrent,
-  prefillWeight,
+  prefill,
   supportsAdditionalWeight,
   onLog,
   onAddSet,
@@ -173,13 +174,14 @@ export function ExerciseCard({
                 </div>
               )
             ) : (
-              // Key on the editable targets so an inline edit (A31) re-seeds the
-              // current set's inputs immediately, not just on the next set.
+              // Key on the editable targets and the last-set prefill so both an
+              // inline edit (A31) and advancing to the next set re-seed the
+              // inputs from the latest values (F22).
               <SetRow
-                key={`${currentSetNumber}-${exercise.targetReps ?? ''}-${exercise.weight ?? ''}`}
+                key={`${currentSetNumber}-${exercise.targetReps ?? ''}-${exercise.weight ?? ''}-${prefill?.weightKg ?? ''}-${prefill?.actualReps ?? ''}`}
                 targetReps={exercise.targetReps}
                 plannedWeight={exercise.weight}
-                prefillWeight={prefillWeight}
+                prefill={prefill}
                 supportsAdditionalWeight={supportsAdditionalWeight}
                 onLog={onLog}
                 onRemove={onRemoveSet}
@@ -282,23 +284,31 @@ function EditField({ label, children }: { label: string; children: React.ReactNo
 interface SetRowProps {
   targetReps?: number
   plannedWeight?: number
-  prefillWeight?: number
+  prefill?: Pick<LoggedSet, 'weightKg' | 'additionalWeightKg' | 'actualReps'>
   supportsAdditionalWeight?: boolean
   onLog: (data: LoggedSetInput) => void
   onRemove?: () => void
 }
 
+// Pre-fill precedence (F22): an inline A31 edit (plannedWeight / targetReps) wins;
+// otherwise the last logged set's values fill in, so an unchanged set logs in one
+// tap. `str` renders a number as an input value, blank for null/undefined.
+const str = (n?: number) => (n != null ? String(n) : '')
+
 function SetRow({
   targetReps,
   plannedWeight,
-  prefillWeight,
+  prefill,
   supportsAdditionalWeight,
   onLog,
   onRemove,
 }: SetRowProps) {
-  const [weight, setWeight] = useState(plannedWeight != null ? String(plannedWeight) : '')
-  const [addl, setAddl] = useState('')
-  const [reps, setReps] = useState(targetReps != null ? String(targetReps) : '')
+  const seedWeight = () => str(plannedWeight ?? prefill?.weightKg)
+  const seedAddl = () => str(prefill?.additionalWeightKg)
+  const seedReps = () => str(targetReps ?? prefill?.actualReps)
+  const [weight, setWeight] = useState(seedWeight)
+  const [addl, setAddl] = useState(seedAddl)
+  const [reps, setReps] = useState(seedReps)
 
   function log() {
     const w = weight.trim() === '' ? undefined : Number(weight)
@@ -309,9 +319,9 @@ function SetRow({
       additionalWeightKg: a != null && !Number.isNaN(a) && a > 0 ? a : undefined,
       actualReps: r != null && !Number.isNaN(r) ? r : undefined,
     })
-    setWeight(plannedWeight != null ? String(plannedWeight) : '')
-    setAddl('')
-    setReps(targetReps != null ? String(targetReps) : '')
+    setWeight(seedWeight())
+    setAddl(seedAddl())
+    setReps(seedReps())
   }
 
   return (
@@ -323,7 +333,7 @@ function SetRow({
           step={0.5}
           min={0}
           inputMode="decimal"
-          placeholder={prefillWeight != null ? String(prefillWeight) : 'BW'}
+          placeholder="BW"
           onChange={setWeight}
         />
       </SetField>
