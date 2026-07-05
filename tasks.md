@@ -212,24 +212,34 @@ F23 reactivates the **same** session record. Do not replace "Use as workout".
 
 ## Tier 2 — Quick wins
 
-### ⬜ A40. "Big dog" completion message
+### ✅ A40. "Big dog" completion message
 
-Add a phrase to the `COMPLETION_PHRASES` array in `src/lib/completionMessages.ts` (not
-`MOTIVATIONAL_QUOTES`). For consistency with the existing entries (no trailing period), use
-`'Good session, big dog'`.
+_Done (committed):_ added `'Good session, big dog'` to `COMPLETION_PHRASES` in
+`src/lib/completionMessages.ts` (no trailing period, matching the existing entries).
 
-### ⬜ A41. Confetti on session complete
+### ✅ A41. Confetti on session complete (+ Settings toggle)
 
-Fire a one-shot confetti burst when `SessionSummaryScreen` mounts (empty-dep `useEffect`),
-from top-centre, non-blocking (canvas `pointer-events: none`, fixed, above content but not
-over the Done / View details buttons).
+_Done (committed):_ `canvas-confetti` installed; `SessionSummaryScreen` fires one top-centre
+burst once when the session first loads, in the active theme's primary + accent colours, gated
+on the new `getConfettiEnabled()` pref (skips the `confetti()` call entirely when off). Added a
+"Celebration confetti" `SettingSwitch` in the Settings → Workout section beside the pre-count
+control (default on; `localStorage` key `confettiEnabled`; helpers mirror the existing
+boolean prefs). The default canvas is `position: fixed; pointer-events: none`, so it never
+blocks the Done / View details buttons. Also respects `prefers-reduced-motion`
+(`disableForReducedMotion`).
 
-- Install the **`canvas-confetti`** npm package (not currently a dependency).
-- _Corrected:_ pull accent colours from **`src/lib/theme.ts`** (not `themes.ts`) —
-  `THEME_PREVIEWS[activeThemeId]` is `[background, primary, accent]`; use `[1]`/`[2]` and read
-  the active id via `getTheme()`. Note the `dark`/`light` previews are `oklch()` strings that
-  `canvas-confetti` can't parse — convert to hex/rgb (or read the computed CSS custom
-  properties from `src/themes.css`) before passing to `confetti({ colors: [...] })`.
+- **Colour resolution fixed during verification:** `THEME_PREVIEWS` values are `oklch()` for the
+  default dark/light themes, and Chromium serialises `getComputedStyle().color` back _as oklch_,
+  so the first regex-based `toHex` produced garbage blue. Replaced with a canvas-pixel approach
+  (paint a 1×1 canvas, read the rendered sRGB byte) — verified `oklch(0.929 0.013 255.508)` →
+  `#e2e8f0` and `oklch(0.279 0.041 260.031)` → `#1d293d`.
+- **Browser-verified:** the Settings toggle shows the right label/subtitle, defaults on, and
+  writes `confettiEnabled` `'1'`/`'0'`; canvas-confetti renders a non-blocking (`pointer-events:
+  none`, `fixed`) canvas. Live confetti isn't visible in the automated browser because it reports
+  `prefers-reduced-motion: reduce` (canvas-confetti captures that once at module load) — correct
+  accessibility behaviour; it fires on a normal device.
+- _Note:_ used the existing `SettingSwitch` (there is no shadcn `Switch` in the repo); theme
+  colours come from `src/lib/theme.ts` `THEME_PREVIEWS[getTheme()]` (`[1]` primary, `[2]` accent).
 
 ---
 

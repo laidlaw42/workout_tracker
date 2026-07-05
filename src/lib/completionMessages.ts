@@ -18,6 +18,7 @@ export const COMPLETION_PHRASES: string[] = [
   'Sweat: successfully produced',
   'Objectively, some reps were done',
   'Beast mode: temporarily enabled',
+  'Good session, big dog',
 ]
 
 // Motivational quotes shown in italics below the heading.

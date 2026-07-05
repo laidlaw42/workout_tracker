@@ -1,6 +1,9 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import confetti from 'canvas-confetti'
 import { useLiveQuery } from '@/hooks/useDb'
+import { getConfettiEnabled } from '@/lib/prefs'
+import { getTheme, THEME_PREVIEWS } from '@/lib/theme'
 import {
   getCardioForSession,
   getHangsForSession,
@@ -27,6 +30,41 @@ import { contrastText, gradeToColor, vGradeToColor } from '@/lib/gradeColors'
 import { cn } from '@/lib/utils'
 import type { ClimbingRoute, LoggedCardio, LoggedSet, PersonalRecord } from '@/types'
 
+// canvas-confetti only parses hex colours; theme previews may be oklch (the
+// default dark/light themes). Resolve any CSS colour to sRGB hex by painting a
+// 1×1 canvas and reading the rendered pixel — robust across colour spaces
+// (`getComputedStyle().color` serialises oklch back as oklch in Chromium, so it
+// can't be regex-parsed as rgb).
+function toHex(color: string): string {
+  if (/^#[0-9a-f]{6}$/i.test(color)) return color
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = 1
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return '#ffffff'
+  ctx.fillStyle = '#ffffff' // fallback if `color` is unsupported (setter ignores it)
+  ctx.fillStyle = color
+  ctx.fillRect(0, 0, 1, 1)
+  const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data
+  const h = (n: number) => n.toString(16).padStart(2, '0')
+  return `#${h(r)}${h(g)}${h(b)}`
+}
+
+// One celebratory burst from the top centre in the active theme's primary +
+// accent colours (A41). canvas-confetti's default canvas is fixed and
+// pointer-events:none, so it never blocks the summary buttons underneath.
+function fireCelebration() {
+  const [, primary, accent] = THEME_PREVIEWS[getTheme()] ?? THEME_PREVIEWS.dark
+  confetti({
+    particleCount: 140,
+    spread: 75,
+    startVelocity: 45,
+    ticks: 240,
+    origin: { x: 0.5, y: 0 },
+    colors: [toHex(primary), toHex(accent)],
+    disableForReducedMotion: true,
+  })
+}
+
 export default function SessionSummaryScreen() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
@@ -41,6 +79,15 @@ export default function SessionSummaryScreen() {
   const routes = useLiveQuery(() => getRoutesForSession(id), [id]) ?? []
   const hangs = useLiveQuery(() => getHangsForSession(id), [id]) ?? []
   const prs = useLiveQuery(() => getPRsForSession(id), [id]) ?? []
+
+  // Fire the celebration once, when the session first loads (A41) — unless the
+  // user turned it off in Settings.
+  const celebratedRef = useRef(false)
+  useEffect(() => {
+    if (celebratedRef.current || !session) return
+    celebratedRef.current = true
+    if (getConfettiEnabled()) fireCelebration()
+  }, [session])
 
   if (session === undefined) {
     return (

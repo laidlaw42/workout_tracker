@@ -9,6 +9,7 @@ import { THEMES, THEME_PREVIEWS, applyTheme, getTheme } from '@/lib/theme'
 import {
   deleteGym,
   getAutoAdvance,
+  getConfettiEnabled,
   getGymGradeRanges,
   getKeepAwake,
   getPrecountSeconds,
@@ -18,6 +19,7 @@ import {
   rememberLocation,
   renameGym,
   setAutoAdvance,
+  setConfettiEnabled,
   setPrecountSeconds,
   setGymGradeRanges,
   setKeepAwake,
@@ -78,6 +80,7 @@ export default function SettingsScreen() {
   const [autoAdvance, setAutoAdvanceState] = useState(getAutoAdvance())
   const [timerSounds, setTimerSoundsState] = useState(getTimerSounds())
   const [keepAwake, setKeepAwakeState] = useState(getKeepAwake())
+  const [confettiOn, setConfettiOnState] = useState(getConfettiEnabled())
   const [weekStart, setWeekStartState] = useState<'mon' | 'sun'>(getWeekStart() === 0 ? 'sun' : 'mon')
   const [precount, setPrecount] = useState(getPrecountSeconds)
 
@@ -252,6 +255,15 @@ export default function SettingsScreen() {
               </HoldButton>
             </div>
           </div>
+          <SettingSwitch
+            label="Celebration confetti"
+            description="Shown when a workout is completed."
+            checked={confettiOn}
+            onChange={(v) => {
+              setConfettiEnabled(v)
+              setConfettiOnState(v)
+            }}
+          />
         </section>
 
         <section className="space-y-2">

@@ -28,6 +28,10 @@ export const setTimerSounds = (on: boolean) => setBool('timer_sounds', on)
 export const getKeepAwake = () => getBool('keep_awake')
 export const setKeepAwake = (on: boolean) => setBool('keep_awake', on)
 
+// Whether the celebration confetti fires on the session summary screen (A41).
+export const getConfettiEnabled = () => getBool('confettiEnabled')
+export const setConfettiEnabled = (on: boolean) => setBool('confettiEnabled', on)
+
 // First day of the week for the planner calendar: 1 = Monday (default), 0 = Sunday.
 export function getWeekStart(): 0 | 1 {
   try {
