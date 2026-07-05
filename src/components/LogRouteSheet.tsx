@@ -40,6 +40,10 @@ interface Props {
   style: ClimbingStyle
   /** Gym name, for reading that gym's configured grade range (A22). */
   gymName?: string
+  /** Grade system to open a new gym route in — the session's last-used mode (F20). */
+  initialGradeSystem?: 'standard' | 'gym'
+  /** Called when the user switches grade system, so the session can remember it (F20). */
+  onGradeSystemChange?: (mode: 'standard' | 'gym') => void
   onSaved: () => void
 }
 
@@ -57,6 +61,8 @@ export function LogRouteSheet({
   venue,
   style: styleProp,
   gymName,
+  initialGradeSystem,
+  onGradeSystemChange,
   onSaved,
 }: Props) {
   const isBoard = venue === 'home'
@@ -80,6 +86,9 @@ export function LogRouteSheet({
   const [gymRanges, setGymRanges] = useState(() => getGymGradeRanges(gymName ?? ''))
 
   // Initialise each time the sheet opens (fresh for new, populated for edit).
+  // `initialGradeSystem` is read here but intentionally NOT a dependency: it
+  // seeds the mode on open only. Were it a dep, the parent mirroring a mid-sheet
+  // toggle back down would re-run this reset and wipe the in-progress entry.
   useEffect(() => {
     if (!open) return
     setGymRanges(getGymGradeRanges(gymName ?? ''))
@@ -98,8 +107,10 @@ export function LogRouteSheet({
       setAttempts(editing.attempts != null ? String(editing.attempts) : '')
       setNotes(editing.notes ?? '')
     } else {
-      // New route: pre-set the chosen style; keep the grade-system choice.
+      // New route: pre-set the chosen style and open in the session's last-used
+      // grade system (F20).
       setStyle(styleProp)
+      setGradeSystem(initialGradeSystem ?? 'standard')
       setVGrade(null)
       setEwbanks(null)
       setGymGrade(null)
@@ -112,6 +123,7 @@ export function LogRouteSheet({
       setAttempts('')
       setNotes('')
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editing, styleProp, gymName])
 
   const isBoulder = style === 'bouldering'
@@ -162,6 +174,7 @@ export function LogRouteSheet({
     setEwbanks(null)
     setGymGrade(null)
     setFeltLike(null)
+    onGradeSystemChange?.(next) // remember the session's grade mode (F20)
   }
 
   const canSave = tick !== null && primarySelected !== null

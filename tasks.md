@@ -120,20 +120,17 @@ dropped. The fix covered:
   the climbing query is a flat `getAllRoutes()` (`db.routes.toArray()`) with no join, so query
   scope is not the problem._
 
-### ⬜ F20. Gym grade mode persists within a session (and per-gym default)
+### ✅ F20. Gym grade mode persists within a session (and per-gym default)
 
-_Corrected premise:_ the standard/gym toggle **already persists across successive route logs
-within one mounted `ClimbingSessionScreen`** (`LogRouteSheet` keeps `gradeSystem` across
-opens; it only resets on a full screen remount, or when opening an existing route to edit).
-Remaining work:
-
-- **Survive a remount / resume** — lift the active grade mode into `ClimbingSessionScreen`
-  state and pass it into `LogRouteSheet` via a new `initialGradeSystem` prop (the sheet has no
-  such prop today).
-- **Per-gym default** — if gym-grade mode has ever been chosen for a gym (by name), default to
-  it when starting a session there. Store in a new `localStorage` key `gym_grade_preference`
-  (`{ [gymName]: 'standard' | 'gym' }`), distinct from the existing `gym_grade_ranges`.
-- The in-sheet toggle stays available for per-route overrides.
+_Done (committed):_ the active grade system is now lifted into `ClimbingSessionScreen` state,
+seeded on init from a new per-gym `localStorage` preference (`gym_grade_preference`,
+`{ [gymName]: 'standard' | 'gym' }`, distinct from `gym_grade_ranges`; migrated on gym
+rename/delete). `LogRouteSheet` gained an `initialGradeSystem` prop (new routes open in the
+session's mode) and an `onGradeSystemChange` callback that updates the session and persists the
+per-gym default. The in-sheet toggle still overrides per route; editing an existing route still
+derives its mode from the route's own `gymGrade`. Browser-verified: mode survives route logs
+and a full remount, the Flash tick is preserved across a toggle (no field reset), and the
+preference writes/reads correctly.
 
 ### 🟡 A48. Background session persistence — finish the heartbeat
 

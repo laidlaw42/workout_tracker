@@ -174,12 +174,48 @@ export function setGymGradeRanges(gym: string, ranges: GymGradeRanges): void {
   writeAllGymGradeRanges(all)
 }
 
+// Per-gym grade-system preference (F20): remembers whether a gym was last logged
+// in standard or gym grades, keyed by gym name, so a new session at that gym
+// opens in the same mode. Absent → standard.
+export type GradeSystem = 'standard' | 'gym'
+
+function getAllGymGradePrefs(): Record<string, GradeSystem> {
+  try {
+    const p = JSON.parse(localStorage.getItem('gym_grade_preference') ?? '{}')
+    return p && typeof p === 'object' ? (p as Record<string, GradeSystem>) : {}
+  } catch {
+    return {}
+  }
+}
+function writeAllGymGradePrefs(all: Record<string, GradeSystem>): void {
+  try {
+    localStorage.setItem('gym_grade_preference', JSON.stringify(all))
+  } catch {
+    /* ignore */
+  }
+}
+export function getGymGradePreference(gym: string): GradeSystem | undefined {
+  const v = getAllGymGradePrefs()[gym]
+  return v === 'gym' || v === 'standard' ? v : undefined
+}
+export function setGymGradePreference(gym: string, mode: GradeSystem): void {
+  if (!gym) return
+  const all = getAllGymGradePrefs()
+  all[gym] = mode
+  writeAllGymGradePrefs(all)
+}
+
 // Keep the MRU name list and per-gym ranges in sync on rename / delete.
 export function deleteGym(name: string): string[] {
   const all = getAllGymGradeRanges()
   if (name in all) {
     delete all[name]
     writeAllGymGradeRanges(all)
+  }
+  const prefs = getAllGymGradePrefs()
+  if (name in prefs) {
+    delete prefs[name]
+    writeAllGymGradePrefs(prefs)
   }
   return removeSavedLocation('gym', name)
 }
@@ -191,6 +227,12 @@ export function renameGym(oldName: string, newName: string): string[] {
     all[n] = all[oldName]
     delete all[oldName]
     writeAllGymGradeRanges(all)
+  }
+  const prefs = getAllGymGradePrefs()
+  if (prefs[oldName]) {
+    prefs[n] = prefs[oldName]
+    delete prefs[oldName]
+    writeAllGymGradePrefs(prefs)
   }
   return renameSavedLocation('gym', oldName, n)
 }

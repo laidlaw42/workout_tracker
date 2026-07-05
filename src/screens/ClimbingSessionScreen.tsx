@@ -9,7 +9,14 @@ import { useCountdownTimer } from '@/hooks/useCountdownTimer'
 import { useCountdownBeeps } from '@/hooks/useCountdownBeeps'
 import { usePrecountBeeps } from '@/hooks/usePrecountBeeps'
 import { useWakeLock } from '@/hooks/useWakeLock'
-import { getAutoAdvance, getGymGradeRanges, getKeepAwake, getPrecountSeconds } from '@/lib/prefs'
+import {
+  getAutoAdvance,
+  getGymGradePreference,
+  getGymGradeRanges,
+  getKeepAwake,
+  getPrecountSeconds,
+  setGymGradePreference,
+} from '@/lib/prefs'
 import {
   addHang,
   addSet,
@@ -80,6 +87,9 @@ export default function ClimbingSessionScreen() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editing, setEditing] = useState<ClimbingRoute | null>(null)
   const [newStyle, setNewStyle] = useState<ClimbingStyle>('bouldering')
+  // Active grade system for gym routes — seeded from this gym's saved preference,
+  // kept across route logs, and re-applied on remount/resume (F20).
+  const [gradeSystem, setGradeSystem] = useState<'standard' | 'gym'>('standard')
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [confirmDeleteRouteId, setConfirmDeleteRouteId] = useState<string | null>(null)
 
@@ -103,6 +113,7 @@ export default function ClimbingSessionScreen() {
           ? 'gym'
           : undefined)
   const isBoard = venue === 'home'
+  const gymName = gym.trim() || session?.gym || undefined
 
   // Rest-timer completion: haptic + auto-dismiss. For a timed set/hang, reaching
   // 0 auto-starts the next set's countdown (A8, if enabled).
@@ -128,6 +139,9 @@ export default function ClimbingSessionScreen() {
       setGym(session.gym ?? '')
       setCrag(session.crag ?? '')
       setBoard(session.board ?? '')
+      // Default a gym session to whichever grade system this gym was last logged
+      // in (F20); non-gym sessions never show the toggle, so 'standard' is fine.
+      setGradeSystem(getGymGradePreference(session.gym ?? '') ?? 'standard')
       setInited(true)
     }
   }, [session, inited])
@@ -540,6 +554,11 @@ export default function ClimbingSessionScreen() {
     setEditing(route)
     setSheetOpen(true)
   }
+  // Remember the session's grade system and persist it as this gym's default (F20).
+  function handleGradeSystemChange(next: 'standard' | 'gym') {
+    setGradeSystem(next)
+    if (venue === 'gym' && gymName) setGymGradePreference(gymName, next)
+  }
 
   if (session === null) {
     return (
@@ -751,7 +770,9 @@ export default function ClimbingSessionScreen() {
         editing={editing}
         venue={venue ?? 'crag'}
         style={newStyle}
-        gymName={gym.trim() || session?.gym || undefined}
+        gymName={gymName}
+        initialGradeSystem={gradeSystem}
+        onGradeSystemChange={handleGradeSystemChange}
         onSaved={() => {
           clock.resume() // logging a route lifts any pause (F19)
           setEditing(null)
