@@ -12,7 +12,12 @@ import {
 } from '@/lib/climbing'
 import { contrastText, gradeToColor, vGradeToColor } from '@/lib/gradeColors'
 import { getGymGradeRanges, type GradeRange } from '@/lib/prefs'
-import { ROUTE_COLOURS, findRouteColour } from '@/lib/routeColours'
+import {
+  ROUTE_COLOURS,
+  customRouteColours,
+  findRouteColour,
+  type RouteColour,
+} from '@/lib/routeColours'
 import { tickIndicator } from '@/lib/tickTypes'
 import { useTickDisplayStyle } from '@/hooks/useTickSymbol'
 import { SegmentedControl } from '@/components/SegmentedControl'
@@ -85,6 +90,8 @@ export function LogRouteSheet({
   const [notes, setNotes] = useState('')
   // Gym-grade ranges are read fresh (for this gym) each time the sheet opens.
   const [gymRanges, setGymRanges] = useState(() => getGymGradeRanges(gymName ?? ''))
+  // Custom gym colours (A43), re-read each time the sheet opens.
+  const [customColours, setCustomColours] = useState<RouteColour[]>(() => customRouteColours())
 
   // Initialise each time the sheet opens (fresh for new, populated for edit).
   // `initialGradeSystem` is read here but intentionally NOT a dependency: it
@@ -93,6 +100,7 @@ export function LogRouteSheet({
   useEffect(() => {
     if (!open) return
     setGymRanges(getGymGradeRanges(gymName ?? ''))
+    setCustomColours(customRouteColours())
     if (editing) {
       setStyle(editing.style)
       setGradeSystem(editing.gymGrade != null ? 'gym' : 'standard')
@@ -417,35 +425,30 @@ export function LogRouteSheet({
             <div className="space-y-1.5">
               <Label>Colour{colour ? ` — ${findRouteColour(colour)?.label ?? colour}` : ''}</Label>
               <div className="flex flex-wrap gap-2">
-                {ROUTE_COLOURS.map((c) => {
-                  const selected = colour === c.value
-                  return (
-                    <button
-                      key={c.value}
-                      type="button"
-                      aria-label={c.label}
-                      aria-pressed={selected}
-                      title={c.label}
-                      // Tap to select, tap the selected swatch again to clear.
-                      onClick={() => setColour(selected ? '' : c.value)}
-                      className={cn(
-                        'relative flex size-11 items-center justify-center rounded-lg border transition-all',
-                        selected
-                          ? 'border-transparent ring-2 ring-foreground ring-offset-2 ring-offset-background'
-                          : 'border-border',
-                      )}
-                      style={{ background: c.swatch }}
-                    >
-                      {selected && (
-                        <Check
-                          className="size-5 drop-shadow"
-                          style={{ color: contrastText(c.solid ?? '#808080') }}
-                        />
-                      )}
-                    </button>
-                  )
-                })}
+                {ROUTE_COLOURS.map((c) => (
+                  <ColourSwatch
+                    key={c.value}
+                    colour={c}
+                    selected={colour === c.value}
+                    onSelect={() => setColour(colour === c.value ? '' : c.value)}
+                  />
+                ))}
               </div>
+              {customColours.length > 0 && (
+                <>
+                  <p className="pt-1 text-xs text-muted-foreground">Custom</p>
+                  <div className="flex flex-wrap gap-2">
+                    {customColours.map((c) => (
+                      <ColourSwatch
+                        key={c.value}
+                        colour={c}
+                        selected={colour === c.value}
+                        onSelect={() => setColour(colour === c.value ? '' : c.value)}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -507,6 +510,38 @@ function GradeChips({
         />
       ))}
     </div>
+  )
+}
+
+// A 44px hold-colour swatch (F28), reused for built-in and custom colours (A43).
+function ColourSwatch({
+  colour,
+  selected,
+  onSelect,
+}: {
+  colour: RouteColour
+  selected: boolean
+  onSelect: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={colour.label}
+      aria-pressed={selected}
+      title={colour.label}
+      onClick={onSelect}
+      className={cn(
+        'relative flex size-11 items-center justify-center rounded-lg border transition-all',
+        selected
+          ? 'border-transparent ring-2 ring-foreground ring-offset-2 ring-offset-background'
+          : 'border-border',
+      )}
+      style={{ background: colour.swatch }}
+    >
+      {selected && (
+        <Check className="size-5 drop-shadow" style={{ color: contrastText(colour.solid ?? '#808080') }} />
+      )}
+    </button>
   )
 }
 

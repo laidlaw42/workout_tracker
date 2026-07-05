@@ -6,6 +6,13 @@ import { clearAllData, exportAllData, importAllData, mergeData } from '@/db/help
 import { restoreDefaults } from '@/db/seed'
 import { getUserName, setUserName } from '@/lib/userName'
 import { getBodyweight, setBodyweight } from '@/lib/bodyweight'
+import {
+  BUILTIN_ROUTE_COLOURS,
+  addCustomRouteColour,
+  colourNameTaken,
+  getCustomRouteColours,
+  removeCustomRouteColour,
+} from '@/lib/routeColours'
 import { NumberStepper } from '@/components/NumberStepper'
 import { THEMES, THEME_PREVIEWS, applyTheme, getTheme } from '@/lib/theme'
 import {
@@ -90,6 +97,10 @@ export default function SettingsScreen() {
   const [keepAwake, setKeepAwakeState] = useState(getKeepAwake())
   const [confettiOn, setConfettiOnState] = useState(getConfettiEnabled())
   const [tickStyle, setTickStyleState] = useState(getTickDisplayStyle())
+  const [customColours, setCustomColours] = useState(getCustomRouteColours())
+  const [newColourName, setNewColourName] = useState('')
+  const [newColourHex, setNewColourHex] = useState('#3b82f6')
+  const [colourError, setColourError] = useState('')
   const [weekStart, setWeekStartState] = useState<'mon' | 'sun'>(getWeekStart() === 0 ? 'sun' : 'mon')
   const [precount, setPrecount] = useState(getPrecountSeconds)
 
@@ -165,6 +176,24 @@ export default function SettingsScreen() {
     rememberLocation('gym', newGym)
     setGyms(getSavedLocations('gym'))
     setNewGym('')
+  }
+
+  function handleAddColour() {
+    const name = newColourName.trim()
+    if (!name) return
+    if (colourNameTaken(name)) {
+      setColourError('That colour name already exists.')
+      return
+    }
+    addCustomRouteColour(name, newColourHex)
+    setCustomColours(getCustomRouteColours())
+    setNewColourName('')
+    setColourError('')
+  }
+
+  function handleRemoveColour(name: string) {
+    removeCustomRouteColour(name)
+    setCustomColours(getCustomRouteColours())
   }
 
   return (
@@ -324,6 +353,71 @@ export default function SettingsScreen() {
           <p className="px-1 text-xs text-muted-foreground">
             Shown next to each tick type on route cards.
           </p>
+        </section>
+
+        <section className="space-y-2">
+          <h2 className="text-sm font-medium text-muted-foreground">Route colours</h2>
+          <p className="px-1 text-xs text-muted-foreground">
+            Gym tape colours for logging routes. Built-ins can't be removed.
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {BUILTIN_ROUTE_COLOURS.map((c) => (
+              <span
+                key={c.value}
+                title={c.label}
+                className="size-6 rounded-full border border-border opacity-70"
+                style={{ background: c.swatch }}
+              />
+            ))}
+          </div>
+          {customColours.length > 0 && (
+            <div className="space-y-1.5 pt-1">
+              {customColours.map((c) => (
+                <div
+                  key={c.name}
+                  className="flex items-center gap-2 rounded-lg border border-border bg-card p-2"
+                >
+                  <span
+                    className="size-6 shrink-0 rounded-full border border-border"
+                    style={{ background: c.hex }}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-sm">{c.name}</span>
+                  <button
+                    type="button"
+                    aria-label={`Delete ${c.name}`}
+                    onClick={() => handleRemoveColour(c.name)}
+                    className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground active:bg-accent"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2 pt-1">
+            <input
+              type="color"
+              aria-label="Custom colour"
+              value={newColourHex}
+              onChange={(e) => setNewColourHex(e.target.value)}
+              className="h-9 w-12 shrink-0 rounded-md border border-border bg-transparent"
+            />
+            <Input
+              value={newColourName}
+              placeholder="Colour name"
+              onChange={(e) => {
+                setNewColourName(e.target.value)
+                setColourError('')
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleAddColour()
+              }}
+            />
+            <Button onClick={handleAddColour} disabled={!newColourName.trim()}>
+              Add
+            </Button>
+          </div>
+          {colourError && <p className="px-1 text-xs text-destructive">{colourError}</p>}
         </section>
 
         <section className="space-y-2">
