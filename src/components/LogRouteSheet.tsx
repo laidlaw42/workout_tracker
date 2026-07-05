@@ -1,22 +1,16 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
+import { Check } from 'lucide-react'
 import { addRoute, updateRoute } from '@/db/helpers'
 import { EWBANKS_GRADES, STYLE_LABELS, TICK_TYPES, V_GRADES } from '@/lib/climbing'
 import { contrastText, gradeToColor, vGradeToColor } from '@/lib/gradeColors'
 import { getGymGradeRanges, type GradeRange } from '@/lib/prefs'
-import { ROUTE_COLOURS } from '@/lib/routeColours'
+import { ROUTE_COLOURS, findRouteColour } from '@/lib/routeColours'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { HoldButton } from '@/components/HoldButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import {
   Sheet,
@@ -371,28 +365,42 @@ export function LogRouteSheet({
             />
           </div>
 
-          {/* 6 — Colour (Gym only) */}
+          {/* 6 — Colour (Gym only). Inline 44px swatch grid rather than a Radix
+              Select popover: avoids nested popover/Sheet event + z-index issues
+              and gives a reliable touch target (F28). */}
           {isGym && (
             <div className="space-y-1.5">
-              <Label>Colour</Label>
-              <Select value={colour} onValueChange={setColour}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select colour" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROUTE_COLOURS.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>
-                      <span className="flex items-center gap-2">
-                        <span
-                          className="size-3.5 rounded-full border border-border"
-                          style={{ background: c.swatch }}
+              <Label>Colour{colour ? ` — ${findRouteColour(colour)?.label ?? colour}` : ''}</Label>
+              <div className="flex flex-wrap gap-2">
+                {ROUTE_COLOURS.map((c) => {
+                  const selected = colour === c.value
+                  return (
+                    <button
+                      key={c.value}
+                      type="button"
+                      aria-label={c.label}
+                      aria-pressed={selected}
+                      title={c.label}
+                      // Tap to select, tap the selected swatch again to clear.
+                      onClick={() => setColour(selected ? '' : c.value)}
+                      className={cn(
+                        'relative flex size-11 items-center justify-center rounded-lg border transition-all',
+                        selected
+                          ? 'border-transparent ring-2 ring-foreground ring-offset-2 ring-offset-background'
+                          : 'border-border',
+                      )}
+                      style={{ background: c.swatch }}
+                    >
+                      {selected && (
+                        <Check
+                          className="size-5 drop-shadow"
+                          style={{ color: contrastText(c.solid ?? '#808080') }}
                         />
-                        {c.label}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           )}
 
