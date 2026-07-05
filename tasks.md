@@ -150,6 +150,66 @@ pre-fill). The remaining heartbeat is now _done (committed):_
 
 ---
 
+## Session-logging fixes (F22, F23) — added 2026-07-05
+
+Both build on the now-complete A34 (resume / `pausedDuration`) and A48 (`lastActiveAt`
+heartbeat) work. Queued after the current tier; sequence at the backlog owner's discretion.
+
+### 🟡 F22. Pre-fill set inputs from the last logged set (any session)
+
+Make the active set row open with the last logged **weight and reps** as real, editable input
+values (not placeholder text), so an unchanged set logs in one tap and adjusts via the A32
+steppers; blank when no prior set exists.
+
+- **Partly present:** `StrengthSessionScreen` already queries `getLastSetForExercise(currentEx.
+  exerciseId)` and passes `prefillWeight` into `ExerciseCard`, but the `SetRow` uses it as
+  **placeholder text only**, and reps default to the template `targetReps`, not the last logged
+  reps. The change is: seed both the weight and reps inputs as **actual values** from the last
+  set.
+- **"Every set, not just the first" already falls out** — `getLastSetForExercise` returns the
+  most recent non-skipped set across *all* sessions (including the one just logged in the
+  current session), and the `prefill` live query re-fires when the `sets` table changes, so
+  set 2/3 pre-fill from set 1 automatically. Verify this holds once reps are seeded too.
+- **Codebase constraint:** `getLastSetForExercise` (`helpers.ts`) currently only returns a set
+  with `weightKg != null`, so it skips bodyweight / additional-weight-only sets (e.g. a pull-up
+  logged as "BW +10 × 8"). To pre-fill reps for those, relax that guard (return the most recent
+  non-skipped set regardless of weight) and seed whatever fields it has (`weightKg`,
+  `additionalWeightKg`, `actualReps`).
+- **Hangboard clause is misaligned:** hangboard hangs are logged via the countdown "Start hang"
+  flow from the `HangboardSet` definition — there are **no typed per-set weight/duration inputs
+  in `HangCard`** to pre-fill, and hang load lives in `weightKg` on `LoggedHang` (not
+  `additionalWeightKg`). The target duration/weight already come from the template. Treat F22 as
+  **strength-only** unless hangboard first gains typed per-set inputs.
+
+### ⬜ F23. Resume a completed workout as an active session
+
+Distinct from the existing **"Use as workout"** button (`SessionDetailScreen` lines 216–220,
+calls `repeatSession(id)` which creates a *new* session from the historical one as a template).
+F23 reactivates the **same** session record. Do not replace "Use as workout".
+
+- Add a **"Resume workout"** button beside it (both render when `!editing`) for any completed
+  session, with the confirmation: _"Resume this workout? It will reopen as an active session and
+  you can continue logging sets."_
+- On confirm — cleanest as a new `reopenSession(id)` helper doing it in one transaction:
+  - Clear `endedAt` (set `undefined`). _Note: Dexie `update({ endedAt: undefined })` deletes the
+    property, which then reads as unfinished — a dedicated helper makes this explicit and
+    testable._
+  - `pausedDuration = (pausedDuration ?? 0) + (Date.now() − endedAt)` so the active clock counts
+    only real workout time, not the gap between sessions (reuses A34's `pausedDuration`, which
+    `useSessionTimer` already seeds from).
+  - Set `lastActiveAt = Date.now()` via `updateSessionHeartbeat()` (A48) — or fold into the same
+    helper.
+  - Leave all logged sets / routes / cardio / hangs **intact**.
+- Navigate to `/session/${session.type}/${id}` (the same mapping `SessionCard` / `HomeScreen`
+  use for in-progress sessions).
+- The session screen already restores logged sets as completed green rows with the next unlogged
+  set active (A34). If every set was logged it opens at "All sets logged" with the existing
+  mid-session **Add exercise** button (A29).
+- The A34 resume banner picks it up automatically (`endedAt` null + recent `lastActiveAt`), so
+  no extra HomeScreen work is needed.
+
+---
+
 ## Tier 2 — Quick wins
 
 ### ⬜ A40. "Big dog" completion message
