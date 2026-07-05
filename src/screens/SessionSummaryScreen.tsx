@@ -260,6 +260,9 @@ function ClimbingSummary({
   if (hangCount > 0) stats.push({ label: 'Hangs', value: hangCount })
   if (setCount > 0) stats.push({ label: 'Sets', value: setCount })
   if (routes.length > 0 || stats.length === 0) stats.push({ label: 'Routes', value: routes.length })
+  // Total metres climbed (A44) — only when at least one route logged a height.
+  const totalMetres = routes.reduce((sum, r) => sum + (r.heightMetres ?? 0), 0)
+  if (totalMetres > 0) stats.push({ label: 'Metres', value: `${Math.round(totalMetres)}m` })
   if (boulder)
     stats.push({ label: 'Hardest V', value: gradePill(boulder.vGrade!, vGradeToColor(boulder.vGrade!)) })
   if (roped)

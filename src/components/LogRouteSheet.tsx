@@ -87,6 +87,7 @@ export function LogRouteSheet({
   const [routeName, setRouteName] = useState('')
   const [colour, setColour] = useState('')
   const [attempts, setAttempts] = useState('')
+  const [height, setHeight] = useState('')
   const [notes, setNotes] = useState('')
   // Gym-grade ranges are read fresh (for this gym) each time the sheet opens.
   const [gymRanges, setGymRanges] = useState(() => getGymGradeRanges(gymName ?? ''))
@@ -116,6 +117,7 @@ export function LogRouteSheet({
       setRouteName(editing.routeName ?? '')
       setColour(editing.colour ?? '')
       setAttempts(editing.attempts != null ? String(editing.attempts) : '')
+      setHeight(editing.heightMetres != null ? String(editing.heightMetres) : '')
       setNotes(editing.notes ?? '')
     } else {
       // New route: pre-set the chosen style and open in the session's last-used
@@ -133,6 +135,7 @@ export function LogRouteSheet({
       setRouteName('')
       setColour('')
       setAttempts('')
+      setHeight('')
       setNotes('')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -149,6 +152,15 @@ export function LogRouteSheet({
       const base = cur.trim() === '' || cur === '-' ? 0 : Number(cur)
       const next = (Number.isNaN(base) ? 0 : base) + delta
       return String(Math.max(degMin, Math.min(90, next)))
+    })
+  }
+
+  // A44 — route height in metres, in 0.5 m steps (0 clears the field).
+  function adjustHeight(delta: number) {
+    setHeight((cur) => {
+      const base = cur.trim() === '' ? 0 : Number(cur)
+      const next = Math.max(0, (Number.isNaN(base) ? 0 : base) + delta)
+      return next === 0 ? '' : String(next)
     })
   }
 
@@ -223,6 +235,7 @@ export function LogRouteSheet({
       wallAngleDegrees: showDegrees ? degClamped : undefined, // Home −45..90 / Gym 0..90
       routeName: routeName.trim() || undefined,
       colour: isGym ? colour.trim() || undefined : undefined, // colour is Gym-only (A23)
+      heightMetres: height.trim() === '' ? undefined : Number(height), // A44
       attempts: attemptsLocked ? 1 : attempts.trim() ? Number(attempts) : undefined,
       notes: notes.trim() || undefined,
       tick,
@@ -456,6 +469,45 @@ export function LogRouteSheet({
           <div className="space-y-1.5">
             <Label htmlFor="route-name">Route name</Label>
             <Input id="route-name" value={routeName} onChange={(e) => setRouteName(e.target.value)} />
+          </div>
+
+          {/* 7b — Height (A44) — optional, 0.5 m steps */}
+          <div className="space-y-1.5">
+            <Label htmlFor="route-height">Height (m)</Label>
+            <div className="flex items-center gap-2">
+              <HoldButton
+                aria-label="Decrease height"
+                onStep={() => adjustHeight(-0.5)}
+                className="size-11 text-xl font-semibold"
+              >
+                −
+              </HoldButton>
+              <div className="relative flex-1">
+                <Input
+                  id="route-height"
+                  inputMode="decimal"
+                  value={height}
+                  placeholder="Height (m) — optional"
+                  className="pr-6 text-center"
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/[^0-9.]/g, '')
+                    if (raw === '' || raw === '.') return setHeight(raw === '.' ? '0.' : '')
+                    const n = Number(raw)
+                    setHeight(Number.isNaN(n) ? '' : raw)
+                  }}
+                />
+                <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  m
+                </span>
+              </div>
+              <HoldButton
+                aria-label="Increase height"
+                onStep={() => adjustHeight(0.5)}
+                className="size-11 text-xl font-semibold"
+              >
+                +
+              </HoldButton>
+            </div>
           </div>
 
           {/* 8 — Notes */}

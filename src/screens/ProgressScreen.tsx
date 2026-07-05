@@ -441,6 +441,28 @@ function Breakdown({ title, items }: { title: string; items: { label: string; co
   )
 }
 
+// Total metres climbed per session (A44) — one point per session that logged at
+// least one route height, dated by that session's earliest route.
+function metresPerSession(routes: ClimbingRoute[]): { date: string; metres: number }[] {
+  const bySession = new Map<string, { ts: number; metres: number }>()
+  for (const r of routes) {
+    if (r.heightMetres == null) continue
+    const cur = bySession.get(r.sessionId)
+    if (cur) {
+      cur.metres += r.heightMetres
+      cur.ts = Math.min(cur.ts, r.loggedAt)
+    } else {
+      bySession.set(r.sessionId, { ts: r.loggedAt, metres: r.heightMetres })
+    }
+  }
+  return [...bySession.values()]
+    .sort((a, b) => a.ts - b.ts)
+    .map((s) => ({
+      date: new Date(s.ts).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
+      metres: Math.round(s.metres),
+    }))
+}
+
 function ClimbingTab() {
   const [view, setView] = useState<'boulder' | 'roped' | 'hangboard'>('boulder')
   const [gradeMode, setGradeMode] = useState<ClimbGradeMode>('standard')
@@ -471,6 +493,8 @@ function ClimbingTab() {
     () => tally(cleanSends.flatMap((r) => r.climbStyles ?? []), (s) => s),
     [cleanSends],
   )
+  // Metres-climbed trend (A44) — only when route heights have been logged.
+  const metresData = useMemo(() => metresPerSession(routes), [routes])
 
   return (
     <div className="space-y-4">
@@ -550,6 +574,36 @@ function ClimbingTab() {
         <div className="space-y-3 pt-1">
           {charCounts.length > 0 && <Breakdown title="Character — clean sends" items={charCounts} />}
           {styleCounts.length > 0 && <Breakdown title="Style — clean sends" items={styleCounts} />}
+        </div>
+      )}
+
+      {isPyramid && metresData.length > 0 && (
+        <div className="space-y-2 pt-1">
+          <p className="text-sm font-medium text-muted-foreground">Metres climbed per session</p>
+          <ChartFrame>
+            <LineChart data={metresData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={false} />
+              {/* width 44 fits metre totals ("120") without clipping (F29). */}
+              <YAxis
+                tick={AXIS_TICK}
+                tickLine={false}
+                axisLine={false}
+                width={44}
+                tickFormatter={(v: number) => `${v}m`}
+              />
+              <Tooltip
+                formatter={(value) => `${Number(value)} m`}
+                contentStyle={{
+                  background: 'var(--popover)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  color: 'var(--popover-foreground)',
+                }}
+              />
+              <Line type="monotone" dataKey="metres" stroke="var(--primary)" strokeWidth={2} dot />
+            </LineChart>
+          </ChartFrame>
         </div>
       )}
     </div>

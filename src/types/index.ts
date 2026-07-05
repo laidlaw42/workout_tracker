@@ -226,6 +226,7 @@ export interface ClimbingRoute {
   climbCharacter?: ClimbCharacter // physical character of the climb (A45)
   climbStyles?: string[] // freeform style descriptors — crimpy, pumpy, … (A47)
   wallAngleDegrees?: number // Home board: -45 (slab) .. 0 (vertical) .. +90 (overhang); Gym 0–90
+  heightMetres?: number // route height in metres (A44)
   routeName?: string
   colour?: string // gym tape colour
   tick: ClimbingTick

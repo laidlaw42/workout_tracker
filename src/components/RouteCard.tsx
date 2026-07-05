@@ -113,11 +113,15 @@ export function RouteCard({ route, onClick, onDelete }: Props) {
             ))}
           </div>
         )}
-        {(route.routeName || route.wallAngleDegrees != null || route.feltLikeGrade) && (
+        {(route.routeName ||
+          route.wallAngleDegrees != null ||
+          route.feltLikeGrade ||
+          route.heightMetres != null) && (
           <p className="truncate text-xs text-muted-foreground">
             {[
               route.routeName,
               route.feltLikeGrade ? `felt ${route.feltLikeGrade}` : null,
+              route.heightMetres != null ? `${route.heightMetres}m` : null,
               route.wallAngleDegrees != null ? `${route.wallAngleDegrees}°` : null,
             ]
               .filter(Boolean)
