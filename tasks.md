@@ -90,12 +90,19 @@ optional-polish notes.
 
 ## Tier 1 — Correctness / data-integrity fixes
 
-### ⬜ F21. Gym bouldering missing from Progress stats
+### ✅ F21. Gym bouldering missing from Progress stats
 
-Gym bouldering routes don't appear in the Progress climbing tab. **The real bug** (confirmed):
-`buildPyramid` in `src/screens/ProgressScreen.tsx` (~lines 274–295) filters bouldering on
-`vGrade` only and never reads `gymGrade`, so any route logged in gym-grade mode
-(`gymGrade` set, `vGrade` null) is silently dropped. Fix:
+_Done (committed):_ `buildPyramid` now takes a grade mode and keys off `gymGrade` in gym
+mode (its own 0–35 axis, separate from V/Ewbanks); the climbing tab gained a **Standard /
+Gym grades** toggle (shown only when gym-graded routes exist), for both bouldering and roped.
+Clean-tick + onsight/flash gold carry over; gym bars colour via `gradeToColor(n, {min:0,max:35})`
+(global fallback — the per-gym range isn't available in the flat Progress query). Verified in
+the browser: gym bouldering sends now appear under the Gym grades toggle.
+
+Original diagnosis, for reference — the bug was in `buildPyramid`
+(`src/screens/ProgressScreen.tsx`): it filtered bouldering on `vGrade` only and never read
+`gymGrade`, so any route logged in gym-grade mode (`gymGrade` set, `vGrade` null) was silently
+dropped. The fix covered:
 
 - **Grade-field selection** — the bouldering pyramid / hardest-send logic must use `gymGrade`
   when `vGrade` is null. Note `gymGrade` is a separate **0–35 numeric** scale, so it needs its

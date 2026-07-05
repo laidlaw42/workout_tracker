@@ -271,15 +271,26 @@ interface PyramidRow {
   gold: boolean
 }
 
-function buildPyramid(routes: ClimbingRoute[], boulder: boolean): PyramidRow[] {
-  const clean = routes.filter((r) =>
-    boulder
-      ? r.style === 'bouldering' && r.vGrade && isCleanTick(r.tick)
-      : r.style !== 'bouldering' && r.ewbanksGrade != null && isCleanTick(r.tick),
-  )
+type ClimbGradeMode = 'standard' | 'gym'
+
+// Build a clean-send grade pyramid for one style (bouldering vs roped) in one
+// grade mode. Standard mode keys off vGrade (bouldering) or ewbanksGrade (roped);
+// gym mode keys off the gym's 0–35 gymGrade. gymGrade is a separate scale that
+// isn't comparable to V/Ewbanks, so it gets its own pyramid rather than being
+// merged into the V/Ewbanks axis — this is what made gym routes (e.g. gym
+// bouldering) vanish from Progress when logged in gym-grade mode (F21).
+function buildPyramid(routes: ClimbingRoute[], boulder: boolean, mode: ClimbGradeMode): PyramidRow[] {
+  const clean = routes.filter((r) => {
+    if (!isCleanTick(r.tick)) return false
+    const styleOk = boulder ? r.style === 'bouldering' : r.style !== 'bouldering'
+    if (!styleOk) return false
+    // Pick whichever grade field is populated for this mode; routes are logged
+    // in exactly one mode, so the toggle cleanly partitions them.
+    return mode === 'gym' ? r.gymGrade != null : boulder ? !!r.vGrade : r.ewbanksGrade != null
+  })
   const byGrade = new Map<number, { count: number; gold: boolean }>()
   for (const r of clean) {
-    const key = boulder ? vGradeIndex(r.vGrade!) : r.ewbanksGrade!
+    const key = mode === 'gym' ? r.gymGrade! : boulder ? vGradeIndex(r.vGrade!) : r.ewbanksGrade!
     const cur = byGrade.get(key) ?? { count: 0, gold: false }
     cur.count += 1
     if (r.tick === 'onsight' || r.tick === 'flash') cur.gold = true
@@ -288,7 +299,7 @@ function buildPyramid(routes: ClimbingRoute[], boulder: boolean): PyramidRow[] {
   return [...byGrade.entries()]
     .sort((a, b) => b[0] - a[0]) // hardest at top
     .map(([key, v]) => ({
-      grade: boulder ? vGradeFromIndex(key) : String(key),
+      grade: mode === 'gym' ? String(key) : boulder ? vGradeFromIndex(key) : String(key),
       count: v.count,
       gold: v.gold,
     }))
@@ -296,9 +307,17 @@ function buildPyramid(routes: ClimbingRoute[], boulder: boolean): PyramidRow[] {
 
 function ClimbingTab() {
   const [view, setView] = useState<'boulder' | 'roped' | 'hangboard'>('boulder')
+  const [gradeMode, setGradeMode] = useState<ClimbGradeMode>('standard')
   const routes = useLiveQuery(() => getAllRoutes(), []) ?? []
   const boulder = view === 'boulder'
-  const data = buildPyramid(routes, boulder)
+  const isPyramid = view !== 'hangboard'
+  // Only surface the Standard/Gym toggle once at least one gym-graded route
+  // exists, so users who never use gym grades don't see an empty extra control.
+  const hasGymGrades = useMemo(() => routes.some((r) => r.gymGrade != null), [routes])
+  const data = useMemo(
+    () => (isPyramid ? buildPyramid(routes, boulder, gradeMode) : []),
+    [routes, boulder, gradeMode, isPyramid],
+  )
 
   return (
     <div className="space-y-4">
@@ -311,6 +330,17 @@ function ClimbingTab() {
         value={view}
         onChange={setView}
       />
+
+      {isPyramid && hasGymGrades && (
+        <SegmentedControl
+          options={[
+            { value: 'standard', label: 'Standard' },
+            { value: 'gym', label: 'Gym grades' },
+          ]}
+          value={gradeMode}
+          onChange={setGradeMode}
+        />
+      )}
 
       {view === 'hangboard' ? (
         <HangboardView />
@@ -339,7 +369,15 @@ function ClimbingTab() {
             />
             <Bar dataKey="count" radius={[0, 4, 4, 0]}>
               {data.map((row, i) => {
-                const color = boulder ? vGradeToColor(row.grade) : gradeToColor(Number(row.grade))
+                // Gym grades use the global 0–35 numeric scale — the per-gym
+                // range isn't available in the Progress context (routes are
+                // fetched flat, without their session/gym), so fall back to it.
+                const color =
+                  gradeMode === 'gym'
+                    ? gradeToColor(Number(row.grade), { min: 0, max: 35 })
+                    : boulder
+                      ? vGradeToColor(row.grade)
+                      : gradeToColor(Number(row.grade))
                 // Onsight / flash sends get a gold outline over their grade colour.
                 return (
                   <Cell
