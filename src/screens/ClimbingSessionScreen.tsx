@@ -802,7 +802,7 @@ export default function ClimbingSessionScreen() {
         <ExercisePicker
           open={pickerOpen}
           onOpenChange={setPickerOpen}
-          categories={['climbing']}
+          categories={['climbing', 'rehab']}
           onSelect={(exs) => exs[0] && swapCurrent(exs[0])}
         />
       )}
@@ -810,7 +810,7 @@ export default function ClimbingSessionScreen() {
         open={addPickerOpen}
         onOpenChange={setAddPickerOpen}
         multiple
-        categories={['climbing']}
+        categories={['climbing', 'rehab']}
         onSelect={appendExercises}
       />
 

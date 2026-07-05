@@ -290,7 +290,7 @@ export default function SessionDetailScreen() {
         open={pickerOpen}
         onOpenChange={setPickerOpen}
         multiple
-        categories={session.type === 'climbing' ? ['climbing'] : ['strength']}
+        categories={session.type === 'climbing' ? ['climbing', 'rehab'] : ['strength', 'rehab']}
         onSelect={handleAddExercises}
       />
       <LogRouteSheet

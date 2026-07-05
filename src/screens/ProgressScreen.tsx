@@ -56,6 +56,9 @@ export default function ProgressScreen() {
           <TabsTrigger value="climbing" className="flex-1">
             Climbing
           </TabsTrigger>
+          <TabsTrigger value="rehab" className="flex-1">
+            Rehab
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="strength" className="pt-4">
           <StrengthTab />
@@ -65,6 +68,9 @@ export default function ProgressScreen() {
         </TabsContent>
         <TabsContent value="climbing" className="pt-4">
           <ClimbingTab />
+        </TabsContent>
+        <TabsContent value="rehab" className="pt-4">
+          <RehabTab />
         </TabsContent>
       </Tabs>
     </div>
@@ -182,6 +188,107 @@ function StrengthTab() {
             </div>
           ))}
         </div>
+      )}
+    </div>
+  )
+}
+
+// --- Rehab ------------------------------------------------------------------
+
+// Per-day series for a rehab exercise (A42): max hold for duration moves, max
+// weight if any load was used, else total reps that day (volume).
+function rehabSeries(
+  sets: LoggedSet[],
+  metric: 'duration' | 'weight' | 'reps',
+): { date: string; value: number }[] {
+  const byDay = new Map<string, { ts: number; value: number }>()
+  for (const s of sets) {
+    if (s.skipped) continue
+    const key = dayKey(s.loggedAt)
+    const v =
+      metric === 'duration' ? (s.durationSeconds ?? 0) : metric === 'weight' ? (s.weightKg ?? 0) : (s.actualReps ?? 0)
+    const cur = byDay.get(key)
+    if (metric === 'reps') {
+      byDay.set(key, { ts: s.loggedAt, value: (cur?.value ?? 0) + v })
+    } else if (!cur || v > cur.value) {
+      byDay.set(key, { ts: s.loggedAt, value: v })
+    }
+  }
+  return [...byDay.values()]
+    .sort((a, b) => a.ts - b.ts)
+    .map((d) => ({
+      date: new Date(d.ts).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
+      value: d.value,
+    }))
+}
+
+// Recovery / prehab work, kept separate from the strength charts (A42).
+function RehabTab() {
+  const allExercises = useLiveQuery(() => getAllExercises(), []) ?? []
+  const idsWithSets = useLiveQuery(() => getExerciseIdsWithSets(), [])
+  const loggedIds = useMemo(() => new Set(idsWithSets ?? []), [idsWithSets])
+  const exercises = useMemo(
+    () => allExercises.filter((e) => e.category === 'rehab' && loggedIds.has(e.id)),
+    [allExercises, loggedIds],
+  )
+  const [exerciseId, setExerciseId] = useState<string>('')
+  const selected = exercises.find((e) => e.id === exerciseId)
+  const sets = useLiveQuery(
+    () => (exerciseId ? getSetsForExercise(exerciseId) : Promise.resolve([])),
+    [exerciseId],
+  )
+  const metric: 'duration' | 'weight' | 'reps' =
+    selected?.trackingType === 'duration'
+      ? 'duration'
+      : (sets ?? []).some((s) => (s.weightKg ?? 0) > 0)
+        ? 'weight'
+        : 'reps'
+  const unit = metric === 'duration' ? 's' : metric === 'weight' ? 'kg' : ''
+  const data = rehabSeries(sets ?? [], metric)
+  const metricLabel = metric === 'duration' ? 'Longest hold' : metric === 'weight' ? 'Top weight' : 'Total reps'
+
+  return (
+    <div className="space-y-4">
+      <Select value={exerciseId} onValueChange={setExerciseId}>
+        <SelectTrigger>
+          <SelectValue placeholder="Choose a rehab exercise" />
+        </SelectTrigger>
+        <SelectContent>
+          {exercises.map((e) => (
+            <SelectItem key={e.id} value={e.id}>
+              {e.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {exercises.length === 0 ? (
+        <EmptyState icon={LineIcon} title="No rehab logged" subtitle="Log rehab exercises to track recovery work." />
+      ) : !exerciseId ? (
+        <EmptyState icon={LineIcon} title="Pick an exercise" subtitle="See your recovery trend over time." />
+      ) : data.length === 0 ? (
+        <EmptyState icon={LineIcon} title="No data yet" subtitle="Log some sets to chart progress." />
+      ) : (
+        <>
+          <p className="text-sm text-muted-foreground">{metricLabel} per session</p>
+          <ChartFrame>
+            <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+              <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={false} />
+              <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} width={48} unit={unit} />
+              <Tooltip
+                formatter={(v) => `${Number(v)}${unit ? ' ' + unit : ' reps'}`}
+                contentStyle={{
+                  background: 'var(--popover)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  color: 'var(--popover-foreground)',
+                }}
+              />
+              <Line type="monotone" dataKey="value" stroke="var(--primary)" strokeWidth={2} dot />
+            </LineChart>
+          </ChartFrame>
+        </>
       )}
     </div>
   )

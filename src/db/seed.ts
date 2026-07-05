@@ -94,6 +94,15 @@ const EXERCISES: ExerciseSeed[] = [
   { id: 'ex_run', name: 'Run', muscleGroups: [], trackingType: 'distance' },
   { id: 'ex_ride', name: 'Ride', muscleGroups: [], trackingType: 'distance' },
   { id: 'ex_row', name: 'Row', muscleGroups: [], trackingType: 'distance' },
+  // Rehab / prehab (A42) — discipline-agnostic recovery work.
+  { id: 'ex_theraband_external_rotation', name: 'Theraband external rotation', muscleGroups: ['shoulders'], trackingType: 'reps', category: 'rehab' },
+  { id: 'ex_wrist_roller', name: 'Wrist roller', muscleGroups: ['forearms'], trackingType: 'reps', category: 'rehab' },
+  { id: 'ex_rice_bucket', name: 'Rice bucket', muscleGroups: ['forearms'], trackingType: 'duration', category: 'rehab' },
+  { id: 'ex_reverse_wrist_curl', name: 'Reverse wrist curl', muscleGroups: ['forearms'], trackingType: 'reps', category: 'rehab' },
+  { id: 'ex_pronation_supination', name: 'Pronation/supination', muscleGroups: ['forearms'], trackingType: 'reps', category: 'rehab' },
+  { id: 'ex_shoulder_cars', name: 'Shoulder CARs', muscleGroups: ['shoulders'], trackingType: 'reps', category: 'rehab' },
+  { id: 'ex_hip_90_90', name: 'Hip 90/90', muscleGroups: ['hips'], trackingType: 'reps', category: 'rehab' },
+  { id: 'ex_dead_hang', name: 'Dead hang (passive)', muscleGroups: ['forearms', 'shoulders'], trackingType: 'duration', category: 'rehab' },
 ]
 
 const EXERCISE_NAME = new Map(EXERCISES.map((e) => [e.id, e.name]))

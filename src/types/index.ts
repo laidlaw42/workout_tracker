@@ -7,8 +7,8 @@ export type CardioActivityType = 'run' | 'ride' | 'row' | 'other'
 export type ClimbingStyle = 'bouldering' | 'top_rope' | 'lead'
 export type WallAngle = 'slab' | 'vertical' | 'overhang'
 export type TrackingType = 'reps' | 'duration' | 'distance'
-// Discipline bucket an exercise belongs to (A36).
-export type ExerciseCategory = 'strength' | 'cardio' | 'climbing'
+// Discipline bucket an exercise belongs to (A36); 'rehab' is discipline-agnostic (A42).
+export type ExerciseCategory = 'strength' | 'cardio' | 'climbing' | 'rehab'
 
 // theCrag tick types — bouldering subset
 export type BoulderTick = 'onsight' | 'flash' | 'send' | 'working' | 'repeat' | 'dab'

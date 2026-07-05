@@ -45,6 +45,7 @@ const CATEGORIES: { value: ExerciseCategory; label: string }[] = [
   { value: 'strength', label: 'Strength' },
   { value: 'cardio', label: 'Cardio' },
   { value: 'climbing', label: 'Climbing' },
+  { value: 'rehab', label: 'Rehab' },
 ]
 
 export function ExerciseFormSheet({
