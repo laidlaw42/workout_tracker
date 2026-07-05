@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { seedIfNeeded } from '@/db/seed'
-import { syncAllTagMeta } from '@/db/helpers'
+import { migrateWallAngles, syncAllTagMeta } from '@/db/helpers'
 
 function LoadingScreen() {
   return (
@@ -20,6 +20,8 @@ export function Root() {
     seedIfNeeded()
       // Backfill tag metadata for seeded/imported tags (A35), best-effort.
       .then(() => syncAllTagMeta().catch((err) => console.error('Tag sync failed', err)))
+      // Migrate legacy wallAngle → climbCharacter (A45), best-effort.
+      .then(() => migrateWallAngles().catch((err) => console.error('Wall-angle migration failed', err)))
       .catch((err) => console.error('Seeding failed', err))
       .finally(() => setReady(true))
   }, [])

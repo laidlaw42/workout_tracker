@@ -6,6 +6,8 @@ export type DisciplineType = 'strength' | 'cardio' | 'climbing'
 export type CardioActivityType = 'run' | 'ride' | 'row' | 'other'
 export type ClimbingStyle = 'bouldering' | 'top_rope' | 'lead'
 export type WallAngle = 'slab' | 'vertical' | 'overhang'
+// Physical character of a climb (A45) — supersedes WallAngle (a superset of it).
+export type ClimbCharacter = 'slab' | 'vertical' | 'overhang' | 'roof' | 'cave' | 'crack'
 export type TrackingType = 'reps' | 'duration' | 'distance'
 // Discipline bucket an exercise belongs to (A36); 'rehab' is discipline-agnostic (A42).
 export type ExerciseCategory = 'strength' | 'cardio' | 'climbing' | 'rehab'
@@ -210,8 +212,10 @@ export interface ClimbingRoute {
   ewbanksGrade?: number // e.g. 18, 25, 33
   gymGrade?: number // gym-specific 0–35 scale (never conflated with vGrade/ewbanksGrade)
   feltLikeGrade?: string // optional "felt like" grade, stored as its display string
-  wallAngle?: WallAngle
-  wallAngleDegrees?: number // Home board: -45 (slab) .. 0 (vertical) .. +90 (overhang)
+  wallAngle?: WallAngle // superseded by climbCharacter (A45); cleared when a route is saved
+  climbCharacter?: ClimbCharacter // physical character of the climb (A45)
+  climbStyles?: string[] // freeform style descriptors — crimpy, pumpy, … (A47)
+  wallAngleDegrees?: number // Home board: -45 (slab) .. 0 (vertical) .. +90 (overhang); Gym 0–90
   routeName?: string
   colour?: string // gym tape colour
   tick: ClimbingTick

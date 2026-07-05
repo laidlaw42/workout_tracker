@@ -368,6 +368,20 @@ export async function reopenSession(id: string): Promise<void> {
   })
 }
 
+// One-time migration of legacy wallAngle → climbCharacter (they map 1:1), then
+// clears wallAngle on every route (A45). Idempotent via a meta flag; run at
+// startup after seeding.
+export async function migrateWallAngles(): Promise<void> {
+  return run('migrateWallAngles', async () => {
+    if ((await db.meta.get('wallAngleMigrated'))?.value) return
+    await db.routes.toCollection().modify((r) => {
+      if (r.wallAngle && r.climbCharacter == null) r.climbCharacter = r.wallAngle
+      delete r.wallAngle
+    })
+    await db.meta.put({ key: 'wallAngleMigrated', value: true })
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Planned workouts (calendar)
 // ---------------------------------------------------------------------------

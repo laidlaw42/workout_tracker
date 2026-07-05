@@ -2,7 +2,14 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Check } from 'lucide-react'
 import { addRoute, updateRoute } from '@/db/helpers'
-import { EWBANKS_GRADES, STYLE_LABELS, TICK_TYPES, V_GRADES } from '@/lib/climbing'
+import {
+  CLIMB_CHARACTERS,
+  CLIMB_STYLE_TAGS,
+  EWBANKS_GRADES,
+  STYLE_LABELS,
+  TICK_TYPES,
+  V_GRADES,
+} from '@/lib/climbing'
 import { contrastText, gradeToColor, vGradeToColor } from '@/lib/gradeColors'
 import { getGymGradeRanges, type GradeRange } from '@/lib/prefs'
 import { ROUTE_COLOURS, findRouteColour } from '@/lib/routeColours'
@@ -22,7 +29,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
-import type { ClimbingRoute, ClimbingStyle, ClimbingTick, WallAngle } from '@/types'
+import type { ClimbCharacter, ClimbingRoute, ClimbingStyle, ClimbingTick } from '@/types'
 
 type Venue = 'gym' | 'crag' | 'home'
 
@@ -43,12 +50,6 @@ interface Props {
   onSaved: () => void
 }
 
-const WALL_ANGLES: { value: WallAngle; label: string }[] = [
-  { value: 'slab', label: 'Slab' },
-  { value: 'vertical', label: 'Vertical' },
-  { value: 'overhang', label: 'Overhang' },
-]
-
 export function LogRouteSheet({
   open,
   onOpenChange,
@@ -63,6 +64,9 @@ export function LogRouteSheet({
 }: Props) {
   const isBoard = venue === 'home'
   const isGym = venue === 'gym'
+  // Degree input is shown for Home (−45..90) and Gym (0..90); Crag has none (A45).
+  const showDegrees = isBoard || isGym
+  const degMin = isBoard ? -45 : 0
 
   const [style, setStyle] = useState<ClimbingStyle>(styleProp)
   // Grade system is per-session: kept across route logs (only reset on edit).
@@ -71,7 +75,8 @@ export function LogRouteSheet({
   const [ewbanks, setEwbanks] = useState<number | null>(null)
   const [gymGrade, setGymGrade] = useState<number | null>(null)
   const [feltLike, setFeltLike] = useState<string | null>(null)
-  const [wallAngle, setWallAngle] = useState<WallAngle | undefined>(undefined)
+  const [climbCharacter, setClimbCharacter] = useState<ClimbCharacter | undefined>(undefined)
+  const [climbStyles, setClimbStyles] = useState<string[]>([])
   const [wallAngleDeg, setWallAngleDeg] = useState('')
   const [tick, setTick] = useState<ClimbingTick | null>(null)
   const [routeName, setRouteName] = useState('')
@@ -95,7 +100,9 @@ export function LogRouteSheet({
       setEwbanks(editing.ewbanksGrade ?? null)
       setGymGrade(editing.gymGrade ?? null)
       setFeltLike(editing.feltLikeGrade ?? null)
-      setWallAngle(editing.wallAngle)
+      // Migrate a legacy wallAngle to climbCharacter (A45) — they map 1:1.
+      setClimbCharacter(editing.climbCharacter ?? editing.wallAngle)
+      setClimbStyles(editing.climbStyles ?? [])
       setWallAngleDeg(editing.wallAngleDegrees != null ? String(editing.wallAngleDegrees) : '')
       setTick(editing.tick)
       setRouteName(editing.routeName ?? '')
@@ -111,7 +118,8 @@ export function LogRouteSheet({
       setEwbanks(null)
       setGymGrade(null)
       setFeltLike(null)
-      setWallAngle(undefined)
+      setClimbCharacter(undefined)
+      setClimbStyles([])
       setWallAngleDeg('')
       setTick(null)
       setRouteName('')
@@ -132,7 +140,7 @@ export function LogRouteSheet({
     setWallAngleDeg((cur) => {
       const base = cur.trim() === '' || cur === '-' ? 0 : Number(cur)
       const next = (Number.isNaN(base) ? 0 : base) + delta
-      return String(Math.max(-45, Math.min(90, next)))
+      return String(Math.max(degMin, Math.min(90, next)))
     })
   }
 
@@ -192,7 +200,7 @@ export function LogRouteSheet({
     const degParsed = wallAngleDeg.trim() === '' ? undefined : Number(wallAngleDeg)
     const degClamped =
       degParsed != null && !Number.isNaN(degParsed)
-        ? Math.max(-45, Math.min(90, Math.round(degParsed)))
+        ? Math.max(degMin, Math.min(90, Math.round(degParsed)))
         : undefined
     const record = {
       sessionId,
@@ -201,8 +209,10 @@ export function LogRouteSheet({
       ewbanksGrade: gradeMode === 'ewbanks' ? (ewbanks ?? undefined) : undefined,
       gymGrade: gradeMode === 'gym' ? (gymGrade ?? undefined) : undefined,
       feltLikeGrade: feltLike ?? undefined,
-      wallAngle: isBoard ? undefined : wallAngle, // enum for gym/crag
-      wallAngleDegrees: isBoard ? degClamped : undefined, // degrees for Home board
+      climbCharacter, // A45 — supersedes wallAngle
+      wallAngle: undefined, // cleared: migrated to climbCharacter (A45)
+      climbStyles: climbStyles.length ? climbStyles : undefined, // A47
+      wallAngleDegrees: showDegrees ? degClamped : undefined, // Home −45..90 / Gym 0..90
       routeName: routeName.trim() || undefined,
       colour: isGym ? colour.trim() || undefined : undefined, // colour is Gym-only (A23)
       attempts: attemptsLocked ? 1 : attempts.trim() ? Number(attempts) : undefined,
@@ -295,10 +305,27 @@ export function LogRouteSheet({
             </div>
           </div>
 
-          {/* 4 — Wall angle */}
+          {/* 4 — Character (A45) — replaces the old Slab/Vertical/Overhang toggle. */}
           <div className="space-y-2">
-            <Label htmlFor="wall-deg">Wall angle</Label>
-            {isBoard ? (
+            <Label>Character</Label>
+            <div className="grid grid-cols-3 gap-2">
+              {CLIMB_CHARACTERS.map((c) => (
+                <button
+                  key={c.value}
+                  type="button"
+                  onClick={() => setClimbCharacter((cur) => (cur === c.value ? undefined : c.value))}
+                  className={cn(
+                    'min-h-10 rounded-lg border text-sm font-medium transition-colors',
+                    climbCharacter === c.value
+                      ? 'border-primary bg-primary/10 text-foreground'
+                      : 'border-border text-muted-foreground',
+                  )}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+            {showDegrees && (
               <>
                 <div className="flex items-center gap-2">
                   <HoldButton
@@ -313,13 +340,13 @@ export function LogRouteSheet({
                       id="wall-deg"
                       inputMode="numeric"
                       value={wallAngleDeg}
-                      placeholder="0"
+                      placeholder="Angle (°) — optional"
                       className="pr-6 text-center"
                       onChange={(e) => {
                         const raw = e.target.value.replace(/[^0-9-]/g, '')
                         if (raw === '' || raw === '-') return setWallAngleDeg(raw)
                         const n = Number(raw)
-                        setWallAngleDeg(Number.isNaN(n) ? '' : String(Math.max(-45, Math.min(90, n))))
+                        setWallAngleDeg(Number.isNaN(n) ? '' : String(Math.max(degMin, Math.min(90, n))))
                       }}
                     />
                     <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground">
@@ -335,28 +362,38 @@ export function LogRouteSheet({
                   </HoldButton>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  −45 to +90 · 0° = vertical, 45° = overhang
+                  {isBoard ? '−45 to +90 · 0° = vertical, 45° = overhang' : '0–90° · optional'}
                 </p>
               </>
-            ) : (
-              <div className="grid grid-cols-3 gap-2">
-                {WALL_ANGLES.map((a) => (
+            )}
+          </div>
+
+          {/* 4b — Style tags (A47) */}
+          <div className="space-y-2">
+            <Label>Style</Label>
+            <div className="flex flex-wrap gap-2">
+              {CLIMB_STYLE_TAGS.map((s) => {
+                const on = climbStyles.includes(s)
+                return (
                   <button
-                    key={a.value}
+                    key={s}
                     type="button"
-                    onClick={() => setWallAngle((cur) => (cur === a.value ? undefined : a.value))}
+                    aria-pressed={on}
+                    onClick={() =>
+                      setClimbStyles((cur) => (on ? cur.filter((x) => x !== s) : [...cur, s]))
+                    }
                     className={cn(
-                      'min-h-10 rounded-lg border text-sm font-medium transition-colors',
-                      wallAngle === a.value
+                      'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                      on
                         ? 'border-primary bg-primary/10 text-foreground'
                         : 'border-border text-muted-foreground',
                     )}
                   >
-                    {a.label}
+                    {s}
                   </button>
-                ))}
-              </div>
-            )}
+                )
+              })}
+            </div>
           </div>
 
           {/* 5 — Attempts (locked to 1 for onsight / flash) */}

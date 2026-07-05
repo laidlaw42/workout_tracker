@@ -34,7 +34,7 @@ import {
 } from '@/components/ui/select'
 import { dayKey } from '@/lib/date'
 import { formatPace } from '@/lib/formatDuration'
-import { isCleanTick, vGradeFromIndex, vGradeIndex } from '@/lib/climbing'
+import { CLIMB_CHARACTER_LABEL, isCleanTick, vGradeFromIndex, vGradeIndex } from '@/lib/climbing'
 import { gradeToColor, vGradeToColor } from '@/lib/gradeColors'
 import type { CardioActivityType, ClimbingRoute, LoggedHang, LoggedSet } from '@/types'
 
@@ -416,6 +416,31 @@ function buildPyramid(routes: ClimbingRoute[], boulder: boolean, mode: ClimbGrad
     }))
 }
 
+// Count occurrences by a derived key, sorted most-frequent first.
+function tally<T>(items: T[], key: (t: T) => string | undefined): { label: string; count: number }[] {
+  const m = new Map<string, number>()
+  for (const it of items) {
+    const k = key(it)
+    if (k) m.set(k, (m.get(k) ?? 0) + 1)
+  }
+  return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([label, count]) => ({ label, count }))
+}
+
+function Breakdown({ title, items }: { title: string; items: { label: string; count: number }[] }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium text-muted-foreground">{title}</p>
+      <div className="flex flex-wrap gap-2">
+        {items.map((i) => (
+          <span key={i.label} className="rounded-full bg-card px-2.5 py-1 text-xs">
+            {i.label} <span className="text-muted-foreground">×{i.count}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function ClimbingTab() {
   const [view, setView] = useState<'boulder' | 'roped' | 'hangboard'>('boulder')
   const [gradeMode, setGradeMode] = useState<ClimbGradeMode>('standard')
@@ -431,6 +456,20 @@ function ClimbingTab() {
   const data = useMemo(
     () => (isPyramid ? buildPyramid(routes, boulder, effectiveMode) : []),
     [routes, boulder, effectiveMode, isPyramid],
+  )
+  // Character (A45) and style (A47) breakdowns, over clean sends.
+  const cleanSends = useMemo(() => routes.filter((r) => isCleanTick(r.tick)), [routes])
+  const charCounts = useMemo(
+    () =>
+      tally(cleanSends, (r) => {
+        const c = r.climbCharacter ?? r.wallAngle
+        return c ? CLIMB_CHARACTER_LABEL[c] : undefined
+      }),
+    [cleanSends],
+  )
+  const styleCounts = useMemo(
+    () => tally(cleanSends.flatMap((r) => r.climbStyles ?? []), (s) => s),
+    [cleanSends],
   )
 
   return (
@@ -505,6 +544,13 @@ function ClimbingTab() {
             </Bar>
           </BarChart>
         </ChartFrame>
+      )}
+
+      {isPyramid && (charCounts.length > 0 || styleCounts.length > 0) && (
+        <div className="space-y-3 pt-1">
+          {charCounts.length > 0 && <Breakdown title="Character — clean sends" items={charCounts} />}
+          {styleCounts.length > 0 && <Breakdown title="Style — clean sends" items={styleCounts} />}
+        </div>
       )}
     </div>
   )

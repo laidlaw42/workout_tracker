@@ -1,5 +1,5 @@
 import { Pencil, Trash2 } from 'lucide-react'
-import { STYLE_LABELS, tickBadgeClass, tickLabel } from '@/lib/climbing'
+import { CLIMB_CHARACTER_LABEL, STYLE_LABELS, tickBadgeClass, tickLabel } from '@/lib/climbing'
 import { contrastText, gradeToColor, vGradeToColor } from '@/lib/gradeColors'
 import { findRouteColour } from '@/lib/routeColours'
 import { useTickSymbol } from '@/hooks/useTickSymbol'
@@ -46,6 +46,8 @@ export function RouteCard({ route, onClick, onDelete }: Props) {
   // Attempts (F27): Onsight / Flash always read as a single attempt (A23); other
   // ticks show the entered value, and the label is omitted when unknown.
   const attemptCount = route.tick === 'onsight' || route.tick === 'flash' ? 1 : route.attempts
+  // Character (A45), falling back to a legacy wallAngle until it's migrated.
+  const character = route.climbCharacter ?? route.wallAngle
 
   const card = (
     <button
@@ -93,7 +95,24 @@ export function RouteCard({ route, onClick, onDelete }: Props) {
               {attemptCount} attempt{attemptCount === 1 ? '' : 's'}
             </span>
           )}
+          {character && (
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+              {CLIMB_CHARACTER_LABEL[character]}
+            </span>
+          )}
         </div>
+        {route.climbStyles && route.climbStyles.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {route.climbStyles.map((s) => (
+              <span
+                key={s}
+                className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+              >
+                {s}
+              </span>
+            ))}
+          </div>
+        )}
         {(route.routeName || route.wallAngleDegrees != null || route.feltLikeGrade) && (
           <p className="truncate text-xs text-muted-foreground">
             {[

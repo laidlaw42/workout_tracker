@@ -1,4 +1,26 @@
-import type { ClimbingStyle, ClimbingTick } from '@/types'
+import type { ClimbCharacter, ClimbingStyle, ClimbingTick } from '@/types'
+
+// Physical character of a climb (A45) — replaces the old Slab/Vertical/Overhang
+// wall-angle toggle with a 6-option superset.
+export const CLIMB_CHARACTERS: { value: ClimbCharacter; label: string }[] = [
+  { value: 'slab', label: 'Slab' },
+  { value: 'vertical', label: 'Vertical' },
+  { value: 'overhang', label: 'Overhang' },
+  { value: 'roof', label: 'Roof' },
+  { value: 'cave', label: 'Cave' },
+  { value: 'crack', label: 'Crack' },
+]
+
+export const CLIMB_CHARACTER_LABEL: Record<ClimbCharacter, string> = Object.fromEntries(
+  CLIMB_CHARACTERS.map((c) => [c.value, c.label]),
+) as Record<ClimbCharacter, string>
+
+// Freeform style descriptors for a route (A47), multi-select.
+export const CLIMB_STYLE_TAGS = [
+  'Crimpy', 'Juggy', 'Pumpy', 'Slopey', 'Pinchy', 'Dynamic', 'Static', 'Technical',
+  'Powerful', 'Endurance', 'Compression', 'Balancy', 'Mantle', 'Stemmy', 'Roofed',
+  'Fingery', 'Thuggish',
+] as const
 
 // --- Grades -----------------------------------------------------------------
 
