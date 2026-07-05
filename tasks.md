@@ -177,32 +177,23 @@ instead of the old placeholder-only `prefillWeight`.
   no `SetRow` to pre-fill there. F22 applies to `ExerciseCard` (strength + climbing-workout
   exercises).
 
-### ⬜ F23. Resume a completed workout as an active session
+### ✅ F23. Resume a completed workout as an active session
 
-Distinct from the existing **"Use as workout"** button (`SessionDetailScreen` lines 216–220,
-calls `repeatSession(id)` which creates a *new* session from the historical one as a template).
-F23 reactivates the **same** session record. Do not replace "Use as workout".
+_Done (committed):_ a new `reopenSession(id)` helper reactivates the **same** session record in
+one transaction — reads it, rolls the gap `Date.now() − endedAt` into `pausedDuration`, sets
+`lastActiveAt`, and `delete`s `endedAt` (read-modify-put so the property is truly removed).
+`SessionDetailScreen` shows a **"Resume workout"** button beside "Use as workout" (only when the
+session is completed; `repeatSession`'s "Use as workout" is untouched) with a confirm dialog,
+then navigates to `/session/${session.type}/${id}`.
 
-- Add a **"Resume workout"** button beside it (both render when `!editing`) for any completed
-  session, with the confirmation: _"Resume this workout? It will reopen as an active session and
-  you can continue logging sets."_
-- On confirm — cleanest as a new `reopenSession(id)` helper doing it in one transaction:
-  - Clear `endedAt` (set `undefined`). _Note: Dexie `update({ endedAt: undefined })` deletes the
-    property, which then reads as unfinished — a dedicated helper makes this explicit and
-    testable._
-  - `pausedDuration = (pausedDuration ?? 0) + (Date.now() − endedAt)` so the active clock counts
-    only real workout time, not the gap between sessions (reuses A34's `pausedDuration`, which
-    `useSessionTimer` already seeds from).
-  - Set `lastActiveAt = Date.now()` via `updateSessionHeartbeat()` (A48) — or fold into the same
-    helper.
-  - Leave all logged sets / routes / cardio / hangs **intact**.
-- Navigate to `/session/${session.type}/${id}` (the same mapping `SessionCard` / `HomeScreen`
-  use for in-progress sessions).
-- The session screen already restores logged sets as completed green rows with the next unlogged
-  set active (A34). If every set was logged it opens at "All sets logged" with the existing
-  mid-session **Add exercise** button (A29).
-- The A34 resume banner picks it up automatically (`endedAt` null + recent `lastActiveAt`), so
-  no extra HomeScreen work is needed.
+- **Browser-verified** end-to-end: a session that ran 30 min and finished 1 h ago reopened with
+  `endedAt` cleared, `pausedDuration` ≈ 61 min (the gap), `lastActiveAt` set, both logged sets
+  preserved as green rows, set 3 active, and the header timer showing **30:01** — i.e. real
+  workout time only, not the wall-clock gap.
+- Logged sets / routes / cardio / hangs are left intact; the A34 restore logic shows them as
+  completed rows, and the A34 resume banner treats the reopened session like any other
+  in-progress one (`endedAt` null + recent `lastActiveAt`). If every set was already logged it
+  opens at "All sets logged" with the mid-session **Add exercise** button (A29).
 
 ---
 

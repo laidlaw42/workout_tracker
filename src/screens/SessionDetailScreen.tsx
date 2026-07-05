@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Check, Pencil, Plus, Repeat, Trash2 } from 'lucide-react'
+import { Check, Pencil, Play, Plus, Repeat, Trash2 } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import {
   addSet,
@@ -13,6 +13,7 @@ import {
   getRoutesForSession,
   getSessionById,
   getSetsForSession,
+  reopenSession,
   repeatSession,
   updateCardio,
   updateSession,
@@ -77,6 +78,7 @@ export default function SessionDetailScreen() {
 
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [confirmResume, setConfirmResume] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [routeSheetOpen, setRouteSheetOpen] = useState(false)
   const [editingRoute, setEditingRoute] = useState<ClimbingRoute | null>(null)
@@ -124,6 +126,18 @@ export default function SessionDetailScreen() {
       navigate(`/session/${session.type}/${newId}`)
     } catch {
       toast.error('Could not start workout')
+    }
+  }
+
+  // Reactivate this same session and continue logging (F23) — distinct from
+  // "Use as workout", which snapshots it onto a brand-new session.
+  async function handleResume() {
+    if (!session) return
+    try {
+      await reopenSession(id)
+      navigate(`/session/${session.type}/${id}`)
+    } catch {
+      toast.error('Could not resume workout')
     }
   }
 
@@ -214,9 +228,16 @@ export default function SessionDetailScreen() {
         </div>
 
         {!editing && (
-          <Button variant="outline" className="w-full" onClick={useAsWorkout}>
-            <Repeat className="size-4" /> Use as workout
-          </Button>
+          <div className="flex flex-col gap-2">
+            {session.endedAt != null && (
+              <Button variant="outline" className="w-full" onClick={() => setConfirmResume(true)}>
+                <Play className="size-4" /> Resume workout
+              </Button>
+            )}
+            <Button variant="outline" className="w-full" onClick={useAsWorkout}>
+              <Repeat className="size-4" /> Use as workout
+            </Button>
+          </div>
         )}
 
         {session.type === 'strength' && (
@@ -297,6 +318,21 @@ export default function SessionDetailScreen() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteSession}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmResume} onOpenChange={setConfirmResume}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Resume this workout?</AlertDialogTitle>
+            <AlertDialogDescription>
+              It will reopen as an active session and you can continue logging sets.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResume}>Resume</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

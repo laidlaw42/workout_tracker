@@ -341,6 +341,25 @@ export async function endSession(id: string): Promise<void> {
   })
 }
 
+// Reopen a completed session as active again (F23): clear endedAt, roll the gap
+// since it finished into pausedDuration (so the resumed clock counts only real
+// workout time, not the time away), and touch lastActiveAt so the A34 resume
+// banner treats it like any in-progress session. Logged sets/routes/cardio/hangs
+// are untouched. No-op if the session is missing or already active.
+export async function reopenSession(id: string): Promise<void> {
+  return run('reopenSession', async () => {
+    await db.transaction('rw', db.sessions, async () => {
+      const s = await db.sessions.get(id)
+      if (!s || s.endedAt == null) return
+      const gap = Math.max(0, Date.now() - s.endedAt)
+      s.pausedDuration = (s.pausedDuration ?? 0) + gap
+      s.lastActiveAt = Date.now()
+      delete s.endedAt // read-modify-put so the property is truly removed
+      await db.sessions.put(s)
+    })
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Planned workouts (calendar)
 // ---------------------------------------------------------------------------
