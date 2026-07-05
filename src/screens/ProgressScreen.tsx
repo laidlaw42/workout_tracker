@@ -146,10 +146,11 @@ function StrengthTab() {
         <EmptyState icon={LineIcon} title="No data yet" subtitle="Log some sets to chart progress." />
       ) : (
         <ChartFrame>
-          <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
+          <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={false} />
-            <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} width={40} unit="kg" />
+            {/* width 48 fits 3-digit weights + "kg" without clipping (F29). */}
+            <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} width={48} unit="kg" />
             <Tooltip
               contentStyle={{
                 background: 'var(--popover)',
@@ -234,14 +235,15 @@ function CardioTab() {
         <EmptyState icon={LineIcon} title="No data yet" subtitle="Log some cardio to chart trends." />
       ) : (
         <ChartFrame>
-          <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
+          <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={false} />
+            {/* width 48 fits pace MM:SS ("5:42") without clipping (F29). */}
             <YAxis
               tick={AXIS_TICK}
               tickLine={false}
               axisLine={false}
-              width={44}
+              width={48}
               tickFormatter={(v: number) => (metric === 'pace' ? formatPace(v).replace(' /km', '') : String(v))}
             />
             <Tooltip
@@ -353,13 +355,14 @@ function ClimbingTab() {
         <ChartFrame>
           <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, bottom: 4, left: 8 }}>
             <XAxis type="number" allowDecimals={false} tick={AXIS_TICK} tickLine={false} axisLine={false} />
+            {/* width 44 fits grade labels ("V10", "35") without clipping (F29). */}
             <YAxis
               type="category"
               dataKey="grade"
               tick={AXIS_TICK}
               tickLine={false}
               axisLine={false}
-              width={40}
+              width={44}
             />
             <Tooltip
               cursor={{ fill: 'var(--muted)' }}
@@ -474,10 +477,11 @@ function HangboardView() {
         <EmptyState icon={LineIcon} title="No data yet" subtitle="Log some hangs to chart progress." />
       ) : (
         <ChartFrame>
-          <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
+          <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
             <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={false} />
-            <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} width={40} unit={unit} />
+            {/* width 48 fits "120s" / 3-digit weights + unit without clipping (F29). */}
+            <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} width={48} unit={unit} />
             <Tooltip
               formatter={(v) => `${Number(v)} ${unit}`}
               contentStyle={{
