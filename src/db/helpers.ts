@@ -301,6 +301,15 @@ export async function createSession(s: Omit<WorkoutSession, 'id'>): Promise<stri
   })
 }
 
+// Touches only lastActiveAt (A48). Called on a ~10s interval while a session
+// screen is mounted so resume detection can tell a live session from an orphaned
+// unfinished record.
+export async function updateSessionHeartbeat(id: string): Promise<void> {
+  return run('updateSessionHeartbeat', async () => {
+    await db.sessions.update(id, { lastActiveAt: Date.now() })
+  })
+}
+
 export async function updateSession(
   id: string,
   updates: Partial<WorkoutSession>,
@@ -514,12 +523,17 @@ export async function getSessionById(id: string): Promise<WorkoutSession | undef
   return run('getSessionById', () => db.sessions.get(id))
 }
 
-// The most recently started session that was never finished (A34) — used to show
-// the "unfinished workout" resume banner on Home.
+// The most recently active session that was never finished (A34) — used to show
+// the "unfinished workout" resume banner on Home. Ordered by lastActiveAt (the
+// A48 heartbeat) with a startedAt fallback, so a genuinely in-progress session
+// wins over an orphaned unfinished record a bug may have left behind.
 export async function getUnfinishedSession(): Promise<WorkoutSession | undefined> {
   return run('getUnfinishedSession', async () => {
-    const list = await db.sessions.orderBy('startedAt').reverse().toArray()
-    return list.find((s) => s.endedAt == null)
+    const unfinished = (await db.sessions.toArray()).filter((s) => s.endedAt == null)
+    if (unfinished.length === 0) return undefined
+    return unfinished.sort(
+      (a, b) => (b.lastActiveAt ?? b.startedAt) - (a.lastActiveAt ?? a.startedAt),
+    )[0]
   })
 }
 

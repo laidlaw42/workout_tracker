@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { updateSession } from '@/db/helpers'
+import { updateSession, updateSessionHeartbeat } from '@/db/helpers'
 
 export interface SessionTimer {
   elapsed: number
@@ -38,6 +38,16 @@ export function useSessionTimer(
     const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
   }, [paused])
+
+  // Heartbeat (A48): while a session screen is mounted, touch lastActiveAt once
+  // immediately and then every 10s — even while paused, since the session is
+  // still open. Lets resume detection prefer a live session over an orphan.
+  useEffect(() => {
+    if (!sessionId) return
+    void updateSessionHeartbeat(sessionId)
+    const hb = setInterval(() => void updateSessionHeartbeat(sessionId), 10_000)
+    return () => clearInterval(hb)
+  }, [sessionId])
 
   const reference = paused && pauseStart != null ? pauseStart : now
   const elapsed = Math.max(0, Math.floor((reference - startedAt - pausedTotalMs) / 1000))

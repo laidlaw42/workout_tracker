@@ -130,6 +130,10 @@ export interface WorkoutSession {
   // unfinished session (A34) resumes its elapsed clock correctly after the app
   // is closed: elapsed = now - startedAt - pausedDuration.
   pausedDuration?: number
+  // Heartbeat written every ~10s while a session screen is mounted (A48), so
+  // resume detection can prefer a genuinely in-progress session over an orphaned
+  // unfinished record. Absent on sessions created before heartbeats existed.
+  lastActiveAt?: number
 }
 
 // ---------------------------------------------------------------------------

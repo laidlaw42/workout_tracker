@@ -132,20 +132,21 @@ derives its mode from the route's own `gymGrade`. Browser-verified: mode survive
 and a full remount, the Flash tick is preserved across a toggle (no field reset), and the
 preference writes/reads correctly.
 
-### 🟡 A48. Background session persistence — finish the heartbeat
+### ✅ A48. Background session persistence — heartbeat done
 
-Most of this is **already done** by A34 + `useSessionTimer` and the existing await-first
-handlers: timer state reconstructs from the DB record on remount, action handlers write before
-updating UI, and last-weight pre-fill covers unsaved-input recovery. **The only missing piece
-is the heartbeat:**
+The other three pillars were already satisfied by A34 + `useSessionTimer` + the await-first
+handlers (timer reconstructs from the DB on remount, actions write before UI, last-weight
+pre-fill). The remaining heartbeat is now _done (committed):_
 
-- Add `lastActiveAt?: number` to `WorkoutSession` and a lightweight `updateSessionHeartbeat(id)`
-  helper; write it every 10 s during an active session from each session screen. (Unindexed →
-  no Dexie version bump.)
-- Have `getUnfinishedSession()` / the HomeScreen resume banner consult `lastActiveAt` so a
-  genuinely in-progress session is distinguished from an orphaned record.
-- The "immediate writes" and "timer-from-DB" bullets of the original task are **verification-
-  only** — already satisfied.
+- Added `lastActiveAt?: number` to `WorkoutSession` (unindexed — no Dexie version bump) and a
+  lightweight `updateSessionHeartbeat(id)` helper.
+- `useSessionTimer` writes the heartbeat once on mount and every 10 s while a session screen is
+  mounted (even while paused), so it covers all three session screens from one place.
+- `getUnfinishedSession()` now orders unfinished sessions by `lastActiveAt ?? startedAt`, so a
+  genuinely in-progress session wins over an orphaned record a bug may have left unfinished
+  (nothing is hidden, so orphans stay discardable once they're the most-recent unfinished).
+- Browser-verified: `lastActiveAt` is written on mount and advances ~10 s per tick, and the
+  resume banner surfaces the recently-active session over an orphan with a later `startedAt`.
 
 ---
 
