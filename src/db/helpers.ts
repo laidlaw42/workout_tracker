@@ -2,6 +2,7 @@ import Dexie from 'dexie'
 import { db } from './db'
 import { generateId } from '@/lib/id'
 import { normalizeTags } from '@/lib/tags'
+import { paletteColourForOrder } from '@/lib/tagColors'
 import { STYLE_LABELS, isCleanTick, vGradeIndex } from '@/lib/climbing'
 import { deriveSessionKind, type SessionKind } from '@/lib/badges'
 import type {
@@ -17,6 +18,7 @@ import type {
   PersonalRecord,
   PlannedWorkout,
   PRType,
+  TagMeta,
   TemplateExercise,
   WorkoutSession,
   WorkoutTemplate,
@@ -52,7 +54,9 @@ export async function upsertExercise(
 ): Promise<string> {
   return run('upsertExercise', async () => {
     const id = generateId()
-    await db.exercises.put({ ...e, tags: normalizeTags(e.tags), id, createdAt: Date.now() })
+    const tags = normalizeTags(e.tags)
+    await db.exercises.put({ ...e, tags, id, createdAt: Date.now() })
+    await ensureTags(tags)
     return id
   })
 }
@@ -80,11 +84,145 @@ export async function updateExercise(
         }
       }
     })
+    // Register any new tags AFTER the exercises/templates transaction (the tags
+    // table is not in that transaction's scope).
+    if (normalized.tags) await ensureTags(normalized.tags)
   })
 }
 
 export async function deleteExercise(id: string): Promise<void> {
   return run('deleteExercise', () => db.exercises.delete(id))
+}
+
+// ---------------------------------------------------------------------------
+// Tags (A35) — per-tag colour + default-selection metadata
+// ---------------------------------------------------------------------------
+
+// All tag metadata, in creation order (which drives palette cycling + display).
+export async function getAllTags(): Promise<TagMeta[]> {
+  return run('getAllTags', async () => {
+    const list = await db.tags.toArray()
+    return list.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))
+  })
+}
+
+// Registers metadata for any tag names not yet stored, assigning each the next
+// palette colour in creation order. Idempotent — existing tags are left as-is.
+export async function ensureTags(names: string[]): Promise<void> {
+  return run('ensureTags', async () => {
+    const norm = normalizeTags(names)
+    if (norm.length === 0) return
+    await db.transaction('rw', db.tags, async () => {
+      const all = await db.tags.toArray()
+      const existing = new Set(all.map((t) => t.name))
+      const missing = norm.filter((n) => !existing.has(n))
+      if (missing.length === 0) return
+      let next = all.reduce((m, t) => Math.max(m, t.order + 1), 0)
+      const toAdd: TagMeta[] = missing.map((name) => ({
+        name,
+        colour: paletteColourForOrder(next),
+        order: next++,
+      }))
+      await db.tags.bulkAdd(toAdd)
+    })
+  })
+}
+
+// Backfills metadata for every tag currently used on an exercise or template, so
+// tags that predate this feature (seed/import) show up in the manager with a
+// palette colour. Called once at startup after seeding.
+export async function syncAllTagMeta(): Promise<void> {
+  return run('syncAllTagMeta', async () => {
+    const [exercises, templates] = await Promise.all([
+      db.exercises.toArray(),
+      db.templates.toArray(),
+    ])
+    const used = new Set<string>()
+    for (const e of exercises) for (const t of e.tags) used.add(t)
+    for (const t of templates) for (const tag of t.tags) used.add(tag)
+    await ensureTags([...used].sort())
+  })
+}
+
+export async function setTagColour(name: string, colour: string): Promise<void> {
+  return run('setTagColour', async () => {
+    await db.tags.update(name, { colour })
+  })
+}
+
+export async function setTagDefault(name: string, isDefault: boolean): Promise<void> {
+  return run('setTagDefault', async () => {
+    await db.tags.update(name, { isDefault })
+  })
+}
+
+// Tag names pre-applied to new exercises / templates, in display order.
+export async function getDefaultTags(): Promise<string[]> {
+  return run('getDefaultTags', async () => {
+    const list = await db.tags.filter((t) => t.isDefault === true).toArray()
+    return list.sort((a, b) => a.order - b.order).map((t) => t.name)
+  })
+}
+
+// Renames a tag everywhere: its metadata, and the denormalised tag strings on
+// every exercise and template. If the new name already exists, the two merge
+// (the target's colour/default win) and the old metadata row is dropped.
+export async function renameTag(oldName: string, newName: string): Promise<void> {
+  return run('renameTag', async () => {
+    const from = oldName.trim().toLowerCase()
+    const to = normalizeTags([newName])[0]
+    if (!to || from === to) return
+    await db.transaction('rw', [db.exercises, db.templates, db.tags], async () => {
+      const exercises = await db.exercises.toArray()
+      for (const e of exercises) {
+        if (e.tags.includes(from)) {
+          await db.exercises.update(e.id, {
+            tags: normalizeTags(e.tags.map((t) => (t === from ? to : t))),
+          })
+        }
+      }
+      const templates = await db.templates.toArray()
+      for (const t of templates) {
+        if (t.tags.includes(from)) {
+          await db.templates.update(t.id, {
+            tags: normalizeTags(t.tags.map((x) => (x === from ? to : x))),
+          })
+        }
+      }
+      const target = await db.tags.get(to)
+      const source = await db.tags.get(from)
+      if (!target && source) {
+        // Fresh name — carry the metadata across by renaming the row's key.
+        await db.tags.delete(from)
+        await db.tags.put({ ...source, name: to })
+      } else {
+        // Target exists (merge) — just drop the old row.
+        await db.tags.delete(from)
+      }
+    })
+  })
+}
+
+// Removes a tag from every exercise and template, then deletes its metadata.
+export async function deleteTag(name: string): Promise<void> {
+  return run('deleteTag', async () => {
+    const tag = name.trim().toLowerCase()
+    await db.transaction('rw', [db.exercises, db.templates, db.tags], async () => {
+      const exercises = await db.exercises.toArray()
+      for (const e of exercises) {
+        if (e.tags.includes(tag)) {
+          await db.exercises.update(e.id, { tags: e.tags.filter((t) => t !== tag) })
+        }
+      }
+      const templates = await db.templates.toArray()
+      for (const t of templates) {
+        if (t.tags.includes(tag)) {
+          await db.templates.update(t.id, { tags: t.tags.filter((x) => x !== tag) })
+        }
+      }
+      await db.tags.delete(tag)
+    })
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -119,11 +257,12 @@ export async function upsertTemplate(
   return run('upsertTemplate', async () => {
     const id = t.id ?? generateId()
     const existing = t.id ? await db.templates.get(t.id) : undefined
+    const tags = normalizeTags(t.tags)
     const record: WorkoutTemplate = {
       id,
       name: t.name,
       type: t.type,
-      tags: normalizeTags(t.tags),
+      tags,
       exercises: t.exercises,
       cardioActivity: t.cardioActivity,
       targetDurationSeconds: t.targetDurationSeconds,
@@ -135,6 +274,7 @@ export async function upsertTemplate(
       createdAt: existing?.createdAt ?? Date.now(),
     }
     await db.templates.put(record)
+    await ensureTags(tags)
     return id
   })
 }
@@ -374,6 +514,15 @@ export async function getSessionById(id: string): Promise<WorkoutSession | undef
   return run('getSessionById', () => db.sessions.get(id))
 }
 
+// The most recently started session that was never finished (A34) — used to show
+// the "unfinished workout" resume banner on Home.
+export async function getUnfinishedSession(): Promise<WorkoutSession | undefined> {
+  return run('getUnfinishedSession', async () => {
+    const list = await db.sessions.orderBy('startedAt').reverse().toArray()
+    return list.find((s) => s.endedAt == null)
+  })
+}
+
 // Creates a live session from a template and marks the template used. Returns
 // the new id + type so the caller can navigate. Shared by the template detail
 // screen and the planner's "Start workout".
@@ -426,6 +575,17 @@ export async function getSetsForSession(sessionId: string): Promise<LoggedSet[]>
       .between([sessionId, MIN], [sessionId, MAX])
       .toArray(),
   )
+}
+
+// Distinct exercise ids that have at least one logged set (F17) — the Progress
+// strength picker uses this to hide exercises that have never been logged.
+export async function getExerciseIdsWithSets(): Promise<string[]> {
+  return run('getExerciseIdsWithSets', async () => {
+    const keys = (await db.sets
+      .orderBy('[exerciseId+loggedAt]')
+      .keys()) as unknown as [string, number][]
+    return [...new Set(keys.map((k) => k[0]))]
+  })
 }
 
 export async function getSetsForExercise(exerciseId: string): Promise<LoggedSet[]> {
@@ -693,12 +853,13 @@ interface ExportBundle {
     hangs: LoggedHang[]
     prs: PersonalRecord[]
     plannedWorkouts?: PlannedWorkout[]
+    tags?: TagMeta[]
   }
 }
 
 export async function exportAllData(): Promise<string> {
   return run('exportAllData', async () => {
-    const [exercises, templates, sessions, sets, cardio, routes, hangs, prs, plannedWorkouts] =
+    const [exercises, templates, sessions, sets, cardio, routes, hangs, prs, plannedWorkouts, tags] =
       await Promise.all([
         db.exercises.toArray(),
         db.templates.toArray(),
@@ -709,11 +870,23 @@ export async function exportAllData(): Promise<string> {
         db.hangs.toArray(),
         db.prs.toArray(),
         db.plannedWorkouts.toArray(),
+        db.tags.toArray(),
       ])
     const bundle: ExportBundle = {
       version: 1,
       exportedAt: Date.now(),
-      data: { exercises, templates, sessions, sets, cardio, routes, hangs, prs, plannedWorkouts },
+      data: {
+        exercises,
+        templates,
+        sessions,
+        sets,
+        cardio,
+        routes,
+        hangs,
+        prs,
+        plannedWorkouts,
+        tags,
+      },
     }
     return JSON.stringify(bundle)
   })
@@ -739,6 +912,7 @@ export async function importAllData(json: string): Promise<void> {
         db.hangs,
         db.prs,
         db.plannedWorkouts,
+        db.tags,
       ],
       async () => {
         await Promise.all([
@@ -751,6 +925,7 @@ export async function importAllData(json: string): Promise<void> {
           db.hangs.clear(),
           db.prs.clear(),
           db.plannedWorkouts.clear(),
+          db.tags.clear(),
         ])
         if (d.exercises?.length) await db.exercises.bulkAdd(d.exercises)
         if (d.templates?.length) await db.templates.bulkAdd(d.templates)
@@ -761,6 +936,7 @@ export async function importAllData(json: string): Promise<void> {
         if (d.hangs?.length) await db.hangs.bulkAdd(d.hangs)
         if (d.prs?.length) await db.prs.bulkAdd(d.prs)
         if (d.plannedWorkouts?.length) await db.plannedWorkouts.bulkAdd(d.plannedWorkouts)
+        if (d.tags?.length) await db.tags.bulkAdd(d.tags)
       },
     )
   })
@@ -837,6 +1013,7 @@ export async function mergeData(json: string): Promise<{ inserted: number; skipp
         db.hangs,
         db.prs,
         db.plannedWorkouts,
+        db.tags,
       ],
       async () => {
         async function mergeInto<T extends { id: string }>(
@@ -869,6 +1046,17 @@ export async function mergeData(json: string): Promise<{ inserted: number; skipp
         await mergeInto(db.hangs, d.hangs)
         await mergeInto(db.prs, d.prs)
         await mergeInto(db.plannedWorkouts, d.plannedWorkouts)
+
+        // Tags are keyed by name, not id — merge separately (existing names win).
+        if (d.tags?.length) {
+          const existingNames = new Set(await db.tags.toCollection().primaryKeys())
+          const toAdd = d.tags.filter((t) => !existingNames.has(t.name))
+          if (toAdd.length) {
+            await db.tags.bulkAdd(toAdd)
+            inserted += toAdd.length
+          }
+          skipped += d.tags.length - toAdd.length
+        }
       },
     )
 

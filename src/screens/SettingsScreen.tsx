@@ -28,6 +28,8 @@ import {
   type GymStyle,
 } from '@/lib/prefs'
 import { SegmentedControl } from '@/components/SegmentedControl'
+import { HoldButton } from '@/components/HoldButton'
+import { TagManager } from '@/components/TagManager'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
@@ -303,6 +305,8 @@ export default function SettingsScreen() {
             </p>
           )}
         </section>
+
+        <TagManager />
 
         <section className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground">Data</h2>
@@ -650,49 +654,5 @@ function Stepper({
         </HoldButton>
       </div>
     </div>
-  )
-}
-
-// Fires once on press, then repeats with slight acceleration while held.
-function HoldButton({
-  onStep,
-  children,
-  'aria-label': ariaLabel,
-}: {
-  onStep: () => void
-  children: React.ReactNode
-  'aria-label': string
-}) {
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const stop = () => {
-    if (timer.current) clearTimeout(timer.current)
-    timer.current = undefined
-  }
-  const start = () => {
-    stop()
-    onStep()
-    const startedAt = Date.now()
-    const tick = () => {
-      onStep()
-      timer.current = setTimeout(tick, Date.now() - startedAt > 600 ? 80 : 200)
-    }
-    timer.current = setTimeout(tick, 300)
-  }
-  useEffect(() => stop, [])
-  return (
-    <button
-      type="button"
-      aria-label={ariaLabel}
-      onPointerDown={(e) => {
-        e.preventDefault()
-        start()
-      }}
-      onPointerUp={stop}
-      onPointerLeave={stop}
-      onPointerCancel={stop}
-      className="flex size-9 shrink-0 select-none items-center justify-center rounded-lg border border-border text-foreground active:bg-accent"
-    >
-      {children}
-    </button>
   )
 }

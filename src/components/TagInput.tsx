@@ -1,5 +1,6 @@
 import { useState, type KeyboardEvent } from 'react'
 import { X } from 'lucide-react'
+import { useTagColours } from '@/hooks/useTagColours'
 
 interface Props {
   value: string[]
@@ -11,6 +12,7 @@ interface Props {
 // × to remove a specific one. Tags are lowercased and deduplicated.
 export function TagInput({ value, onChange, placeholder = 'Add a tag…' }: Props) {
   const [input, setInput] = useState('')
+  const tagColour = useTagColours()
 
   function add(raw: string) {
     const v = raw.trim().toLowerCase()
@@ -32,8 +34,9 @@ export function TagInput({ value, onChange, placeholder = 'Add a tag…' }: Prop
       {value.map((tag) => (
         <span
           key={tag}
-          className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-foreground"
+          className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-xs text-foreground"
         >
+          <span className="size-2 rounded-full" style={{ backgroundColor: tagColour(tag) }} />
           {tag}
           <button
             type="button"

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { addRoute, updateRoute } from '@/db/helpers'
 import { EWBANKS_GRADES, STYLE_LABELS, TICK_TYPES, V_GRADES } from '@/lib/climbing'
@@ -6,6 +6,7 @@ import { contrastText, gradeToColor, vGradeToColor } from '@/lib/gradeColors'
 import { getGymGradeRanges, type GradeRange } from '@/lib/prefs'
 import { ROUTE_COLOURS } from '@/lib/routeColours'
 import { SegmentedControl } from '@/components/SegmentedControl'
+import { HoldButton } from '@/components/HoldButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -279,7 +280,11 @@ export function LogRouteSheet({
             {isBoard ? (
               <>
                 <div className="flex items-center gap-2">
-                  <HoldButton aria-label="Decrease angle" onStep={() => adjustDeg(-1)}>
+                  <HoldButton
+                    aria-label="Decrease angle"
+                    onStep={() => adjustDeg(-1)}
+                    className="size-11 text-xl font-semibold"
+                  >
                     −
                   </HoldButton>
                   <div className="relative flex-1">
@@ -300,7 +305,11 @@ export function LogRouteSheet({
                       °
                     </span>
                   </div>
-                  <HoldButton aria-label="Increase angle" onStep={() => adjustDeg(1)}>
+                  <HoldButton
+                    aria-label="Increase angle"
+                    onStep={() => adjustDeg(1)}
+                    className="size-11 text-xl font-semibold"
+                  >
                     +
                   </HoldButton>
                 </div>
@@ -393,51 +402,6 @@ export function LogRouteSheet({
         </div>
       </SheetContent>
     </Sheet>
-  )
-}
-
-// A press-and-hold stepper button: one step on tap; while held it repeats,
-// accelerating from 1/200ms to 1/80ms after 600ms.
-function HoldButton({
-  onStep,
-  children,
-  'aria-label': ariaLabel,
-}: {
-  onStep: () => void
-  children: ReactNode
-  'aria-label': string
-}) {
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const stop = () => {
-    if (timer.current) clearTimeout(timer.current)
-    timer.current = undefined
-  }
-  const start = () => {
-    stop()
-    onStep()
-    const startedAt = Date.now()
-    const tick = () => {
-      onStep()
-      timer.current = setTimeout(tick, Date.now() - startedAt > 600 ? 80 : 200)
-    }
-    timer.current = setTimeout(tick, 200)
-  }
-  useEffect(() => stop, [])
-  return (
-    <button
-      type="button"
-      aria-label={ariaLabel}
-      onPointerDown={(e) => {
-        e.preventDefault()
-        start()
-      }}
-      onPointerUp={stop}
-      onPointerLeave={stop}
-      onPointerCancel={stop}
-      className="flex size-11 shrink-0 select-none items-center justify-center rounded-lg border border-border text-xl font-semibold text-foreground active:bg-accent"
-    >
-      {children}
-    </button>
   )
 }
 

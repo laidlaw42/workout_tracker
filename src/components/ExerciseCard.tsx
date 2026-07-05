@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { ArrowLeftRight, Check, Minus, Plus } from 'lucide-react'
+import { ArrowLeftRight, Check, Minus, Pencil, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { NumberStepper } from '@/components/NumberStepper'
 import { SetCountdown } from '@/components/SetCountdown'
 import type { LoggedSet } from '@/types'
 
@@ -12,6 +12,7 @@ export interface WorkExercise {
   targetSets: number
   targetReps?: number
   durationSeconds?: number // timed exercise (e.g. plank) — logs by holding, not reps
+  weight?: number // planned weight (kg) for remaining sets — pre-fills the set row (A31)
   restSeconds: number
   swappedFrom?: string
   skipped: boolean
@@ -23,6 +24,11 @@ export interface LoggedSetInput {
   actualReps?: number
   durationSeconds?: number
 }
+
+// Fields editable inline mid-session (A31) — applied to remaining unlogged sets.
+export type ExerciseEdit = Partial<
+  Pick<WorkExercise, 'targetReps' | 'durationSeconds' | 'weight' | 'restSeconds'>
+>
 
 interface Props {
   exercise: WorkExercise
@@ -37,6 +43,8 @@ interface Props {
   onRemoveSet?: () => void
   /** Inline swap is offered on the current exercise only. */
   onSwap?: () => void
+  /** Edit target reps/duration, weight, rest for the remaining sets (A31). */
+  onEdit?: (updates: ExerciseEdit) => void
   /** Timed exercises: start the set countdown (session logs it at zero). */
   onStartCountdown?: () => void
   countdown?: { remaining: number; duration: number; precount?: boolean } | null
@@ -54,31 +62,50 @@ export function ExerciseCard({
   onAddSet,
   onRemoveSet,
   onSwap,
+  onEdit,
   onStartCountdown,
   countdown,
 }: Props) {
+  const [editing, setEditing] = useState(false)
   const doneCount = loggedSets.length
   const complete = doneCount >= exercise.targetSets
   const currentSetNumber = doneCount + 1
   const timed = exercise.durationSeconds != null
+  const canEdit = onEdit != null && !exercise.skipped && !complete
 
   return (
     <div className="space-y-3">
       <div className="flex items-baseline justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate font-semibold">{exercise.exerciseName}</p>
+          <p className="truncate text-lg font-semibold">{exercise.exerciseName}</p>
           {exercise.swappedFrom && (
             <p className="text-xs text-muted-foreground">swapped from {exercise.swappedFrom}</p>
           )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <span className="text-sm text-muted-foreground">
-            {exercise.skipped
-              ? 'Skipped'
-              : complete
-                ? 'Done'
-                : `Set ${currentSetNumber} of ${exercise.targetSets}`}
+          <span className="text-base text-muted-foreground">
+            {exercise.skipped ? (
+              'Skipped'
+            ) : complete ? (
+              'Done'
+            ) : (
+              <>
+                Set <span className="font-bold text-foreground">{currentSetNumber}</span> of{' '}
+                {exercise.targetSets}
+              </>
+            )}
           </span>
+          {canEdit && (
+            <button
+              type="button"
+              aria-label="Edit exercise"
+              aria-pressed={editing}
+              onClick={() => setEditing((e) => !e)}
+              className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors active:bg-accent aria-pressed:bg-accent aria-pressed:text-foreground"
+            >
+              <Pencil className="size-4" />
+            </button>
+          )}
           {isCurrent && onSwap && (
             <button
               type="button"
@@ -92,6 +119,10 @@ export function ExerciseCard({
         </div>
       </div>
 
+      {editing && canEdit && (
+        <EditPanel exercise={exercise} onEdit={onEdit!} />
+      )}
+
       {!exercise.skipped && (
         <div className="space-y-2">
           {loggedSets.map((s) => (
@@ -100,7 +131,7 @@ export function ExerciseCard({
               className="flex items-center gap-3 rounded-lg bg-green-500/10 px-3 py-2 text-sm text-green-300"
             >
               <Check className="size-4 shrink-0" />
-              <span className="w-10 text-muted-foreground">Set {s.setNumber}</span>
+              <span className="w-12 text-muted-foreground">Set {s.setNumber}</span>
               <span className="font-medium text-foreground">
                 {s.durationSeconds != null
                   ? `${s.durationSeconds}s`
@@ -142,9 +173,12 @@ export function ExerciseCard({
                 </div>
               )
             ) : (
+              // Key on the editable targets so an inline edit (A31) re-seeds the
+              // current set's inputs immediately, not just on the next set.
               <SetRow
-                key={currentSetNumber}
+                key={`${currentSetNumber}-${exercise.targetReps ?? ''}-${exercise.weight ?? ''}`}
                 targetReps={exercise.targetReps}
+                plannedWeight={exercise.weight}
                 prefillWeight={prefillWeight}
                 supportsAdditionalWeight={supportsAdditionalWeight}
                 onLog={onLog}
@@ -165,16 +199,104 @@ export function ExerciseCard({
   )
 }
 
+// Inline editor for the remaining sets' targets (A31). Each stepper writes back
+// immediately, so changes take effect on the next unlogged set.
+function EditPanel({ exercise, onEdit }: { exercise: WorkExercise; onEdit: (u: ExerciseEdit) => void }) {
+  const timed = exercise.durationSeconds != null
+  const [reps, setReps] = useState(exercise.targetReps != null ? String(exercise.targetReps) : '')
+  const [duration, setDuration] = useState(
+    exercise.durationSeconds != null ? String(exercise.durationSeconds) : '',
+  )
+  const [weight, setWeight] = useState(exercise.weight != null ? String(exercise.weight) : '')
+  const [rest, setRest] = useState(String(exercise.restSeconds))
+
+  const toNum = (v: string) => (v.trim() === '' ? undefined : Number(v))
+
+  return (
+    <div className="space-y-2 rounded-lg border border-primary/40 bg-background p-3">
+      {timed ? (
+        <EditField label="Duration (s)">
+          <NumberStepper
+            value={duration}
+            ariaLabel="duration"
+            min={1}
+            onChange={(v) => {
+              setDuration(v)
+              onEdit({ durationSeconds: toNum(v) })
+            }}
+          />
+        </EditField>
+      ) : (
+        <>
+          <EditField label="Reps">
+            <NumberStepper
+              value={reps}
+              ariaLabel="target reps"
+              min={0}
+              onChange={(v) => {
+                setReps(v)
+                onEdit({ targetReps: toNum(v) })
+              }}
+            />
+          </EditField>
+          <EditField label="Weight (kg)">
+            <NumberStepper
+              value={weight}
+              ariaLabel="weight"
+              step={0.5}
+              min={0}
+              inputMode="decimal"
+              onChange={(v) => {
+                setWeight(v)
+                onEdit({ weight: toNum(v) })
+              }}
+            />
+          </EditField>
+        </>
+      )}
+      <EditField label="Rest (s)">
+        <NumberStepper
+          value={rest}
+          ariaLabel="rest"
+          step={5}
+          min={0}
+          onChange={(v) => {
+            setRest(v)
+            onEdit({ restSeconds: toNum(v) ?? 0 })
+          }}
+        />
+      </EditField>
+    </div>
+  )
+}
+
+function EditField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="w-24 shrink-0 text-sm text-muted-foreground">{label}</span>
+      <div className="flex-1">{children}</div>
+    </div>
+  )
+}
+
 interface SetRowProps {
   targetReps?: number
+  plannedWeight?: number
   prefillWeight?: number
   supportsAdditionalWeight?: boolean
   onLog: (data: LoggedSetInput) => void
   onRemove?: () => void
 }
 
-function SetRow({ targetReps, prefillWeight, supportsAdditionalWeight, onLog, onRemove }: SetRowProps) {
-  const [weight, setWeight] = useState('')
+function SetRow({
+  targetReps,
+  plannedWeight,
+  prefillWeight,
+  supportsAdditionalWeight,
+  onLog,
+  onRemove,
+}: SetRowProps) {
+  const [weight, setWeight] = useState(plannedWeight != null ? String(plannedWeight) : '')
   const [addl, setAddl] = useState('')
   const [reps, setReps] = useState(targetReps != null ? String(targetReps) : '')
 
@@ -187,57 +309,64 @@ function SetRow({ targetReps, prefillWeight, supportsAdditionalWeight, onLog, on
       additionalWeightKg: a != null && !Number.isNaN(a) && a > 0 ? a : undefined,
       actualReps: r != null && !Number.isNaN(r) ? r : undefined,
     })
-    setWeight('')
+    setWeight(plannedWeight != null ? String(plannedWeight) : '')
     setAddl('')
     setReps(targetReps != null ? String(targetReps) : '')
   }
 
   return (
-    <div className="flex items-end gap-2 rounded-lg border border-primary/40 bg-background p-2">
-      {onRemove && (
-        <button
-          type="button"
-          aria-label="Remove set"
-          onClick={onRemove}
-          className="flex size-10 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors active:bg-accent"
-        >
-          <Minus className="size-4" />
-        </button>
-      )}
-      <label className="flex flex-1 flex-col gap-1">
-        <span className="text-xs text-muted-foreground">Weight (kg)</span>
-        <Input
-          inputMode="decimal"
+    <div className="space-y-3 rounded-lg border border-primary/40 bg-background p-3">
+      <SetField label="Weight (kg)">
+        <NumberStepper
           value={weight}
+          ariaLabel="weight"
+          step={0.5}
+          min={0}
+          inputMode="decimal"
           placeholder={prefillWeight != null ? String(prefillWeight) : 'BW'}
-          onChange={(e) => setWeight(e.target.value.replace(/[^0-9.]/g, ''))}
-          className="h-10"
+          onChange={setWeight}
         />
-      </label>
+      </SetField>
       {supportsAdditionalWeight && (
-        <label className="flex w-16 flex-col gap-1">
-          <span className="text-xs text-muted-foreground">+kg</span>
-          <Input
-            inputMode="decimal"
+        <SetField label="Additional (kg)">
+          <NumberStepper
             value={addl}
+            ariaLabel="additional weight"
+            step={0.5}
+            min={0}
+            inputMode="decimal"
             placeholder="0"
-            onChange={(e) => setAddl(e.target.value.replace(/[^0-9.]/g, ''))}
-            className="h-10"
+            onChange={setAddl}
           />
-        </label>
+        </SetField>
       )}
-      <label className="flex flex-1 flex-col gap-1">
-        <span className="text-xs text-muted-foreground">Reps</span>
-        <Input
-          inputMode="numeric"
-          value={reps}
-          onChange={(e) => setReps(e.target.value.replace(/[^0-9]/g, ''))}
-          className="h-10"
-        />
-      </label>
-      <Button className="h-10" onClick={log} disabled={reps.trim() === ''}>
-        Log
-      </Button>
+      <SetField label="Reps">
+        <NumberStepper value={reps} ariaLabel="reps" min={0} onChange={setReps} />
+      </SetField>
+      <div className="flex gap-2">
+        {onRemove && (
+          <button
+            type="button"
+            aria-label="Remove set"
+            onClick={onRemove}
+            className="flex size-10 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors active:bg-accent"
+          >
+            <Minus className="size-4" />
+          </button>
+        )}
+        <Button className="h-10 flex-1" onClick={log} disabled={reps.trim() === ''}>
+          Log set
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function SetField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="w-24 shrink-0 text-sm text-muted-foreground">{label}</span>
+      <div className="flex-1">{children}</div>
     </div>
   )
 }

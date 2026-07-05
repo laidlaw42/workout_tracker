@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Dumbbell, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
-import { deleteTemplate, getTemplatesByType, upsertTemplate } from '@/db/helpers'
+import { useTagColours } from '@/hooks/useTagColours'
+import { deleteTemplate, getDefaultTags, getTemplatesByType, upsertTemplate } from '@/db/helpers'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { TemplateCard } from '@/components/TemplateCard'
 import { ExerciseLibrary } from '@/components/ExerciseLibrary'
@@ -61,6 +62,7 @@ export default function LibraryScreen() {
     () => getTemplatesByType(filter === 'all' ? undefined : filter),
     [filter],
   )
+  const tagColour = useTagColours()
 
   const allTags = useMemo(() => {
     const set = new Set<string>()
@@ -72,15 +74,17 @@ export default function LibraryScreen() {
 
   async function createTemplate() {
     const name = newName.trim() || 'New workout'
+    // Pre-apply the user's default tags (A35); they can edit them on the next screen.
+    const tags = await getDefaultTags()
     const draft =
       newType === 'strength'
-        ? { name, type: 'strength' as const, tags: [], exercises: [] }
+        ? { name, type: 'strength' as const, tags, exercises: [] }
         : newType === 'cardio'
-          ? { name, type: 'cardio' as const, tags: [], exercises: [], cardioActivity: 'run' as const }
+          ? { name, type: 'cardio' as const, tags, exercises: [], cardioActivity: 'run' as const }
           : {
               name,
               type: 'climbing' as const,
-              tags: [],
+              tags,
               exercises: [],
               climbingKind: newType === 'hangboard' ? ('hangboard' as const) : ('workout' as const),
               hangboardSets: [],
@@ -167,12 +171,13 @@ export default function LibraryScreen() {
                   type="button"
                   onClick={() => setActiveTag((cur) => (cur === tag ? null : tag))}
                   className={cn(
-                    'rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset transition-colors',
+                    'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset transition-colors',
                     activeTag === tag
                       ? 'bg-primary text-primary-foreground ring-primary'
                       : 'bg-muted text-muted-foreground ring-transparent',
                   )}
                 >
+                  <span className="size-2 rounded-full" style={{ backgroundColor: tagColour(tag) }} />
                   #{tag}
                 </button>
               ))}

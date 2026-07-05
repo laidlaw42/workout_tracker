@@ -119,6 +119,7 @@ export interface WorkoutSession {
   plannedHangs?: HangboardSet[]
   plannedIntervals?: IntervalBlock[]
   plannedActivity?: CardioActivityType
+  pausedDuration?: number            // total ms the timer was paused; lets an unfinished session (A34) resume its clock after a relaunch
 }
 ```
 
@@ -229,6 +230,19 @@ export interface LoggedHang {
 
 > `hangSetId` scopes completion to a specific `HangboardSet` so two rows with identical grip/edge/duration advance independently.
 
+### Tag metadata (A35)
+
+Tag strings live on `Exercise.tags` / `WorkoutTemplate.tags`. This table stores per-tag presentation (colour) and behaviour (default selection), keyed by the lowercased name. Metadata is created lazily: `ensureTags()` runs on every exercise/template save and `syncAllTagMeta()` backfills at startup, each assigning the next of a fixed 12-colour palette (`src/lib/tagColors.ts`) in creation order.
+
+```ts
+export interface TagMeta {
+  name: string                      // lowercased tag string (primary key)
+  colour: string                    // hex from the 12-colour palette
+  isDefault?: boolean               // pre-applied to new exercises / templates
+  order: number                     // creation order — drives palette cycling + display sort
+}
+```
+
 ### Planned workouts (calendar)
 
 ```ts
@@ -290,6 +304,9 @@ export class WorkoutDB extends Dexie {
     this.version(4).stores({
       plannedWorkouts: '&id, plannedDate, templateId, completedSessionId',
     })
+    // v5 adds per-tag metadata (colour + default selection). Keyed by name;
+    // isDefault is a boolean (not an indexable key) so it stays unindexed.
+    this.version(5).stores({ tags: '&name, order' })
   }
 }
 
@@ -311,6 +328,16 @@ export async function upsertExercise(e: Omit<Exercise, 'id' | 'createdAt'>): Pro
 export async function updateExercise(id: string, updates: Partial<Omit<Exercise, 'id' | 'createdAt'>>): Promise<void>  // rename cascades to templates
 export async function deleteExercise(id: string): Promise<void>
 
+// Tags (A35) — colour + default-selection metadata
+export async function getAllTags(): Promise<TagMeta[]>
+export async function ensureTags(names: string[]): Promise<void>  // registers metadata for new tags with the next palette colour; idempotent. Called from upsert/updateExercise + upsertTemplate
+export async function syncAllTagMeta(): Promise<void>  // backfills metadata for every tag in use (seed/import); called once at startup
+export async function setTagColour(name: string, colour: string): Promise<void>
+export async function setTagDefault(name: string, isDefault: boolean): Promise<void>
+export async function getDefaultTags(): Promise<string[]>  // tag names pre-applied to new exercises/templates
+export async function renameTag(oldName: string, newName: string): Promise<void>  // cascades to exercises + templates; merges if the new name exists
+export async function deleteTag(name: string): Promise<void>  // removes the tag from every exercise/template, then drops its metadata
+
 // Templates
 export async function getAllTemplates(): Promise<WorkoutTemplate[]>
 export async function getTemplatesByType(type?: DisciplineType): Promise<WorkoutTemplate[]>
@@ -327,6 +354,7 @@ export async function deleteSession(id: string): Promise<void>  // cascades to s
 export async function getRecentSessions(limit?: number): Promise<WorkoutSession[]>
 export async function getAllSessions(type?: DisciplineType): Promise<WorkoutSession[]>  // ordered by startedAt desc; for History
 export async function getSessionById(id: string): Promise<WorkoutSession | undefined>
+export async function getUnfinishedSession(): Promise<WorkoutSession | undefined>  // most recent session with no endedAt — Home resume banner (A34)
 export async function describeSessions(sessions: WorkoutSession[]): Promise<Record<string, SessionKind>>  // classifies each by logged content (cardio activity / distinct climb styles / hangboard / workout) for History + Recents badges
 export async function repeatSession(sourceId: string): Promise<string>  // "use as workout" — snapshots a past session's plan onto a new one
 // endSession() also best-effort links a same-day, same-template PlannedWorkout via completedSessionId
@@ -337,6 +365,7 @@ export async function updateSet(id: string, updates: Partial<LoggedSet>): Promis
 export async function deleteSet(id: string): Promise<void>
 export async function getSetsForSession(sessionId: string): Promise<LoggedSet[]>
 export async function getSetsForExercise(exerciseId: string): Promise<LoggedSet[]>  // all sessions, for Progress charts
+export async function getExerciseIdsWithSets(): Promise<string[]>  // distinct exerciseIds with ≥1 logged set — filters the Progress strength picker (F17)
 export async function getLastSetForExercise(exerciseId: string): Promise<LoggedSet | undefined>
 
 // Cardio
@@ -373,7 +402,7 @@ export async function deletePlannedWorkout(id: string): Promise<void>
 export async function linkPlanToSession(plannedId: string, sessionId: string): Promise<void>
 
 // Export / import / data management
-export async function exportAllData(): Promise<string>   // JSON string; includes plannedWorkouts
+export async function exportAllData(): Promise<string>   // JSON string; includes plannedWorkouts + tags
 export async function importAllData(json: string): Promise<void>  // REPLACE — one Dexie transaction
 export async function mergeData(json: string): Promise<{ inserted: number; skipped: number }>  // additive; skips existing ids, re-runs PR detection
 export async function clearAllData(): Promise<void>  // clears every table (incl. meta) → re-seeds next launch

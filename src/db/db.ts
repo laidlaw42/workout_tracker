@@ -9,6 +9,7 @@ import type {
   LoggedHang,
   PersonalRecord,
   PlannedWorkout,
+  TagMeta,
 } from '@/types'
 
 export interface MetaRow {
@@ -29,6 +30,7 @@ export class WorkoutDB extends Dexie {
   hangs!: Table<LoggedHang, string>
   prs!: Table<PersonalRecord, string>
   plannedWorkouts!: Table<PlannedWorkout, string>
+  tags!: Table<TagMeta, string>
   meta!: Table<MetaRow, string>
 
   constructor() {
@@ -52,6 +54,11 @@ export class WorkoutDB extends Dexie {
     // v4 adds the calendar's planned workouts.
     this.version(4).stores({
       plannedWorkouts: '&id, plannedDate, templateId, completedSessionId',
+    })
+    // v5 adds per-tag metadata (colour + default selection). Keyed by name;
+    // `isDefault` is a boolean (not an indexable key) so it stays unindexed.
+    this.version(5).stores({
+      tags: '&name, order',
     })
   }
 }

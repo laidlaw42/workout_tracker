@@ -1,14 +1,27 @@
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Activity, Dumbbell, Flame, Mountain, Settings } from 'lucide-react'
+import { toast } from 'sonner'
+import { Activity, Dumbbell, Flame, Mountain, Play, Settings } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
-import { describeSessions, getAllSessions } from '@/db/helpers'
+import { deleteSession, describeSessions, getAllSessions, getUnfinishedSession } from '@/db/helpers'
 import { computeStreak } from '@/lib/streak'
 import { formatLongDate, greeting } from '@/lib/date'
 import { getUserName } from '@/lib/userName'
 import { cn } from '@/lib/utils'
 import { SessionCard } from '@/components/SessionCard'
 import { EmptyState } from '@/components/EmptyState'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 export default function HomeScreen() {
   const navigate = useNavigate()
@@ -18,10 +31,22 @@ export default function HomeScreen() {
     const kinds = await describeSessions(recent)
     return { sessions, recent, kinds }
   }, [])
+  const unfinished = useLiveQuery(() => getUnfinishedSession().then((s) => s ?? null), [])
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
   const loading = data === undefined
   const streak = data ? computeStreak(data.sessions) : 0
   const recent = data?.recent ?? []
   const kinds = data?.kinds ?? {}
+
+  async function discardUnfinished() {
+    if (!unfinished) return
+    try {
+      await deleteSession(unfinished.id)
+      setConfirmDiscard(false)
+    } catch {
+      toast.error('Could not discard workout')
+    }
+  }
 
   return (
     <div className="space-y-6 p-4 pt-[calc(env(safe-area-inset-top)+1rem)]">
@@ -41,6 +66,29 @@ export default function HomeScreen() {
           <Settings className="size-5" aria-hidden />
         </Link>
       </header>
+
+      {unfinished && (
+        <div className="space-y-3 rounded-xl border border-primary/40 bg-primary/10 p-4">
+          <div className="flex items-start gap-3">
+            <Play className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden />
+            <div className="min-w-0">
+              <p className="font-semibold">Unfinished workout</p>
+              <p className="truncate text-sm text-muted-foreground">{unfinished.templateName}</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              className="flex-1"
+              onClick={() => navigate(`/session/${unfinished.type}/${unfinished.id}`)}
+            >
+              Resume
+            </Button>
+            <Button variant="outline" className="flex-1" onClick={() => setConfirmDiscard(true)}>
+              Discard
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4">
         <div className="flex size-10 items-center justify-center rounded-full bg-orange-500/15 text-orange-400">
@@ -101,6 +149,19 @@ export default function HomeScreen() {
           </div>
         )}
       </section>
+
+      <AlertDialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard this workout?</AlertDialogTitle>
+            <AlertDialogDescription>All progress will be lost.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep workout</AlertDialogCancel>
+            <AlertDialogAction onClick={discardUnfinished}>Discard workout</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

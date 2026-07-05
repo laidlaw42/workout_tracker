@@ -51,7 +51,8 @@ export default function StrengthSessionScreen() {
     () => (session?.templateId ? getTemplate(session.templateId).then((t) => t ?? null) : null),
     [session?.templateId],
   )
-  const loggedSets = useLiveQuery(() => getSetsForSession(id), [id]) ?? []
+  const loggedSetsRaw = useLiveQuery(() => getSetsForSession(id), [id])
+  const loggedSets = loggedSetsRaw ?? []
   const exercises = useLiveQuery(() => getAllExercises(), []) ?? []
   const exById = useMemo(() => new Map(exercises.map((e) => [e.id, e])), [exercises])
 
@@ -66,7 +67,7 @@ export default function StrengthSessionScreen() {
   const [addPickerOpen, setAddPickerOpen] = useState(false)
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
 
-  const timer = useSessionTimer(session?.startedAt ?? Date.now())
+  const timer = useSessionTimer(id, session?.startedAt ?? Date.now(), session?.pausedDuration ?? 0)
   const rest = useRestTimer()
   const countdown = useCountdownTimer()
   const precount = useCountdownTimer()
@@ -77,29 +78,52 @@ export default function StrengthSessionScreen() {
   // Build the working list once, from the linked template or (for a repeat
   // session) the plan snapshotted onto the session.
   useEffect(() => {
-    if (inited || !session) return
+    if (inited || !session || loggedSetsRaw === undefined) return
     // When the session references a template, wait for it to actually load
     // before seeding the working list. `template` is transiently null while the
     // templateId-keyed query re-subscribes; seeding then would build an empty
     // list and the `inited` guard would prevent it from ever recovering.
     if (session.templateId && !template) return
     const plan = template?.exercises ?? session.plannedExercises ?? []
-    setWork(
-      [...plan]
-        .sort((a, b) => a.order - b.order)
-        .map((e) => ({
-          uid: generateId(),
-          exerciseId: e.exerciseId,
-          exerciseName: e.exerciseName,
-          targetSets: e.defaultSets,
-          targetReps: e.defaultReps,
-          durationSeconds: e.defaultDuration,
-          restSeconds: e.defaultRestSeconds,
-          skipped: false,
-        })),
-    )
+    const seeded: WorkExercise[] = [...plan]
+      .sort((a, b) => a.order - b.order)
+      .map((e) => ({
+        uid: generateId(),
+        exerciseId: e.exerciseId,
+        exerciseName: e.exerciseName,
+        targetSets: e.defaultSets,
+        targetReps: e.defaultReps,
+        durationSeconds: e.defaultDuration,
+        restSeconds: e.defaultRestSeconds,
+        skipped: false,
+      }))
+    // Resuming an unfinished session (A34): re-attach exercises that were added
+    // mid-session — they have logged sets but aren't in the plan. Restored as
+    // complete (their true target is unknown); "Add set" continues them.
+    const planned = new Set(seeded.map((e) => e.exerciseId))
+    const extras = new Map<string, LoggedSet[]>()
+    for (const s of loggedSetsRaw) {
+      if (planned.has(s.exerciseId)) continue
+      const arr = extras.get(s.exerciseId) ?? []
+      arr.push(s)
+      extras.set(s.exerciseId, arr)
+    }
+    for (const [exId, sets] of extras) {
+      const last = sets[sets.length - 1]
+      seeded.push({
+        uid: generateId(),
+        exerciseId: exId,
+        exerciseName: last.exerciseName,
+        targetSets: sets.length,
+        targetReps: last.targetReps,
+        durationSeconds: last.durationSeconds ?? undefined,
+        restSeconds: 90,
+        skipped: false,
+      })
+    }
+    setWork(seeded)
     setInited(true)
-  }, [session, template, inited])
+  }, [session, template, inited, loggedSetsRaw])
 
   const setsByExercise = useMemo(() => {
     const map = new Map<string, LoggedSet[]>()
@@ -151,6 +175,7 @@ export default function StrengthSessionScreen() {
   }
 
   async function handleLog(ex: WorkExercise, data: LoggedSetInput) {
+    timer.resume() // logging activity lifts any pause (F19)
     const setNumber = loggedFor(ex).length + 1
     try {
       await addSet({
@@ -201,6 +226,7 @@ export default function StrengthSessionScreen() {
   // Starting a set dismisses any running rest timer immediately (A8).
   function startTimedSet(ex: WorkExercise) {
     if (ex.durationSeconds == null) return
+    timer.resume() // starting a timed set lifts any pause (F19)
     rest.skip()
     const run = () =>
       countdown.start(ex.uid, ex.durationSeconds!, () =>
@@ -229,6 +255,12 @@ export default function StrengthSessionScreen() {
 
   function addSetTo(uid: string) {
     setWork((w) => w.map((e) => (e.uid === uid ? { ...e, targetSets: e.targetSets + 1 } : e)))
+    markModified()
+  }
+
+  // Apply an inline edit (A31) to the remaining unlogged sets of one exercise.
+  function editExercise(uid: string, updates: Partial<WorkExercise>) {
+    setWork((w) => w.map((e) => (e.uid === uid ? { ...e, ...updates } : e)))
     markModified()
   }
 
@@ -410,6 +442,7 @@ export default function StrengthSessionScreen() {
               onAddSet={() => addSetTo(ex.uid)}
               onRemoveSet={() => removeSet(ex.uid)}
               onSwap={isCurrent ? () => setPickerOpen(true) : undefined}
+              onEdit={(u) => editExercise(ex.uid, u)}
               onStartCountdown={() => startTimedSet(ex)}
               countdown={
                 isCurrent && precount.activeUid === ex.uid

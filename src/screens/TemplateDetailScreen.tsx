@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useLiveQuery } from '@/hooks/useDb'
+import { useTagColours } from '@/hooks/useTagColours'
 import { getTemplate, startSessionFromTemplate } from '@/db/helpers'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
 import { badgeForTemplate } from '@/lib/badges'
@@ -31,6 +32,7 @@ export default function TemplateDetailScreen() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
   const template = useLiveQuery(() => getTemplate(id).then((t) => t ?? null), [id])
+  const tagColour = useTagColours()
 
   async function start(t: WorkoutTemplate) {
     try {
@@ -77,8 +79,9 @@ export default function TemplateDetailScreen() {
           {template.tags.map((tag) => (
             <span
               key={tag}
-              className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+              className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
             >
+              <span className="size-2 rounded-full" style={{ backgroundColor: tagColour(tag) }} />
               {tag}
             </span>
           ))}

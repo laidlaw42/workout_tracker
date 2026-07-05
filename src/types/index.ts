@@ -126,6 +126,10 @@ export interface WorkoutSession {
   plannedHangs?: HangboardSet[]
   plannedIntervals?: IntervalBlock[]
   plannedActivity?: CardioActivityType
+  // Total time (ms) the session timer was explicitly paused. Persisted so an
+  // unfinished session (A34) resumes its elapsed clock correctly after the app
+  // is closed: elapsed = now - startedAt - pausedDuration.
+  pausedDuration?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -224,6 +228,19 @@ export interface PlannedWorkout {
   notes?: string
   completedSessionId?: string // set when a matching session is logged that day
   createdAt: number
+}
+
+// ---------------------------------------------------------------------------
+// Tag metadata (A35) — colour + default selection for exercise/template tags.
+// The tag strings themselves live on Exercise.tags / WorkoutTemplate.tags; this
+// table stores per-tag presentation and behaviour, keyed by the lowercased name.
+// ---------------------------------------------------------------------------
+
+export interface TagMeta {
+  name: string // lowercased tag string (primary key)
+  colour: string // hex from the fixed 12-colour palette (see lib/tagColors)
+  isDefault?: boolean // pre-applied to new exercises / templates
+  order: number // creation order — drives palette cycling
 }
 
 // ---------------------------------------------------------------------------

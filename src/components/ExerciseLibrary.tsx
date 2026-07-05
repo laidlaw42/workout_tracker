@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { ChevronRight, Dumbbell, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
-import { getAllExercises, getAllTemplates } from '@/db/helpers'
+import { getAllExercises, getAllTemplates, getDefaultTags } from '@/db/helpers'
 import { ExerciseFormSheet } from '@/components/ExerciseFormSheet'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,7 @@ const TRACKING_LABEL: Record<TrackingType, string> = {
 export function ExerciseLibrary() {
   const exercises = useLiveQuery(() => getAllExercises(), [])
   const templates = useLiveQuery(() => getAllTemplates(), [])
+  const defaultTags = useLiveQuery(() => getDefaultTags(), []) ?? []
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Exercise | null>(null)
 
@@ -86,6 +87,7 @@ export function ExerciseLibrary() {
         onOpenChange={setFormOpen}
         exercise={editing}
         usageCount={editing ? (usage.get(editing.id) ?? 0) : 0}
+        defaultTags={defaultTags}
         onSaved={() => setEditing(null)}
       />
     </div>

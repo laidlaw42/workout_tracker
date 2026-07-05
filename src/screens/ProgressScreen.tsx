@@ -18,6 +18,7 @@ import {
   getAllHangs,
   getAllRoutes,
   getCardioByActivity,
+  getExerciseIdsWithSets,
   getPRsForExercise,
   getSetsForExercise,
 } from '@/db/helpers'
@@ -99,7 +100,19 @@ function bestWeightPerDay(sets: LoggedSet[]): { date: string; weight: number }[]
 }
 
 function StrengthTab() {
-  const exercises = useLiveQuery(() => getAllExercises(), []) ?? []
+  const allExercises = useLiveQuery(() => getAllExercises(), []) ?? []
+  const idsWithSets = useLiveQuery(() => getExerciseIdsWithSets(), [])
+  // Only reps/duration exercises that have at least one logged set — cardio
+  // activities (tracked via the cardio table) never appear here (F17).
+  const loggedIds = useMemo(() => new Set(idsWithSets ?? []), [idsWithSets])
+  const exercises = useMemo(
+    () =>
+      allExercises.filter(
+        (e) =>
+          (e.trackingType === 'reps' || e.trackingType === 'duration') && loggedIds.has(e.id),
+      ),
+    [allExercises, loggedIds],
+  )
   const [exerciseId, setExerciseId] = useState<string>('')
   const selected = exercises.find((e) => e.id === exerciseId)
   const sets = useLiveQuery(

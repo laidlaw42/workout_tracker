@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { updateSession } from '@/db/helpers'
 
 export interface SessionTimer {
   elapsed: number
@@ -9,11 +10,28 @@ export interface SessionTimer {
 
 // Elapsed seconds since `startedAt`, derived from timestamps (survives
 // backgrounding), with explicit pause/resume that subtracts paused time.
-export function useSessionTimer(startedAt: number): SessionTimer {
+//
+// The accumulated paused time is persisted to the session's `pausedDuration`
+// (A34) so an unfinished workout, once resumed from a fresh app launch, keeps a
+// correct clock. It is seeded once from the persisted value.
+export function useSessionTimer(
+  sessionId: string,
+  startedAt: number,
+  initialPausedMs = 0,
+): SessionTimer {
   const [paused, setPaused] = useState(false)
   const [pausedTotalMs, setPausedTotalMs] = useState(0)
   const [pauseStart, setPauseStart] = useState<number | null>(null)
   const [now, setNow] = useState(() => Date.now())
+
+  // Seed the accumulator from the persisted session exactly once, when its value
+  // first arrives. Guarded so later live updates (our own writes) never re-seed.
+  const seededRef = useRef(false)
+  useEffect(() => {
+    if (seededRef.current || initialPausedMs <= 0) return
+    seededRef.current = true
+    setPausedTotalMs(initialPausedMs)
+  }, [initialPausedMs])
 
   useEffect(() => {
     if (paused) return
@@ -31,9 +49,13 @@ export function useSessionTimer(startedAt: number): SessionTimer {
   }
   const resume = () => {
     if (!paused) return
-    setPausedTotalMs((t) => (pauseStart != null ? t + (Date.now() - pauseStart) : t))
+    const delta = pauseStart != null ? Date.now() - pauseStart : 0
+    const nextTotal = pausedTotalMs + delta
+    setPausedTotalMs(nextTotal)
     setPauseStart(null)
     setPaused(false)
+    seededRef.current = true // our own write is now the source of truth
+    if (sessionId) void updateSession(sessionId, { pausedDuration: nextTotal })
   }
 
   return { elapsed, paused, pause, resume }

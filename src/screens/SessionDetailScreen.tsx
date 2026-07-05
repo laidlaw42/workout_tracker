@@ -236,6 +236,8 @@ export default function SessionDetailScreen() {
             editing={editing}
             venue={venue}
             gymRanges={gymRanges}
+            onAddExercise={() => setPickerOpen(true)}
+            onAddSet={addSetToExercise}
             onEditRoute={(r) => {
               setEditingRoute(r)
               setRouteSheetOpen(true)
@@ -544,6 +546,8 @@ function ClimbingDetail({
   editing,
   venue,
   gymRanges,
+  onAddExercise,
+  onAddSet,
   onEditRoute,
   onNewRoute,
   onDeleteRoute,
@@ -554,6 +558,8 @@ function ClimbingDetail({
   editing: boolean
   venue?: 'gym' | 'crag' | 'home'
   gymRanges: GymGradeRanges | null
+  onAddExercise: () => void
+  onAddSet: (exerciseId: string, exerciseName: string) => void
   onEditRoute: (r: ClimbingRoute) => void
   onNewRoute: (style: ClimbingStyle) => void
   onDeleteRoute: (id: string) => void
@@ -571,18 +577,40 @@ function ClimbingDetail({
         {sets.length > 0 && <Stat label="Sets" value={sets.length} />}
       </div>
 
-      {sets.length > 0 && (
-        <div className="space-y-1">
+      {/* Exercises — editable list (A33): add an exercise done-but-forgotten, then
+          fill in weight/reps inline. Read-only summary when not editing. */}
+      {editing ? (
+        <div className="space-y-3">
           <p className="text-sm font-medium text-muted-foreground">Exercises</p>
-          {[...setsByExercise.entries()].map(([name, count]) => (
-            <div key={name} className="flex justify-between rounded-lg bg-card px-3 py-2 text-sm">
-              <span className="truncate">{name}</span>
-              <span className="text-muted-foreground">
-                {count} set{count === 1 ? '' : 's'}
-              </span>
+          {groupByExercise(sets).map(([exId, name, exSets]) => (
+            <div key={exId} className="space-y-2 rounded-xl border border-border bg-card p-3">
+              <p className="font-medium">{name}</p>
+              {exSets.map((s) => (
+                <EditableSetRow key={s.id} set={s} />
+              ))}
+              <Button variant="ghost" size="sm" onClick={() => onAddSet(exId, name)}>
+                <Plus className="size-4" /> Add set
+              </Button>
             </div>
           ))}
+          <Button variant="outline" className="w-full" onClick={onAddExercise}>
+            <Plus className="size-4" /> Add exercise
+          </Button>
         </div>
+      ) : (
+        sets.length > 0 && (
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-muted-foreground">Exercises</p>
+            {[...setsByExercise.entries()].map(([name, count]) => (
+              <div key={name} className="flex justify-between rounded-lg bg-card px-3 py-2 text-sm">
+                <span className="truncate">{name}</span>
+                <span className="text-muted-foreground">
+                  {count} set{count === 1 ? '' : 's'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )
       )}
 
       {hangs.length > 0 && (

@@ -30,6 +30,8 @@ interface Props {
   onOpenChange: (open: boolean) => void
   exercise: Exercise | null // null = create
   usageCount?: number
+  /** Tags pre-applied to a new exercise (A35). Ignored when editing. */
+  defaultTags?: string[]
   onSaved?: (id: string) => void
 }
 
@@ -39,19 +41,29 @@ const TRACKING: { value: TrackingType; label: string }[] = [
   { value: 'distance', label: 'Distance' },
 ]
 
-export function ExerciseFormSheet({ open, onOpenChange, exercise, usageCount = 0, onSaved }: Props) {
+export function ExerciseFormSheet({
+  open,
+  onOpenChange,
+  exercise,
+  usageCount = 0,
+  defaultTags = [],
+  onSaved,
+}: Props) {
   const [name, setName] = useState('')
   const [muscles, setMuscles] = useState('')
   const [tracking, setTracking] = useState<TrackingType>('reps')
   const [tags, setTags] = useState<string[]>([])
   const [confirmDelete, setConfirmDelete] = useState(false)
 
+  // Seed on open only. `defaultTags` is intentionally not a dependency: it is read
+  // once at open time for a new exercise, so a later live update never clobbers
+  // edits (and never overwrites an existing exercise's own tags).
   useEffect(() => {
     if (!open) return
     setName(exercise?.name ?? '')
     setMuscles(exercise?.muscleGroups.join(', ') ?? '')
     setTracking(exercise?.trackingType ?? 'reps')
-    setTags(exercise?.tags ?? [])
+    setTags(exercise?.tags ?? defaultTags)
   }, [open, exercise])
 
   async function save() {

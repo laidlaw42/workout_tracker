@@ -1,16 +1,24 @@
-import { Check, Minus, Plus } from 'lucide-react'
+import { useState } from 'react'
+import { Check, Minus, Pencil, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { NumberStepper } from '@/components/NumberStepper'
 import { SetCountdown } from '@/components/SetCountdown'
-import type { HangboardSet } from '@/types'
+import type { HangboardSet, LoggedHang } from '@/types'
+
+// Fields editable inline mid-session (A31) — applied to remaining unlogged hangs.
+export type HangEdit = Partial<Pick<HangboardSet, 'durationSeconds' | 'weightKg' | 'restSeconds'>>
 
 interface Props {
   hangSet: HangboardSet
-  completedCount: number
+  /** Actual logged hangs for this set — rendered as history (edits never touch them). */
+  loggedHangs: LoggedHang[]
   isCurrent: boolean
   skipped: boolean
   onAddSet: () => void
   /** Remove the current incomplete hang (last one → confirms hang removal). */
   onRemoveSet?: () => void
+  /** Edit target duration, weight, rest for the remaining hangs (A31). */
+  onEdit?: (updates: HangEdit) => void
   /** Start the hang countdown (session logs it + starts rest at zero). */
   onStartCountdown?: () => void
   countdown?: { remaining: number; duration: number; precount?: boolean } | null
@@ -25,42 +33,72 @@ function weightLabel(kg: number): string {
 // is provided by SortableList.
 export function HangCard({
   hangSet,
-  completedCount,
+  loggedHangs,
   isCurrent,
   skipped,
   onAddSet,
   onRemoveSet,
+  onEdit,
   onStartCountdown,
   countdown,
 }: Props) {
+  const [editing, setEditing] = useState(false)
+  const completedCount = loggedHangs.length
   const complete = completedCount >= hangSet.sets
   const currentHang = completedCount + 1
+  const canEdit = onEdit != null && !skipped && !complete
 
   return (
     <div className="space-y-3">
       <div className="flex items-baseline justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate font-semibold">{hangSet.gripType}</p>
+          <p className="truncate text-lg font-semibold">{hangSet.gripType}</p>
           <p className="text-xs text-muted-foreground">
             {hangSet.edgeDepthMm}mm · {hangSet.durationSeconds}s · {weightLabel(hangSet.weightKg)}
           </p>
         </div>
-        <span className="shrink-0 text-sm text-muted-foreground">
-          {skipped ? 'Skipped' : complete ? 'Done' : `Hang ${currentHang} of ${hangSet.sets}`}
-        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="text-base text-muted-foreground">
+            {skipped ? (
+              'Skipped'
+            ) : complete ? (
+              'Done'
+            ) : (
+              <>
+                Hang <span className="font-bold text-foreground">{currentHang}</span> of{' '}
+                {hangSet.sets}
+              </>
+            )}
+          </span>
+          {canEdit && (
+            <button
+              type="button"
+              aria-label="Edit hang"
+              aria-pressed={editing}
+              onClick={() => setEditing((e) => !e)}
+              className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors active:bg-accent aria-pressed:bg-accent aria-pressed:text-foreground"
+            >
+              <Pencil className="size-4" />
+            </button>
+          )}
+        </div>
       </div>
+
+      {editing && canEdit && <HangEditPanel hangSet={hangSet} onEdit={onEdit!} />}
 
       {!skipped && (
         <div className="space-y-2">
-          {Array.from({ length: completedCount }).map((_, i) => (
+          {loggedHangs.map((h) => (
             <div
-              key={i}
+              key={h.id}
               className="flex items-center gap-3 rounded-lg bg-green-500/10 px-3 py-2 text-sm text-green-300"
             >
               <Check className="size-4 shrink-0" />
-              <span className="text-muted-foreground">Hang {i + 1}</span>
+              <span className="text-base text-muted-foreground">
+                Hang <span className="font-bold text-foreground">{h.setNumber}</span>
+              </span>
               <span className="font-medium text-foreground">
-                {hangSet.durationSeconds}s · {weightLabel(hangSet.weightKg)}
+                {h.actualDurationSeconds ?? h.targetDurationSeconds}s · {weightLabel(h.weightKg)}
               </span>
             </div>
           ))}
@@ -100,6 +138,68 @@ export function HangCard({
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+// Inline editor for the remaining hangs' targets (A31). Assisted hangs carry a
+// negative weight, so the weight stepper allows values below zero.
+function HangEditPanel({ hangSet, onEdit }: { hangSet: HangboardSet; onEdit: (u: HangEdit) => void }) {
+  const [duration, setDuration] = useState(String(hangSet.durationSeconds))
+  const [weight, setWeight] = useState(String(hangSet.weightKg))
+  const [rest, setRest] = useState(String(hangSet.restSeconds))
+
+  const toNum = (v: string) => {
+    const n = Number(v)
+    return v.trim() === '' || v.trim() === '-' || Number.isNaN(n) ? 0 : n
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-primary/40 bg-background p-3">
+      <EditField label="Duration (s)">
+        <NumberStepper
+          value={duration}
+          ariaLabel="hang duration"
+          min={1}
+          onChange={(v) => {
+            setDuration(v)
+            onEdit({ durationSeconds: toNum(v) })
+          }}
+        />
+      </EditField>
+      <EditField label="Weight (kg)">
+        <NumberStepper
+          value={weight}
+          ariaLabel="hang weight"
+          step={0.5}
+          inputMode="decimal"
+          onChange={(v) => {
+            setWeight(v)
+            onEdit({ weightKg: toNum(v) })
+          }}
+        />
+      </EditField>
+      <EditField label="Rest (s)">
+        <NumberStepper
+          value={rest}
+          ariaLabel="hang rest"
+          step={5}
+          min={0}
+          onChange={(v) => {
+            setRest(v)
+            onEdit({ restSeconds: toNum(v) })
+          }}
+        />
+      </EditField>
+    </div>
+  )
+}
+
+function EditField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="w-24 shrink-0 text-sm text-muted-foreground">{label}</span>
+      <div className="flex-1">{children}</div>
     </div>
   )
 }

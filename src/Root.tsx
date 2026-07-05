@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { seedIfNeeded } from '@/db/seed'
+import { syncAllTagMeta } from '@/db/helpers'
 
 function LoadingScreen() {
   return (
@@ -17,6 +18,8 @@ export function Root() {
   const [ready, setReady] = useState(false)
   useEffect(() => {
     seedIfNeeded()
+      // Backfill tag metadata for seeded/imported tags (A35), best-effort.
+      .then(() => syncAllTagMeta().catch((err) => console.error('Tag sync failed', err)))
       .catch((err) => console.error('Seeding failed', err))
       .finally(() => setReady(true))
   }, [])

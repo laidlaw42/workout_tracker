@@ -73,7 +73,7 @@ export default function CardioSessionScreen() {
     setInited(true)
   }, [session, template, inited])
 
-  const clock = useSessionTimer(session?.startedAt ?? Date.now())
+  const clock = useSessionTimer(id, session?.startedAt ?? Date.now(), session?.pausedDuration ?? 0)
   const elapsed = clock.elapsed
   useWakeLock(getKeepAwake())
   const timer = useIntervalTimer(intervals, elapsed)

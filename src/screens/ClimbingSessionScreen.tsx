@@ -70,7 +70,8 @@ export default function ClimbingSessionScreen() {
   )
   const routes = useLiveQuery(() => getRoutesForSession(id), [id]) ?? []
   const hangs = useLiveQuery(() => getHangsForSession(id), [id]) ?? []
-  const loggedSets = useLiveQuery(() => getSetsForSession(id), [id]) ?? []
+  const loggedSetsRaw = useLiveQuery(() => getSetsForSession(id), [id])
+  const loggedSets = loggedSetsRaw ?? []
 
   const [gym, setGym] = useState('')
   const [crag, setCrag] = useState('')
@@ -82,7 +83,7 @@ export default function ClimbingSessionScreen() {
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [confirmDeleteRouteId, setConfirmDeleteRouteId] = useState<string | null>(null)
 
-  const clock = useSessionTimer(session?.startedAt ?? Date.now())
+  const clock = useSessionTimer(id, session?.startedAt ?? Date.now(), session?.pausedDuration ?? 0)
   const rest = useRestTimer()
   const countdown = useCountdownTimer()
   const precount = useCountdownTimer()
@@ -172,11 +173,35 @@ export default function ClimbingSessionScreen() {
   const [confirmRemoveLastHangId, setConfirmRemoveLastHangId] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!workInited && template !== undefined && basePlanExercises.length > 0) {
-      setWork(basePlanExercises)
+    if (!workInited && template !== undefined && basePlanExercises.length > 0 && loggedSetsRaw !== undefined) {
+      // Resuming an unfinished session (A34): re-attach exercises that were
+      // added mid-session (logged sets exist but aren't in the plan), restored
+      // as complete — "Add set" continues them.
+      const planned = new Set(basePlanExercises.map((e) => e.exerciseId))
+      const extras = new Map<string, LoggedSet[]>()
+      for (const s of loggedSetsRaw) {
+        if (planned.has(s.exerciseId)) continue
+        const arr = extras.get(s.exerciseId) ?? []
+        arr.push(s)
+        extras.set(s.exerciseId, arr)
+      }
+      const resumed: WorkExercise[] = [...extras.entries()].map(([exId, sets]) => {
+        const last = sets[sets.length - 1]
+        return {
+          uid: `${exId}-resumed`,
+          exerciseId: exId,
+          exerciseName: last.exerciseName,
+          targetSets: sets.length,
+          targetReps: last.targetReps,
+          durationSeconds: last.durationSeconds ?? undefined,
+          restSeconds: 90,
+          skipped: false,
+        }
+      })
+      setWork([...basePlanExercises, ...resumed])
       setWorkInited(true)
     }
-  }, [basePlanExercises, workInited, template])
+  }, [basePlanExercises, workInited, template, loggedSetsRaw])
   useEffect(() => {
     if (!hangWorkInited && template !== undefined && baseHangs.length > 0) {
       setHangWork(baseHangs)
@@ -212,6 +237,10 @@ export default function ClimbingSessionScreen() {
 
   function addSetTo(uid: string) {
     setWork((w) => w.map((e) => (e.uid === uid ? { ...e, targetSets: e.targetSets + 1 } : e)))
+  }
+  // Inline edit (A31) — applies to the exercise's remaining unlogged sets.
+  function editExercise(uid: string, updates: Partial<WorkExercise>) {
+    setWork((w) => w.map((e) => (e.uid === uid ? { ...e, ...updates } : e)))
   }
   function skip(uid: string) {
     setWork((w) => w.map((e) => (e.uid === uid ? { ...e, skipped: true } : e)))
@@ -278,6 +307,7 @@ export default function ClimbingSessionScreen() {
   }
 
   async function logExerciseSet(ex: WorkExercise, data: LoggedSetInput) {
+    clock.resume() // logging activity lifts any pause (F19)
     const setNumber = loggedForEx(ex).length + 1
     try {
       await addSet({
@@ -312,6 +342,7 @@ export default function ClimbingSessionScreen() {
   }
   function startTimedSet(ex: WorkExercise) {
     if (ex.durationSeconds == null) return
+    clock.resume() // starting a timed set lifts any pause (F19)
     rest.skip()
     const run = () =>
       countdown.start(ex.uid, ex.durationSeconds!, () =>
@@ -323,12 +354,18 @@ export default function ClimbingSessionScreen() {
   }
 
   // --- Hang logging (hangboard) -------------------------------------------
-  const completedFor = (hs: HangboardSet) => hangs.filter((h) => h.hangSetId === hs.id).length
+  const loggedForHang = (hs: HangboardSet) =>
+    hangs.filter((h) => h.hangSetId === hs.id).sort((a, b) => a.setNumber - b.setNumber)
+  const completedFor = (hs: HangboardSet) => loggedForHang(hs).length
   const isCompleteHang = (h: WorkHang) => h.skipped || completedFor(h) >= h.sets
   const currentHang = hangWork.find((h) => !isCompleteHang(h))
 
   function addSetToHang(hid: string) {
     setHangWork((w) => w.map((h) => (h.id === hid ? { ...h, sets: h.sets + 1 } : h)))
+  }
+  // Inline edit (A31) — applies to the set's remaining unlogged hangs.
+  function editHang(hid: string, updates: Partial<HangboardSet>) {
+    setHangWork((w) => w.map((h) => (h.id === hid ? { ...h, ...updates } : h)))
   }
   function skipHang(hid: string) {
     setHangWork((w) => w.map((h) => (h.id === hid ? { ...h, skipped: true } : h)))
@@ -366,6 +403,7 @@ export default function ClimbingSessionScreen() {
   }
 
   async function logHang(hs: HangboardSet) {
+    clock.resume() // logging activity lifts any pause (F19)
     try {
       await addHang({
         sessionId: id,
@@ -409,6 +447,7 @@ export default function ClimbingSessionScreen() {
     }
   }
   function startHangCountdown(hs: HangboardSet) {
+    clock.resume() // starting a hang lifts any pause (F19)
     rest.skip()
     const run = () => countdown.start(hs.id, hs.durationSeconds, () => logHang(hs))
     const pre = getPrecountSeconds()
@@ -600,6 +639,7 @@ export default function ClimbingSessionScreen() {
                   onAddSet={() => addSetTo(ex.uid)}
                   onRemoveSet={() => removeSet(ex.uid)}
                   onSwap={isCurrent ? () => setPickerOpen(true) : undefined}
+                  onEdit={(u) => editExercise(ex.uid, u)}
                   onStartCountdown={() => startTimedSet(ex)}
                   countdown={
                     isCurrent && precount.activeUid === ex.uid
@@ -634,11 +674,12 @@ export default function ClimbingSessionScreen() {
               renderItem={(h, isCurrent) => (
                 <HangCard
                   hangSet={h}
-                  completedCount={completedFor(h)}
+                  loggedHangs={loggedForHang(h)}
                   isCurrent={isCurrent}
                   skipped={h.skipped}
                   onAddSet={() => addSetToHang(h.id)}
                   onRemoveSet={() => removeHangSet(h.id)}
+                  onEdit={(u) => editHang(h.id, u)}
                   onStartCountdown={() => startHangCountdown(h)}
                   countdown={
                     isCurrent && precount.activeUid === h.id
@@ -711,7 +752,10 @@ export default function ClimbingSessionScreen() {
         venue={venue ?? 'crag'}
         style={newStyle}
         gymName={gym.trim() || session?.gym || undefined}
-        onSaved={() => setEditing(null)}
+        onSaved={() => {
+          clock.resume() // logging a route lifts any pause (F19)
+          setEditing(null)
+        }}
       />
 
       {rest.isRunning && (
