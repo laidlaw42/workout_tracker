@@ -46,7 +46,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { formatPace, formatWorkoutLength } from '@/lib/formatDuration'
+import { formatPace, formatWorkoutLength, workoutDurationSeconds } from '@/lib/formatDuration'
 import { getGymGradeRanges, type GymGradeRanges } from '@/lib/prefs'
 import type {
   ClimbingRoute,
@@ -171,8 +171,7 @@ export default function SessionDetailScreen() {
     )
   }
 
-  const durationSeconds =
-    session.endedAt != null ? (session.endedAt - session.startedAt) / 1000 : 0
+  const durationSeconds = workoutDurationSeconds(session)
   const badge = badgeForSession(
     session,
     deriveSessionKind(session, {

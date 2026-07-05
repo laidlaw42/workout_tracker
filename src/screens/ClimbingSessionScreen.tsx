@@ -244,10 +244,12 @@ export default function ClimbingSessionScreen() {
   const loggedForEx = (ex: WorkExercise) => setsByExercise.get(ex.exerciseId) ?? []
   const isComplete = (ex: WorkExercise) => ex.skipped || loggedForEx(ex).length >= ex.targetSets
   const currentEx = work.find((ex) => !isComplete(ex))
-  const prefill = useLiveQuery(
+  const prefillRaw = useLiveQuery(
     () => (currentEx ? getLastSetForExercise(currentEx.exerciseId) : undefined),
     [currentEx?.exerciseId],
   )
+  // Ignore a stale prefill still holding the previous exercise's set (F22).
+  const prefill = prefillRaw?.exerciseId === currentEx?.exerciseId ? prefillRaw : undefined
 
   function addSetTo(uid: string) {
     setWork((w) => w.map((e) => (e.uid === uid ? { ...e, targetSets: e.targetSets + 1 } : e)))

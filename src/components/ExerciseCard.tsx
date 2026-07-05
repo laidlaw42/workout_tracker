@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ArrowLeftRight, Check, Minus, Pencil, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { NumberStepper } from '@/components/NumberStepper'
@@ -174,11 +174,12 @@ export function ExerciseCard({
                 </div>
               )
             ) : (
-              // Key on the editable targets and the last-set prefill so both an
-              // inline edit (A31) and advancing to the next set re-seed the
-              // inputs from the latest values (F22).
+              // Key on the set number + editable targets so advancing a set and
+              // an inline A31 edit both re-seed. The async last-set prefill is
+              // NOT in the key — it's synced in via an effect so it never wipes
+              // input the user has already typed (F22).
               <SetRow
-                key={`${currentSetNumber}-${exercise.targetReps ?? ''}-${exercise.weight ?? ''}-${prefill?.weightKg ?? ''}-${prefill?.actualReps ?? ''}`}
+                key={`${currentSetNumber}-${exercise.targetReps ?? ''}-${exercise.weight ?? ''}`}
                 targetReps={exercise.targetReps}
                 plannedWeight={exercise.weight}
                 prefill={prefill}
@@ -310,6 +311,22 @@ function SetRow({
   const [addl, setAddl] = useState(seedAddl)
   const [reps, setReps] = useState(seedReps)
 
+  // The last-set prefill resolves asynchronously (and briefly holds the previous
+  // exercise's value across an exercise change). Adopt it once it arrives, but
+  // only while the user hasn't typed anything yet, so it never clobbers input.
+  const dirty = useRef(false)
+  const markDirty = <T,>(set: (v: T) => void) => (v: T) => {
+    dirty.current = true
+    set(v)
+  }
+  useEffect(() => {
+    if (dirty.current) return
+    setWeight(seedWeight())
+    setAddl(seedAddl())
+    setReps(seedReps())
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill?.weightKg, prefill?.additionalWeightKg, prefill?.actualReps])
+
   function log() {
     const w = weight.trim() === '' ? undefined : Number(weight)
     const a = addl.trim() === '' ? undefined : Number(addl)
@@ -334,7 +351,7 @@ function SetRow({
           min={0}
           inputMode="decimal"
           placeholder="BW"
-          onChange={setWeight}
+          onChange={markDirty(setWeight)}
         />
       </SetField>
       {supportsAdditionalWeight && (
@@ -346,12 +363,12 @@ function SetRow({
             min={0}
             inputMode="decimal"
             placeholder="0"
-            onChange={setAddl}
+            onChange={markDirty(setAddl)}
           />
         </SetField>
       )}
       <SetField label="Reps">
-        <NumberStepper value={reps} ariaLabel="reps" min={0} onChange={setReps} />
+        <NumberStepper value={reps} ariaLabel="reps" min={0} onChange={markDirty(setReps)} />
       </SetField>
       <div className="flex gap-2">
         {onRemove && (

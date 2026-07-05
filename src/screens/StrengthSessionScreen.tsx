@@ -143,10 +143,14 @@ export default function StrengthSessionScreen() {
   const currentEx = currentIndex >= 0 ? work[currentIndex] : undefined
   const allDone = work.length > 0 && currentIndex === -1
 
-  const prefill = useLiveQuery(
+  const prefillRaw = useLiveQuery(
     () => (currentEx ? getLastSetForExercise(currentEx.exerciseId) : undefined),
     [currentEx?.exerciseId],
   )
+  // useLiveQuery holds the previous exercise's value across an exercise change
+  // until the new query resolves; ignore it unless it belongs to the current
+  // exercise, so a new set never seeds from the wrong exercise (F22).
+  const prefill = prefillRaw?.exerciseId === currentEx?.exerciseId ? prefillRaw : undefined
 
   // Rest-timer completion: haptic (no-op on iOS) + auto-dismiss. For a timed
   // set, reaching 0 auto-starts the next set's countdown (A8, if enabled).

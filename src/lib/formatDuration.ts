@@ -1,3 +1,16 @@
+// Real workout length in seconds: wall-clock span minus paused/away time. A34's
+// pausedDuration also absorbs the whole gap when a session is reopened (F23), so
+// this must be subtracted everywhere a finished session's duration is shown, or
+// a resumed workout would read as the full time since it originally started.
+export function workoutDurationSeconds(session: {
+  startedAt: number
+  endedAt?: number
+  pausedDuration?: number
+}): number {
+  if (session.endedAt == null) return 0
+  return Math.max(0, (session.endedAt - session.startedAt - (session.pausedDuration ?? 0)) / 1000)
+}
+
 // Compact duration: "45s" · "12:34" · "1h 23m"
 export function formatDuration(seconds: number): string {
   const s = Math.max(0, Math.round(seconds))

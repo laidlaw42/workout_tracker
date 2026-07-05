@@ -11,8 +11,10 @@ import {
   checkAndSavePR,
   deleteSession,
   endSession,
+  getCardioForSession,
   getSessionById,
   getTemplate,
+  updateCardio,
   updateSession,
 } from '@/db/helpers'
 import {
@@ -52,9 +54,13 @@ export default function CardioSessionScreen() {
     () => (session?.templateId ? getTemplate(session.templateId).then((t) => t ?? null) : null),
     [session?.templateId],
   )
+  // A reopened session (F23) already has a logged cardio row — re-hydrate its
+  // distance below and update (not duplicate) it on finish.
+  const existingCardio = useLiveQuery(() => getCardioForSession(id), [id])
 
   const [distance, setDistance] = useState('')
   const [notes, setNotes] = useState('')
+  const [cardioHydrated, setCardioHydrated] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
 
@@ -70,8 +76,17 @@ export default function CardioSessionScreen() {
     if (session.templateId && !template) return
     setActivity(session.plannedActivity ?? template?.cardioActivity ?? 'other')
     setIntervals(session.plannedIntervals ?? template?.intervals ?? [])
+    setNotes(session.notes ?? '')
     setInited(true)
   }, [session, template, inited])
+
+  // Re-hydrate the distance field from an existing cardio row (reopened session,
+  // F23), once — so re-finishing keeps the recorded distance instead of blanking it.
+  useEffect(() => {
+    if (cardioHydrated || !existingCardio) return
+    setDistance(existingCardio.distanceKm != null ? String(existingCardio.distanceKm) : '')
+    setCardioHydrated(true)
+  }, [existingCardio, cardioHydrated])
 
   const clock = useSessionTimer(id, session?.startedAt ?? Date.now(), session?.pausedDuration ?? 0)
   const elapsed = clock.elapsed
@@ -96,15 +111,19 @@ export default function CardioSessionScreen() {
       const intervals: CompletedInterval[] | undefined = timer.hasIntervals
         ? timer.steps.map((s, i) => ({ label: s.label, durationSeconds: s.duration, order: i }))
         : undefined
-      await addCardio({
-        sessionId: id,
+      const cardioData = {
         activityType: activity,
         durationSeconds: elapsed,
         distanceKm: distanceKm != null && !Number.isNaN(distanceKm) ? distanceKm : undefined,
         avgPaceSecondsPerKm: paceSecPerKm ? Math.round(paceSecPerKm) : undefined,
         intervals,
         loggedAt: Date.now(),
-      })
+      }
+      // Update the existing row on a reopened session (F23); otherwise insert —
+      // never write a second cardio row for the same session.
+      const existing = await getCardioForSession(id)
+      if (existing) await updateCardio(existing.id, cardioData)
+      else await addCardio({ sessionId: id, ...cardioData })
       if (notes.trim()) await updateSession(id, { notes: notes.trim() })
 
       // PR checks (keyed by activity label). checkAndSavePR only persists a beat.

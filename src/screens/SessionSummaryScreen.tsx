@@ -17,7 +17,7 @@ import { badgeForSession, deriveSessionKind } from '@/lib/badges'
 import { PRBadge } from '@/components/PRBadge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatPace, formatWorkoutLength } from '@/lib/formatDuration'
+import { formatPace, formatWorkoutLength, workoutDurationSeconds } from '@/lib/formatDuration'
 import { randomPhrase, randomQuote } from '@/lib/completionMessages'
 import {
   isCleanTick,
@@ -106,8 +106,7 @@ export default function SessionSummaryScreen() {
     )
   }
 
-  const durationSeconds =
-    session.endedAt != null ? (session.endedAt - session.startedAt) / 1000 : 0
+  const durationSeconds = workoutDurationSeconds(session)
   const badge = badgeForSession(
     session,
     deriveSessionKind(session, {

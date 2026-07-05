@@ -132,6 +132,12 @@ derives its mode from the route's own `gymGrade`. Browser-verified: mode survive
 and a full remount, the Flash tick is preserved across a toggle (no field reset), and the
 preference writes/reads correctly.
 
+- _Known narrow limitation:_ the per-gym default is seeded once on session init from
+  `session.gym`. A gym quick-start created **without** a name (the user types the gym only after
+  the screen mounts) won't auto-apply that gym's remembered mode — the toggle stays 'standard'
+  until manually changed. Gym sessions started from the gym picker (the common path) carry the
+  name at creation, so they're unaffected.
+
 ### ✅ A48. Background session persistence — heartbeat done
 
 The other three pillars were already satisfied by A34 + `useSessionTimer` + the await-first
@@ -192,8 +198,15 @@ then navigates to `/session/${session.type}/${id}`.
   workout time only, not the wall-clock gap.
 - Logged sets / routes / cardio / hangs are left intact; the A34 restore logic shows them as
   completed rows, and the A34 resume banner treats the reopened session like any other
-  in-progress one (`endedAt` null + recent `lastActiveAt`). If every set was already logged it
-  opens at "All sets logged" with the mid-session **Add exercise** button (A29).
+  in-progress one (`endedAt` null + recent `lastActiveAt`). On strength, a fully-logged reopened
+  session opens at the "All sets logged" affirmation with the mid-session **Add exercise** button
+  (A29); climbing has no equivalent affirmation block but still exposes route/exercise logging.
+- **Post-review hardening** (adversarial review of this batch): finished-session duration now
+  subtracts `pausedDuration` everywhere it's shown (`workoutDurationSeconds` helper used by the
+  summary, history detail, and session cards), so a reopened+refinished workout reads its real
+  length, not the wall-clock gap. Reopening a **cardio** session now updates its existing
+  `LoggedCardio` on finish (was inserting a duplicate that double-counted in Progress) and
+  re-hydrates the distance/notes fields from the saved row.
 
 ---
 

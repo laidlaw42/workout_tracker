@@ -3,7 +3,7 @@ import { ChevronRight } from 'lucide-react'
 import { DisciplineBadge } from './DisciplineBadge'
 import { badgesForSession, type SessionKind } from '@/lib/badges'
 import { formatRelativeDay } from '@/lib/date'
-import { formatWorkoutLength } from '@/lib/formatDuration'
+import { formatWorkoutLength, workoutDurationSeconds } from '@/lib/formatDuration'
 import type { WorkoutSession } from '@/types'
 
 interface Props {
@@ -16,7 +16,7 @@ interface Props {
 
 export function SessionCard({ session, kind, stat }: Props) {
   const inProgress = session.endedAt == null
-  const durationSeconds = inProgress ? undefined : (session.endedAt! - session.startedAt) / 1000
+  const durationSeconds = inProgress ? undefined : workoutDurationSeconds(session)
 
   // Climbing sessions surface their venue name (gym / crag / board) when set.
   const locationName =

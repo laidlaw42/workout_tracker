@@ -226,15 +226,17 @@ export function deleteGym(name: string): string[] {
 export function renameGym(oldName: string, newName: string): string[] {
   const n = newName.trim()
   if (!n || n === oldName) return getSavedLocations('gym')
+  // Migrate the source gym's settings onto the new name, but never overwrite a
+  // gym that already owns that name (rename-onto-existing keeps the target's own).
   const all = getAllGymGradeRanges()
   if (all[oldName]) {
-    all[n] = all[oldName]
+    if (!(n in all)) all[n] = all[oldName]
     delete all[oldName]
     writeAllGymGradeRanges(all)
   }
   const prefs = getAllGymGradePrefs()
   if (prefs[oldName]) {
-    prefs[n] = prefs[oldName]
+    if (!(n in prefs)) prefs[n] = prefs[oldName]
     delete prefs[oldName]
     writeAllGymGradePrefs(prefs)
   }

@@ -314,9 +314,12 @@ function ClimbingTab() {
   // Only surface the Standard/Gym toggle once at least one gym-graded route
   // exists, so users who never use gym grades don't see an empty extra control.
   const hasGymGrades = useMemo(() => routes.some((r) => r.gymGrade != null), [routes])
+  // Force Standard whenever the toggle is hidden, so a gradeMode left on 'gym'
+  // (e.g. the last gym route was deleted) can't strand an empty pyramid.
+  const effectiveMode: ClimbGradeMode = hasGymGrades ? gradeMode : 'standard'
   const data = useMemo(
-    () => (isPyramid ? buildPyramid(routes, boulder, gradeMode) : []),
-    [routes, boulder, gradeMode, isPyramid],
+    () => (isPyramid ? buildPyramid(routes, boulder, effectiveMode) : []),
+    [routes, boulder, effectiveMode, isPyramid],
   )
 
   return (
@@ -373,7 +376,7 @@ function ClimbingTab() {
                 // range isn't available in the Progress context (routes are
                 // fetched flat, without their session/gym), so fall back to it.
                 const color =
-                  gradeMode === 'gym'
+                  effectiveMode === 'gym'
                     ? gradeToColor(Number(row.grade), { min: 0, max: 35 })
                     : boulder
                       ? vGradeToColor(row.grade)
