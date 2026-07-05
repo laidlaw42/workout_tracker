@@ -152,6 +152,15 @@ export default function ClimbingSessionScreen() {
     setGradeSystem(session?.gym ? (getGymGradePreference(session.gym) ?? 'standard') : 'standard')
   }, [session?.gym])
 
+  // Persist the user's chosen mode as this gym's default (F20). Runs on the
+  // chosen mode and once the gym name is known, so a mode picked before the gym
+  // was named still back-fills the preference.
+  useEffect(() => {
+    if (gradeManualRef.current && venue === 'gym' && gymName) {
+      setGymGradePreference(gymName, gradeSystem)
+    }
+  }, [gymName, gradeSystem, venue])
+
   useEffect(() => {
     if (session && session.type !== 'climbing') navigate('/home', { replace: true })
   }, [session, navigate])
@@ -566,7 +575,6 @@ export default function ClimbingSessionScreen() {
   function handleGradeSystemChange(next: 'standard' | 'gym') {
     gradeManualRef.current = true
     setGradeSystem(next)
-    if (venue === 'gym' && gymName) setGymGradePreference(gymName, next)
   }
 
   if (session === null) {

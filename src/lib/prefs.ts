@@ -189,7 +189,7 @@ function writeAllGymGradeRanges(all: Record<string, GymGradeRanges>): void {
   }
 }
 
-// Per-gym grade ranges (A22), keyed by gym name. Unknown gyms default to 0–35.
+// Per-gym grade ranges (A22), keyed by gym name. Unknown gyms default to 1–10 (F25).
 export function getGymGradeRanges(gym: string): GymGradeRanges {
   return parseRanges(getAllGymGradeRanges()[gym])
 }

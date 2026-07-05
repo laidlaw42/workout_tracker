@@ -161,6 +161,16 @@ export function LogRouteSheet({
           ? String(ewbanks)
           : null
 
+  // A stored gym grade/felt value can fall outside this gym's current range —
+  // e.g. a legacy route after F25 narrowed the default to 1–10. Union it in so
+  // its chip still renders and stays highlighted when editing.
+  const chipValues =
+    gradeMode === 'gym'
+      ? [...new Set([...gradeValues, primarySelected, feltLike].filter((v): v is string => v != null))].sort(
+          (a, b) => Number(a) - Number(b),
+        )
+      : gradeValues
+
   function setPrimary(v: string) {
     if (gradeMode === 'v') setVGrade(v)
     else if (gradeMode === 'gym') setGymGrade(Number(v))
@@ -245,7 +255,7 @@ export function LogRouteSheet({
             <Label>{gradeMode === 'gym' ? 'Grade — Gym' : `Grade — ${styleLabel}`}</Label>
             <GradeChips
               mode={gradeMode}
-              values={gradeValues}
+              values={chipValues}
               selected={primarySelected}
               onSelect={setPrimary}
             />
@@ -256,7 +266,7 @@ export function LogRouteSheet({
             <Label>Felt like</Label>
             <GradeChips
               mode={gradeMode}
-              values={gradeValues}
+              values={chipValues}
               selected={feltLike}
               onSelect={(v) => setFeltLike((cur) => (cur === v ? null : v))}
             />
