@@ -68,10 +68,12 @@ export default function StrengthSessionScreen() {
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
 
   const timer = useSessionTimer(id, session?.startedAt ?? Date.now(), session?.pausedDuration ?? 0)
-  const rest = useRestTimer()
-  const countdown = useCountdownTimer()
-  const precount = useCountdownTimer()
-  useCountdownBeeps(countdown.remaining, countdown.isRunning)
+  // Pausing the session freezes the rest and countdown timers too (they resume
+  // from where they left off when the session resumes).
+  const rest = useRestTimer(timer.paused)
+  const countdown = useCountdownTimer(timer.paused)
+  const precount = useCountdownTimer(timer.paused)
+  useCountdownBeeps(countdown.remaining, countdown.isRunning && !timer.paused)
   usePrecountBeeps(precount.remaining, precount.isRunning)
   useWakeLock(getKeepAwake())
 
@@ -472,7 +474,12 @@ export default function StrengthSessionScreen() {
       </div>
 
       {rest.isRunning && (
-        <RestTimer remaining={rest.remaining} duration={rest.duration} onSkip={rest.skip} />
+        <RestTimer
+          remaining={rest.remaining}
+          duration={rest.duration}
+          paused={timer.paused}
+          onSkip={rest.skip}
+        />
       )}
 
       <ExercisePicker open={pickerOpen} onOpenChange={setPickerOpen} categories={['strength', 'rehab']} onSelect={(exs) => exs[0] && swapCurrent(exs[0])} />

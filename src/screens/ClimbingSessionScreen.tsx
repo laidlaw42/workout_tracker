@@ -97,11 +97,13 @@ export default function ClimbingSessionScreen() {
   const [abrahangLabel, setAbrahangLabel] = useState<string | null>(null)
 
   const clock = useSessionTimer(id, session?.startedAt ?? Date.now(), session?.pausedDuration ?? 0)
-  const rest = useRestTimer()
-  const countdown = useCountdownTimer()
-  const precount = useCountdownTimer()
-  useCountdownBeeps(countdown.remaining, countdown.isRunning)
-  usePrecountBeeps(precount.remaining, precount.isRunning)
+  // Pausing the session freezes the rest, hang/precount and Abrahang countdowns
+  // too (all resume from where they left off when the session resumes).
+  const rest = useRestTimer(clock.paused)
+  const countdown = useCountdownTimer(clock.paused)
+  const precount = useCountdownTimer(clock.paused)
+  useCountdownBeeps(countdown.remaining, countdown.isRunning && !clock.paused)
+  usePrecountBeeps(precount.remaining, precount.isRunning && !clock.paused)
   useWakeLock(getKeepAwake())
 
   // Which venue field to show. Prefer the explicit discriminator; fall back to
@@ -836,7 +838,12 @@ export default function ClimbingSessionScreen() {
       />
 
       {rest.isRunning && (
-        <RestTimer remaining={rest.remaining} duration={rest.duration} onSkip={rest.skip} />
+        <RestTimer
+          remaining={rest.remaining}
+          duration={rest.duration}
+          paused={clock.paused}
+          onSkip={rest.skip}
+        />
       )}
 
       {showExercises && (
