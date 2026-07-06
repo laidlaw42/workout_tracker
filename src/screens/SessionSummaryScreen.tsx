@@ -30,7 +30,7 @@ import { contrastText, gradeToColor, vGradeToColor } from '@/lib/gradeColors'
 import { tickIndicator } from '@/lib/tickTypes'
 import { useTickDisplayStyle } from '@/hooks/useTickSymbol'
 import { cn } from '@/lib/utils'
-import type { ClimbingRoute, LoggedCardio, LoggedSet, PersonalRecord } from '@/types'
+import type { ClimbingRoute, LoggedCardio, LoggedHang, LoggedSet, PersonalRecord } from '@/types'
 
 // canvas-confetti only parses hex colours; theme previews may be oklch (the
 // default dark/light themes). Resolve any CSS colour to sRGB hex by painting a
