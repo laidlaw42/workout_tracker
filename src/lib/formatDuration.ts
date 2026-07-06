@@ -35,6 +35,20 @@ export function formatWorkoutLength(seconds: number): string {
   return m === 0 ? `${h}h` : `${h}h ${m}m`
 }
 
+// Gap between two logged entries (A67): "32s" · "4m 32s" · "1h 02m"
+export function formatGap(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds))
+  if (s < 60) return `${s}s`
+  if (s < 3600) {
+    const m = Math.floor(s / 60)
+    const rem = s % 60
+    return `${m}m ${String(rem).padStart(2, '0')}s`
+  }
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  return `${h}h ${String(m).padStart(2, '0')}m`
+}
+
 // Pace: "5:42 /km"
 export function formatPace(secondsPerKm: number): string {
   if (!isFinite(secondsPerKm) || secondsPerKm <= 0) return '—'

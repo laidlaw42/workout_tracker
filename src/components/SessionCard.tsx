@@ -31,7 +31,9 @@ export function SessionCard({ session, kind, stat }: Props) {
               : undefined
         )?.trim() || undefined
       : undefined
-  const title = locationName ?? session.templateName
+  // Prefer the venue name for a venue session (F30) unless the user renamed the
+  // title (A68), in which case the chosen title wins.
+  const title = session.titleRenamed ? session.templateName : (locationName ?? session.templateName)
 
   // A finished session opens its history detail; an in-progress one links back
   // to the live screen so it can be resumed and finished (otherwise it would

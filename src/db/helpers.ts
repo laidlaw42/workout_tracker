@@ -352,6 +352,15 @@ export async function updateSession(
   })
 }
 
+// Rename a session's display title (A68). Live queries pick this up, so History
+// and Recents update without a reload.
+export async function renameSession(id: string, name: string): Promise<void> {
+  return run('renameSession', async () => {
+    const n = name.trim()
+    if (n) await db.sessions.update(id, { templateName: n, titleRenamed: true })
+  })
+}
+
 export async function endSession(id: string): Promise<void> {
   return run('endSession', async () => {
     await db.sessions.update(id, { endedAt: Date.now() })

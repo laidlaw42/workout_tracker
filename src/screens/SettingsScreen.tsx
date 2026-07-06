@@ -16,11 +16,15 @@ import {
 import { NumberStepper } from '@/components/NumberStepper'
 import { THEMES, THEME_PREVIEWS, applyTheme, getTheme } from '@/lib/theme'
 import {
+  addCustomClimbStyle,
+  addGymArea,
   clearDefaultLocation,
   deleteGym,
   getAutoAdvance,
   getConfettiEnabled,
+  getCustomClimbStyles,
   getDefaultLocation,
+  getGymAreas,
   getGymGradeRanges,
   getKeepAwake,
   getPrecountSeconds,
@@ -31,7 +35,10 @@ import {
   getWeightIncrement,
   getWeightIncrementEnabled,
   rememberLocation,
+  removeCustomClimbStyle,
+  removeGymArea,
   renameGym,
+  renameGymArea,
   setAutoAdvance,
   setConfettiEnabled,
   setDefaultLocation,
@@ -519,6 +526,8 @@ export default function SettingsScreen() {
           </div>
         </section>
 
+        <ClimbStylesManager />
+
         <TagManager />
 
         <section className="space-y-3">
@@ -782,12 +791,26 @@ function GymEditSheet({
 }) {
   const [name, setName] = useState('')
   const [ranges, setRanges] = useState<GymGradeRanges>(() => getGymGradeRanges(''))
+  const [areas, setAreas] = useState<string[]>([]) // A69
+  const [newArea, setNewArea] = useState('')
 
   useEffect(() => {
     if (gym == null) return
     setName(gym)
     setRanges(getGymGradeRanges(gym))
+    setAreas(getGymAreas(gym))
+    setNewArea('')
   }, [gym])
+
+  // Areas persist immediately (keyed by the original gym name); a rename on Save
+  // migrates them via renameGym.
+  function addArea() {
+    if (gym == null) return
+    const n = newArea.trim()
+    if (!n) return
+    setAreas(addGymArea(gym, n))
+    setNewArea('')
+  }
 
   function step(style: GymStyle, bound: 'min' | 'max', delta: number) {
     setRanges((cur) => {
@@ -836,6 +859,33 @@ function GymEditSheet({
           />
           <RangeConfig label="Top rope" range={ranges.top_rope} onStep={(b, d) => step('top_rope', b, d)} />
           <RangeConfig label="Lead" range={ranges.lead} onStep={(b, d) => step('lead', b, d)} />
+
+          {/* Areas / sections (A69) */}
+          <div className="space-y-2">
+            <p className="px-1 text-xs text-muted-foreground">Areas</p>
+            <div className="flex gap-2">
+              <Input
+                value={newArea}
+                placeholder="Add an area (e.g. Cave)"
+                onChange={(e) => setNewArea(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') addArea()
+                }}
+              />
+              <Button onClick={addArea} disabled={!newArea.trim()}>
+                Add
+              </Button>
+            </div>
+            {areas.map((a) => (
+              <AreaRow
+                key={a}
+                area={a}
+                onRename={(next) => gym != null && setAreas(renameGymArea(gym, a, next))}
+                onDelete={() => gym != null && setAreas(removeGymArea(gym, a))}
+              />
+            ))}
+          </div>
+
           <Button variant="outline" className="w-full justify-start text-destructive" onClick={remove}>
             <Trash2 className="size-4" /> Delete gym
           </Button>
@@ -847,6 +897,121 @@ function GymEditSheet({
         </div>
       </SheetContent>
     </Sheet>
+  )
+}
+
+// One editable gym-area row (A69): inline rename on blur, plus delete.
+function AreaRow({
+  area,
+  onRename,
+  onDelete,
+}: {
+  area: string
+  onRename: (next: string) => void
+  onDelete: () => void
+}) {
+  const [draft, setDraft] = useState(area)
+  useEffect(() => setDraft(area), [area])
+  return (
+    <div className="flex items-center gap-2">
+      <Input
+        value={draft}
+        aria-label={`Area ${area}`}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          const n = draft.trim()
+          if (n && n !== area) onRename(n)
+          else setDraft(area)
+        }}
+      />
+      <button
+        type="button"
+        aria-label={`Delete area ${area}`}
+        // Keep the input from blurring first (which would rename, leaving this
+        // delete to no-op on the stale name).
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onDelete}
+        className="flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground active:bg-accent"
+      >
+        <Trash2 className="size-4" />
+      </button>
+    </div>
+  )
+}
+
+// Settings section for user-defined climb styles (A72).
+function ClimbStylesManager() {
+  const [styles, setStyles] = useState<string[]>(() => getCustomClimbStyles())
+  const [newStyle, setNewStyle] = useState('')
+  const [toDelete, setToDelete] = useState<string | null>(null)
+
+  function add() {
+    const n = newStyle.trim()
+    if (!n) return
+    setStyles(addCustomClimbStyle(n))
+    setNewStyle('')
+  }
+  function confirmDelete() {
+    if (toDelete == null) return
+    setStyles(removeCustomClimbStyle(toDelete))
+    setToDelete(null)
+  }
+
+  return (
+    <section className="space-y-2">
+      <h2 className="text-sm font-medium text-muted-foreground">Climb styles</h2>
+      <p className="px-1 text-xs text-muted-foreground">
+        Custom style tags, shown after the built-in ones when logging a route.
+      </p>
+      <div className="flex gap-2">
+        <Input
+          value={newStyle}
+          placeholder="Add a style"
+          onChange={(e) => setNewStyle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') add()
+          }}
+        />
+        <Button onClick={add} disabled={!newStyle.trim()}>
+          Add
+        </Button>
+      </div>
+      {styles.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {styles.map((s) => (
+            <span
+              key={s}
+              className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs"
+            >
+              {s}
+              <button
+                type="button"
+                aria-label={`Delete style ${s}`}
+                onClick={() => setToDelete(s)}
+                className="text-muted-foreground transition-colors active:text-destructive"
+              >
+                <Trash2 className="size-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <AlertDialog open={toDelete !== null} onOpenChange={(o) => !o && setToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete “{toDelete}”?</AlertDialogTitle>
+            <AlertDialogDescription>
+              It’s removed from the style list. Routes already tagged with it keep it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </section>
   )
 }
 

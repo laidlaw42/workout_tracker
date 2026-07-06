@@ -1,4 +1,5 @@
 // Small UI preferences kept in localStorage.
+import { CLIMB_STYLE_TAGS, climbStyleLabel } from './climbing'
 
 // Generic on/off pref defaulting to ON (only an explicit '0' disables it).
 function getBool(key: string): boolean {
@@ -316,8 +317,111 @@ export function setGymGradePreference(gym: string, mode: GradeSystem): void {
   writeAllGymGradePrefs(all)
 }
 
+// --- Gym areas / sections (A69) --------------------------------------------
+// Per-gym named areas (e.g. "Cave", "Slab wall"), keyed by gym name.
+
+function getAllGymAreas(): Record<string, string[]> {
+  try {
+    const p = JSON.parse(localStorage.getItem('gym_areas') ?? '{}')
+    return p && typeof p === 'object' ? (p as Record<string, string[]>) : {}
+  } catch {
+    return {}
+  }
+}
+function writeAllGymAreas(all: Record<string, string[]>): void {
+  try {
+    localStorage.setItem('gym_areas', JSON.stringify(all))
+  } catch {
+    /* ignore */
+  }
+}
+export function getGymAreas(gym: string): string[] {
+  const a = getAllGymAreas()[gym]
+  return Array.isArray(a) ? a.filter((x): x is string => typeof x === 'string') : []
+}
+function setGymAreas(gym: string, areas: string[]): void {
+  const all = getAllGymAreas()
+  const clean = areas.map((s) => s.trim()).filter(Boolean)
+  if (clean.length) all[gym] = clean
+  else delete all[gym]
+  writeAllGymAreas(all)
+}
+export function addGymArea(gym: string, name: string): string[] {
+  const n = name.trim()
+  if (!n) return getGymAreas(gym)
+  const cur = getGymAreas(gym)
+  if (cur.some((x) => x.toLowerCase() === n.toLowerCase())) return cur
+  const next = [...cur, n]
+  setGymAreas(gym, next)
+  return next
+}
+export function removeGymArea(gym: string, name: string): string[] {
+  const next = getGymAreas(gym).filter((x) => x !== name)
+  setGymAreas(gym, next)
+  return next
+}
+export function renameGymArea(gym: string, oldName: string, newName: string): string[] {
+  const n = newName.trim()
+  if (!n) return getGymAreas(gym)
+  const seen = new Set<string>()
+  const next = getGymAreas(gym)
+    .map((x) => (x === oldName ? n : x))
+    .filter((x) => {
+      const k = x.toLowerCase()
+      if (seen.has(k)) return false
+      seen.add(k)
+      return true
+    })
+  setGymAreas(gym, next)
+  return next
+}
+
+// --- Custom climb styles (A72) ---------------------------------------------
+// User-defined style tags appended after the fixed CLIMB_STYLE_TAGS list.
+
+export function getCustomClimbStyles(): string[] {
+  try {
+    const a = JSON.parse(localStorage.getItem('custom_climb_styles') ?? '[]')
+    return Array.isArray(a) ? a.filter((x): x is string => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+function writeCustomClimbStyles(list: string[]): void {
+  try {
+    localStorage.setItem('custom_climb_styles', JSON.stringify(list))
+  } catch {
+    /* ignore */
+  }
+}
+export function addCustomClimbStyle(name: string): string[] {
+  const n = name.trim()
+  if (!n) return getCustomClimbStyles()
+  const lc = n.toLowerCase()
+  const cur = getCustomClimbStyles()
+  // Reject collisions with an existing custom style OR a fixed tag (value or its
+  // display label), so a style never renders as a duplicate pill.
+  const fixedHit = CLIMB_STYLE_TAGS.some(
+    (t) => t.toLowerCase() === lc || climbStyleLabel(t).toLowerCase() === lc,
+  )
+  if (fixedHit || cur.some((x) => x.toLowerCase() === lc)) return cur
+  const next = [...cur, n]
+  writeCustomClimbStyles(next)
+  return next
+}
+export function removeCustomClimbStyle(name: string): string[] {
+  const next = getCustomClimbStyles().filter((x) => x !== name)
+  writeCustomClimbStyles(next)
+  return next
+}
+
 // Keep the MRU name list and per-gym ranges in sync on rename / delete.
 export function deleteGym(name: string): string[] {
+  const areas = getAllGymAreas()
+  if (name in areas) {
+    delete areas[name]
+    writeAllGymAreas(areas)
+  }
   const all = getAllGymGradeRanges()
   if (name in all) {
     delete all[name]
@@ -348,6 +452,12 @@ export function renameGym(oldName: string, newName: string): string[] {
     if (!(n in prefs)) prefs[n] = prefs[oldName]
     delete prefs[oldName]
     writeAllGymGradePrefs(prefs)
+  }
+  const areas = getAllGymAreas()
+  if (areas[oldName]) {
+    if (!(n in areas)) areas[n] = areas[oldName]
+    delete areas[oldName]
+    writeAllGymAreas(areas)
   }
   // Keep the default pointing at the renamed gym (A51).
   if (getDefaultLocation('gym').toLowerCase() === oldName.toLowerCase()) setDefaultLocation('gym', n)

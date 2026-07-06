@@ -9,9 +9,15 @@ import {
   STYLE_LABELS,
   TICK_TYPES,
   V_GRADES,
+  climbStyleLabel,
 } from '@/lib/climbing'
 import { contrastText, gradeToColor, vGradeToColor } from '@/lib/gradeColors'
-import { getGymGradeRanges, type GradeRange } from '@/lib/prefs'
+import {
+  getCustomClimbStyles,
+  getGymAreas,
+  getGymGradeRanges,
+  type GradeRange,
+} from '@/lib/prefs'
 import {
   ROUTE_COLOURS,
   customRouteColours,
@@ -21,6 +27,7 @@ import {
 import { tickIndicator } from '@/lib/tickTypes'
 import { useTickDisplayStyle } from '@/hooks/useTickSymbol'
 import { SegmentedControl } from '@/components/SegmentedControl'
+import { SelectPill } from '@/components/SelectPill'
 import { HoldButton } from '@/components/HoldButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -90,7 +97,9 @@ export function LogRouteSheet({
   const [tick, setTick] = useState<ClimbingTick | null>(null)
   const [routeName, setRouteName] = useState('')
   const [colour, setColour] = useState('')
-  const [attempts, setAttempts] = useState('')
+  const [gymArea, setGymArea] = useState('') // A69
+  const [areaOther, setAreaOther] = useState(false) // A69 — freetext "Other" active
+  const [attempts, setAttempts] = useState('1') // A71 — default 1 for every tick
   const [height, setHeight] = useState('')
   const [notes, setNotes] = useState('')
   // Crag lead/top-rope route type (A64) and the collapsible "Felt like" state (A65).
@@ -100,6 +109,9 @@ export function LogRouteSheet({
   const [gymRanges, setGymRanges] = useState(() => getGymGradeRanges(gymName ?? ''))
   // Custom gym colours (A43), re-read each time the sheet opens.
   const [customColours, setCustomColours] = useState<RouteColour[]>(() => customRouteColours())
+  // Gym areas (A69) and custom climb styles (A72), re-read each time it opens.
+  const [areas, setAreas] = useState<string[]>(() => getGymAreas(gymName ?? ''))
+  const [customStyles, setCustomStyles] = useState<string[]>(() => getCustomClimbStyles())
 
   // Initialise each time the sheet opens (fresh for new, populated for edit).
   // `initialGradeSystem` is read here but intentionally NOT a dependency: it
@@ -109,6 +121,9 @@ export function LogRouteSheet({
     if (!open) return
     setGymRanges(getGymGradeRanges(gymName ?? ''))
     setCustomColours(customRouteColours())
+    const gymAreas = getGymAreas(gymName ?? '')
+    setAreas(gymAreas)
+    setCustomStyles(getCustomClimbStyles())
     if (editing) {
       setStyle(editing.style)
       setGradeSystem(editing.gymGrade != null ? 'gym' : 'standard')
@@ -123,7 +138,10 @@ export function LogRouteSheet({
       setTick(editing.tick)
       setRouteName(editing.routeName ?? '')
       setColour(editing.colour ?? '')
-      setAttempts(editing.attempts != null ? String(editing.attempts) : '')
+      setGymArea(editing.gymArea ?? '')
+      // An area that isn't one of this gym's saved areas is a freetext "Other".
+      setAreaOther(!!editing.gymArea && !gymAreas.includes(editing.gymArea))
+      setAttempts(editing.attempts != null ? String(editing.attempts) : '1')
       setHeight(editing.heightMetres != null ? String(editing.heightMetres) : '')
       setNotes(editing.notes ?? '')
       setRouteType(editing.routeType)
@@ -144,7 +162,9 @@ export function LogRouteSheet({
       setTick(null)
       setRouteName('')
       setColour('')
-      setAttempts('')
+      setGymArea('')
+      setAreaOther(false)
+      setAttempts('1')
       setHeight('')
       setNotes('')
       setRouteType(undefined)
@@ -159,8 +179,18 @@ export function LogRouteSheet({
   const showRouteType = cragSession && (style === 'lead' || style === 'top_rope')
   const validTicks = TICK_TYPES[style]
   const tickStyle = useTickDisplayStyle()
-  // Onsight / flash imply a single attempt, so the field is locked to 1 (A23).
-  const attemptsLocked = tick === 'onsight' || tick === 'flash'
+
+  // A71 — attempts stepper, minimum 1 (default 1 for every tick type).
+  function adjustAttempts(delta: number) {
+    setAttempts((cur) => {
+      const base = cur.trim() === '' ? 1 : Number(cur)
+      return String(Math.max(1, (Number.isNaN(base) ? 1 : base) + delta))
+    })
+  }
+
+  function toggleStyle(s: string) {
+    setClimbStyles((cur) => (cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]))
+  }
 
   function adjustDeg(delta: number) {
     setWallAngleDeg((cur) => {
@@ -251,8 +281,9 @@ export function LogRouteSheet({
       routeName: routeName.trim() || undefined,
       colour: isGym ? colour.trim() || undefined : undefined, // colour is Gym-only (A23)
       routeType: showRouteType ? routeType : undefined, // A64 — Crag roped only
+      gymArea: isGym ? gymArea.trim() || undefined : undefined, // A69 — Gym-only
       heightMetres: height.trim() === '' ? undefined : Number(height), // A44
-      attempts: attemptsLocked ? 1 : attempts.trim() ? Number(attempts) : undefined,
+      attempts: Math.max(1, Number(attempts) || 1), // A71 — always ≥ 1, default 1
       notes: notes.trim() || undefined,
       tick,
       loggedAt: editing ? editing.loggedAt : Date.now(),
@@ -350,6 +381,51 @@ export function LogRouteSheet({
             )}
           </div>
 
+          {/* Area (A69) — Gym only, above the colour selector. Rendered as
+              single-select pills (+ None / freetext Other) rather than a Radix
+              Select, to avoid the nested popover/Sheet issues that drove F28. */}
+          {isGym && (
+            <div className="space-y-1.5">
+              <Label>Area{gymArea ? ` — ${gymArea}` : ''}</Label>
+              <div className="flex flex-wrap gap-2">
+                <SelectPill
+                  label="None"
+                  active={!areaOther && !gymArea}
+                  onClick={() => {
+                    setAreaOther(false)
+                    setGymArea('')
+                  }}
+                />
+                {areas.map((a) => (
+                  <SelectPill
+                    key={a}
+                    label={a}
+                    active={!areaOther && gymArea === a}
+                    onClick={() => {
+                      setAreaOther(false)
+                      setGymArea(a)
+                    }}
+                  />
+                ))}
+                <SelectPill
+                  label="Other"
+                  active={areaOther}
+                  onClick={() => {
+                    setAreaOther(true)
+                    setGymArea('')
+                  }}
+                />
+              </div>
+              {areaOther && (
+                <Input
+                  value={gymArea}
+                  placeholder="Area name"
+                  onChange={(e) => setGymArea(e.target.value)}
+                />
+              )}
+            </div>
+          )}
+
           {/* 3 — Colour (Gym only) — sits beneath Felt like. Inline 44px swatch
               grid rather than a Radix Select popover: avoids nested popover/Sheet
               event + z-index issues and gives a reliable touch target (F28). */}
@@ -384,18 +460,34 @@ export function LogRouteSheet({
             </div>
           )}
 
-          {/* 4 — Attempts (above Tick type; locked to 1 for onsight / flash) */}
+          {/* 4 — Attempts (above Tick type) — A71 stepper, default 1, minimum 1 */}
           <div className="space-y-1.5">
             <Label htmlFor="route-attempts">Attempts</Label>
-            <Input
-              id="route-attempts"
-              inputMode="numeric"
-              readOnly={attemptsLocked}
-              value={attemptsLocked ? '1' : attempts}
-              placeholder="optional"
-              className={cn(attemptsLocked && 'text-muted-foreground')}
-              onChange={(e) => setAttempts(e.target.value.replace(/[^0-9]/g, ''))}
-            />
+            <div className="flex items-center gap-2">
+              <HoldButton
+                aria-label="Decrease attempts"
+                disabled={(Number(attempts) || 1) <= 1}
+                onStep={() => adjustAttempts(-1)}
+                className="size-11 text-xl font-semibold"
+              >
+                −
+              </HoldButton>
+              <Input
+                id="route-attempts"
+                inputMode="numeric"
+                value={attempts}
+                className="flex-1 text-center"
+                onChange={(e) => setAttempts(e.target.value.replace(/[^0-9]/g, ''))}
+                onBlur={() => setAttempts((cur) => String(Math.max(1, Number(cur) || 1)))}
+              />
+              <HoldButton
+                aria-label="Increase attempts"
+                onStep={() => adjustAttempts(1)}
+                className="size-11 text-xl font-semibold"
+              >
+                +
+              </HoldButton>
+            </div>
           </div>
 
           {/* 5 — Tick type */}
@@ -531,32 +623,35 @@ export function LogRouteSheet({
             </div>
           </div>
 
-          {/* 6b — Style tags (A47) */}
+          {/* 6b — Style tags (A47, A72). Fixed tags, then user-defined custom
+              styles after a subtle divider. */}
           <div className="space-y-2">
             <Label>Style</Label>
             <div className="flex flex-wrap gap-2">
-              {CLIMB_STYLE_TAGS.map((s) => {
-                const on = climbStyles.includes(s)
-                return (
-                  <button
-                    key={s}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() =>
-                      setClimbStyles((cur) => (on ? cur.filter((x) => x !== s) : [...cur, s]))
-                    }
-                    className={cn(
-                      'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-                      on
-                        ? 'border-primary bg-primary/10 text-foreground'
-                        : 'border-border text-muted-foreground',
-                    )}
-                  >
-                    {s}
-                  </button>
-                )
-              })}
+              {CLIMB_STYLE_TAGS.map((s) => (
+                <SelectPill
+                  key={s}
+                  label={climbStyleLabel(s)}
+                  active={climbStyles.includes(s)}
+                  onClick={() => toggleStyle(s)}
+                />
+              ))}
             </div>
+            {customStyles.length > 0 && (
+              <>
+                <div className="mt-1 border-t border-border/60" />
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {customStyles.map((s) => (
+                    <SelectPill
+                      key={s}
+                      label={s}
+                      active={climbStyles.includes(s)}
+                      onClick={() => toggleStyle(s)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           {/* 7 — Route name */}

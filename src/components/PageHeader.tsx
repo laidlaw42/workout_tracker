@@ -5,9 +5,11 @@ interface Props {
   title: string
   onBack?: () => void
   right?: ReactNode
+  /** Replaces the plain title with an interactive node (e.g. an inline rename). */
+  titleContent?: ReactNode
 }
 
-export function PageHeader({ title, onBack, right }: Props) {
+export function PageHeader({ title, onBack, right, titleContent }: Props) {
   return (
     <header className="sticky top-0 z-40 flex min-h-14 items-center gap-2 border-b border-border bg-background/95 px-2 pt-[env(safe-area-inset-top)] backdrop-blur">
       {onBack && (
@@ -20,7 +22,9 @@ export function PageHeader({ title, onBack, right }: Props) {
           <ChevronLeft className="size-5" aria-hidden />
         </button>
       )}
-      <h1 className="min-w-0 flex-1 truncate text-lg font-semibold">{title}</h1>
+      {titleContent ?? (
+        <h1 className="min-w-0 flex-1 truncate text-lg font-semibold">{title}</h1>
+      )}
       {right}
     </header>
   )

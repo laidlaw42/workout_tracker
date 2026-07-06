@@ -124,7 +124,8 @@ export interface WorkoutTemplate {
 export interface WorkoutSession {
   id: string
   templateId?: string // undefined for freestyle / climbing sessions
-  templateName: string // snapshot at session start
+  templateName: string // snapshot at session start (also the editable title, A68)
+  titleRenamed?: boolean // user renamed the title (A68) — show it over the venue name
   type: DisciplineType
   startedAt: number
   endedAt?: number
@@ -233,6 +234,7 @@ export interface ClimbingRoute {
   routeName?: string
   colour?: string // gym tape colour
   routeType?: 'sport' | 'trad' // Crag lead/top-rope metadata only (A64)
+  gymArea?: string // gym section/area this route is in (A69)
   tick: ClimbingTick
   attempts?: number
   falls?: number

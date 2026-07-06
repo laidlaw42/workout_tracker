@@ -15,6 +15,7 @@ import {
   getGymGradePreference,
   getKeepAwake,
   getPrecountSeconds,
+  getGymAreas,
   getSavedLocations,
   rememberLocation,
   setGymGradePreference,
@@ -36,9 +37,16 @@ import {
   getTemplate,
   updateSession,
 } from '@/db/helpers'
-import { CLIMB_STYLE_ICONS, STYLE_LABELS, isCleanTick, vGradeIndex } from '@/lib/climbing'
+import {
+  CLIMB_STYLE_ICONS,
+  STYLE_LABELS,
+  isCleanTick,
+  routeGapSeconds,
+  vGradeIndex,
+} from '@/lib/climbing'
 import { normalizeVenue } from '@/lib/badges'
 import { SessionHeader } from '@/components/SessionHeader'
+import { SelectPill } from '@/components/SelectPill'
 import { RouteCard } from '@/components/RouteCard'
 import { LogRouteSheet } from '@/components/LogRouteSheet'
 import { ExerciseCard, type LoggedSetInput, type WorkExercise } from '@/components/ExerciseCard'
@@ -114,6 +122,8 @@ export default function ClimbingSessionScreen() {
   // "Not <name>?" rename prompt when a default gym/board was applied (A51).
   const [renameOpen, setRenameOpen] = useState(false)
   const [renameValue, setRenameValue] = useState('')
+  // Active gym-area filter for the logged-route list (A70). '' = All.
+  const [areaFilter, setAreaFilter] = useState('')
 
   const clock = useSessionTimer(id, session?.startedAt ?? Date.now(), session?.pausedDuration ?? 0)
   // Pausing the session freezes the rest, hang/precount and Abrahang countdowns
@@ -137,7 +147,19 @@ export default function ClimbingSessionScreen() {
           ? 'gym'
           : undefined)
   const isBoard = venue === 'board'
+  const isGym = venue === 'gym'
   const gymName = gym.trim() || session?.gym || undefined
+
+  // A70 — area filter pills for gym sessions; A67 — time gap before each route.
+  const gymAreas = useMemo(() => (isGym ? getGymAreas(gymName ?? '') : []), [isGym, gymName])
+  const gaps = useMemo(
+    () =>
+      session?.startedAt != null
+        ? routeGapSeconds(routes, session.startedAt)
+        : new Map<string, number>(),
+    [routes, session?.startedAt],
+  )
+  const shownRoutes = areaFilter ? routes.filter((r) => r.gymArea === areaFilter) : routes
 
   // A51 — when a gym/board session was started from a saved default, show a
   // "Not <name>?" link so the user can change it for this session only (without
@@ -911,6 +933,20 @@ export default function ClimbingSessionScreen() {
                   </div>
                 )}
 
+                {isGym && gymAreas.length > 0 && routes.length > 0 && (
+                  <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+                    <SelectPill label="All" active={!areaFilter} onClick={() => setAreaFilter('')} />
+                    {gymAreas.map((a) => (
+                      <SelectPill
+                        key={a}
+                        label={a}
+                        active={areaFilter === a}
+                        onClick={() => setAreaFilter(a)}
+                      />
+                    ))}
+                  </div>
+                )}
+
                 {routes.length === 0 ? (
                   <EmptyState
                     icon={Mountain}
@@ -920,12 +956,15 @@ export default function ClimbingSessionScreen() {
                 ) : (
                   <div className="space-y-2">
                     <p className="text-sm text-muted-foreground">
-                      {routes.length} route{routes.length === 1 ? '' : 's'} this session
+                      {areaFilter
+                        ? `${shownRoutes.length} in ${areaFilter}`
+                        : `${routes.length} route${routes.length === 1 ? '' : 's'} this session`}
                     </p>
-                    {routes.map((r) => (
+                    {shownRoutes.map((r) => (
                       <RouteCard
                         key={r.id}
                         route={r}
+                        gapSeconds={gaps.get(r.id)}
                         onClick={() => openEdit(r)}
                         onDelete={() => setConfirmDeleteRouteId(r.id)}
                       />

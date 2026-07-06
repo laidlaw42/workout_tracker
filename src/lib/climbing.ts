@@ -33,14 +33,36 @@ export const CLIMB_CHARACTER_LABEL: Record<ClimbCharacter, string> = Object.from
   CLIMB_CHARACTERS.map((c) => [c.value, c.label]),
 ) as Record<ClimbCharacter, string>
 
-// Freeform style descriptors for a route (A47), multi-select. Stretchy / Short /
-// Long appended at the end (A52).
+// Freeform style descriptors for a route (A47, A52, A72), multi-select. Stored
+// values are the strings themselves, except 'take' which displays as "Take 😩".
 export const CLIMB_STYLE_TAGS = [
   'Crimpy', 'Juggy', 'Pumpy', 'Slopey', 'Pinchy', 'Dynamic', 'Static', 'Technical',
   'Powerful', 'Endurance', 'Compression', 'Balancy', 'Mantle', 'Stemmy', 'Roofed',
   'Fingery', 'Thuggish', 'Garbage', 'Sandbagged', 'Chossy', 'Painful',
-  'Stretchy', 'Short', 'Long',
+  'Stretchy', 'Short', 'Long', 'Scary', 'Ugly', 'take', 'Off belay',
 ] as const
+
+// Display label for a style value (A72): 'take' → "Take 😩"; everything else is
+// its own label (fixed tags and user-defined custom styles alike).
+export function climbStyleLabel(value: string): string {
+  return value === 'take' ? 'Take 😩' : value
+}
+
+// Elapsed seconds before each logged route (A67): the gap to the previous route,
+// or to the session start for the earliest one. Keyed by route id; order-agnostic.
+export function routeGapSeconds(
+  routes: { id: string; loggedAt: number }[],
+  sessionStart: number,
+): Map<string, number> {
+  const sorted = [...routes].sort((a, b) => a.loggedAt - b.loggedAt)
+  const map = new Map<string, number>()
+  let prev = sessionStart
+  for (const r of sorted) {
+    map.set(r.id, Math.max(0, (r.loggedAt - prev) / 1000))
+    prev = r.loggedAt
+  }
+  return map
+}
 
 // --- Grades -----------------------------------------------------------------
 

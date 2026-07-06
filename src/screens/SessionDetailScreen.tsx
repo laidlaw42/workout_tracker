@@ -15,6 +15,7 @@ import {
   getRoutesForSession,
   getSessionById,
   getSetsForSession,
+  renameSession,
   reopenSession,
   repeatSession,
   updateCardio,
@@ -28,7 +29,7 @@ import { RouteCard } from '@/components/RouteCard'
 import { TagInput } from '@/components/TagInput'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
 import { badgeForSession, deriveSessionKind, normalizeVenue } from '@/lib/badges'
-import { CLIMB_STYLE_ICONS } from '@/lib/climbing'
+import { CLIMB_STYLE_ICONS, routeGapSeconds } from '@/lib/climbing'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -103,6 +104,16 @@ export default function SessionDetailScreen() {
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
   const [templateName, setTemplateName] = useState('')
   const [templateTags, setTemplateTags] = useState<string[]>([])
+  // A68 — inline rename of the session title.
+  const [renaming, setRenaming] = useState(false)
+  const [nameDraft, setNameDraft] = useState('')
+
+  function commitRename() {
+    if (!session) return
+    const n = nameDraft.trim()
+    if (n && n !== session.templateName) void renameSession(session.id, n)
+    setRenaming(false)
+  }
 
   useEffect(() => {
     if (session && !notesInited) {
@@ -243,6 +254,40 @@ export default function SessionDetailScreen() {
       <PageHeader
         title={session.templateName}
         onBack={() => navigate('/history')}
+        titleContent={
+          session.endedAt != null ? (
+            renaming ? (
+              <input
+                autoFocus
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onBlur={commitRename}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.currentTarget.blur()
+                  else if (e.key === 'Escape') {
+                    e.preventDefault()
+                    setNameDraft(session.templateName)
+                    setRenaming(false)
+                  }
+                }}
+                aria-label="Session name"
+                className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-lg font-semibold"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setNameDraft(session.templateName)
+                  setRenaming(true)
+                }}
+                className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+              >
+                <span className="truncate text-lg font-semibold">{session.templateName}</span>
+                <Pencil className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+              </button>
+            )
+          ) : undefined
+        }
         right={
           <div className="flex items-center gap-1">
             <Button
@@ -313,6 +358,7 @@ export default function SessionDetailScreen() {
             sets={sets}
             editing={editing}
             venue={venue}
+            sessionStartedAt={session.startedAt}
             onAddExercise={() => setPickerOpen(true)}
             onAddSet={addSetToExercise}
             onEditRoute={(r) => {
@@ -734,6 +780,7 @@ function ClimbingDetail({
   sets,
   editing,
   venue,
+  sessionStartedAt,
   onAddExercise,
   onAddSet,
   onEditRoute,
@@ -745,6 +792,7 @@ function ClimbingDetail({
   sets: LoggedSet[]
   editing: boolean
   venue?: 'gym' | 'crag' | 'board'
+  sessionStartedAt: number
   onAddExercise: () => void
   onAddSet: (exerciseId: string, exerciseName: string) => void
   onEditRoute: (r: ClimbingRoute) => void
@@ -754,6 +802,7 @@ function ClimbingDetail({
   const setsByExercise = new Map<string, number>()
   for (const s of sets) setsByExercise.set(s.exerciseName, (setsByExercise.get(s.exerciseName) ?? 0) + 1)
   const hasRoutes = routes.length > 0 || editing
+  const gaps = routeGapSeconds(routes, sessionStartedAt) // A67
 
   return (
     <div className="space-y-4">
@@ -825,7 +874,7 @@ function ClimbingDetail({
               editing ? (
                 <div key={r.id} className="flex items-center gap-2">
                   <div className="min-w-0 flex-1">
-                    <RouteCard route={r} onClick={() => onEditRoute(r)} />
+                    <RouteCard route={r} gapSeconds={gaps.get(r.id)} onClick={() => onEditRoute(r)} />
                   </div>
                   <button
                     type="button"
@@ -837,7 +886,7 @@ function ClimbingDetail({
                   </button>
                 </div>
               ) : (
-                <RouteCard key={r.id} route={r} />
+                <RouteCard key={r.id} route={r} gapSeconds={gaps.get(r.id)} />
               ),
             )
           )}

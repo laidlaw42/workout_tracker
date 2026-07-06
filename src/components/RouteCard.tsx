@@ -3,10 +3,12 @@ import {
   CLIMB_CHARACTER_LABEL,
   CLIMB_STYLE_ICONS,
   STYLE_LABELS,
+  climbStyleLabel,
   tickBadgeClass,
   tickLabel,
 } from '@/lib/climbing'
 import { contrastText, gradeToColor, vGradeToColor } from '@/lib/gradeColors'
+import { formatGap } from '@/lib/formatDuration'
 import { findRouteColour } from '@/lib/routeColours'
 import { useTickSymbol } from '@/hooks/useTickSymbol'
 import {
@@ -23,9 +25,11 @@ interface Props {
   onClick?: () => void
   /** When provided, long-press opens an Edit / Delete context menu. */
   onDelete?: () => void
+  /** Seconds since the previous route (or session start for the first) — A67. */
+  gapSeconds?: number
 }
 
-export function RouteCard({ route, onClick, onDelete }: Props) {
+export function RouteCard({ route, onClick, onDelete, gapSeconds }: Props) {
   const tickSymbol = useTickSymbol(route.tick)
   const StyleIcon = CLIMB_STYLE_ICONS[route.style] // F40 — Lucide climb-type icon
 
@@ -50,9 +54,10 @@ export function RouteCard({ route, onClick, onDelete }: Props) {
       ? gradeToColor(route.ewbanksGrade)
       : (gymHoldColour ?? null)
 
-  // Attempts (F27): Onsight / Flash always read as a single attempt (A23); other
-  // ticks show the entered value, and the label is omitted when unknown.
-  const attemptCount = route.tick === 'onsight' || route.tick === 'flash' ? 1 : route.attempts
+  // Attempts (F27, A71): show the stored count; legacy Onsight/Flash routes that
+  // never stored one still read as a single attempt (A23).
+  const attemptCount =
+    route.attempts ?? (route.tick === 'onsight' || route.tick === 'flash' ? 1 : undefined)
   // Character (A45), falling back to a legacy wallAngle until it's migrated.
   const character = route.climbCharacter ?? route.wallAngle
 
@@ -113,6 +118,11 @@ export function RouteCard({ route, onClick, onDelete }: Props) {
               {CLIMB_CHARACTER_LABEL[character]}
             </span>
           )}
+          {route.gymArea && (
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+              {route.gymArea}
+            </span>
+          )}
         </div>
         {/* Row 2 — style tags (A47). */}
         {route.climbStyles && route.climbStyles.length > 0 && (
@@ -122,7 +132,7 @@ export function RouteCard({ route, onClick, onDelete }: Props) {
                 key={s}
                 className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
               >
-                {s}
+                {climbStyleLabel(s)}
               </span>
             ))}
           </div>
@@ -132,6 +142,14 @@ export function RouteCard({ route, onClick, onDelete }: Props) {
           <p className="truncate text-xs text-muted-foreground">{secondary.join(' · ')}</p>
         )}
       </div>
+      {gapSeconds != null && (
+        <span
+          className="shrink-0 self-start pt-0.5 text-xs tabular-nums text-muted-foreground"
+          title="Time since the previous climb"
+        >
+          {formatGap(gapSeconds)}
+        </span>
+      )}
     </button>
   )
 
