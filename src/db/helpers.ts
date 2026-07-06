@@ -280,6 +280,16 @@ export async function getRehabTemplates(): Promise<WorkoutTemplate[]> {
   })
 }
 
+// Templates that contain hangboard rows (A73) — the training-library Hangboard tab.
+export async function getHangboardTemplates(): Promise<WorkoutTemplate[]> {
+  return run('getHangboardTemplates', async () => {
+    const list = (await db.templates.toArray()).filter((t) => (t.hangboardSets?.length ?? 0) > 0)
+    return list.sort(
+      (a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || a.name.localeCompare(b.name),
+    )
+  })
+}
+
 export async function getTemplate(id: string): Promise<WorkoutTemplate | undefined> {
   return run('getTemplate', () => db.templates.get(id))
 }

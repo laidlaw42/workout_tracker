@@ -7,21 +7,25 @@ import { SessionCard } from '@/components/SessionCard'
 import { EmptyState } from '@/components/EmptyState'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatMonthYear } from '@/lib/date'
-import type { DisciplineType } from '@/types'
 
-type Filter = 'all' | DisciplineType
+// A73: two top-level session categories. Training covers strength, cardio, rehab
+// and hangboard (all non-climbing types, including 'mixed'); Climbing is the
+// route-logging Gym/Crag/Board sessions.
+type Filter = 'all' | 'training' | 'climbing'
 
 const OPTIONS: { value: Filter; label: string }[] = [
   { value: 'all', label: 'All' },
-  { value: 'strength', label: 'Strength' },
-  { value: 'cardio', label: 'Cardio' },
+  { value: 'training', label: 'Training' },
   { value: 'climbing', label: 'Climbing' },
 ]
 
 export default function HistoryScreen() {
   const [filter, setFilter] = useState<Filter>('all')
   const data = useLiveQuery(async () => {
-    const sessions = await getAllSessions(filter === 'all' ? undefined : filter)
+    const all = await getAllSessions()
+    const sessions = all.filter((s) =>
+      filter === 'all' ? true : filter === 'climbing' ? s.type === 'climbing' : s.type !== 'climbing',
+    )
     // Completed sessions only, already sorted by startedAt desc.
     const completed = sessions.filter((s) => s.endedAt != null)
     const kinds = await describeSessions(completed)

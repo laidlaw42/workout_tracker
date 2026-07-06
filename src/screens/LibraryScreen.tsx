@@ -7,16 +7,16 @@ import { useTagColours } from '@/hooks/useTagColours'
 import {
   deleteTemplate,
   getDefaultTags,
+  getHangboardTemplates,
   getRehabTemplates,
   getTemplatesByType,
   upsertTemplate,
 } from '@/db/helpers'
-import { REHAB_BADGE } from '@/lib/badges'
+import { CLIMB_WORKOUT_BADGE, HANGBOARD_BADGE, REHAB_BADGE } from '@/lib/badges'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
 import { TemplateCard } from '@/components/TemplateCard'
 import { ExerciseLibrary } from '@/components/ExerciseLibrary'
-import { ClimbingQuickStarts } from '@/components/ClimbingQuickStarts'
 import { EmptyState } from '@/components/EmptyState'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -42,8 +42,10 @@ import {
 } from '@/components/ui/dialog'
 import type { DisciplineType, WorkoutTemplate } from '@/types'
 
-type Filter = 'all' | DisciplineType | 'rehab'
-type NewKind = 'strength' | 'cardio' | 'hangboard' | 'workout'
+// Content-based filters (A73/A74): rehab and hangboard aren't template `type`s —
+// they filter by the categories of the exercises / hang rows a template contains.
+type Filter = 'all' | DisciplineType | 'rehab' | 'hangboard'
+type NewKind = 'strength' | 'cardio'
 
 const OPTIONS: { value: Filter; label: string }[] = [
   { value: 'all', label: 'All' },
@@ -51,6 +53,7 @@ const OPTIONS: { value: Filter; label: string }[] = [
   { value: 'cardio', label: 'Cardio' },
   { value: 'climbing', label: 'Climbing' },
   { value: 'rehab', label: 'Rehab' },
+  { value: 'hangboard', label: 'Hangboard' },
 ]
 
 export default function LibraryScreen() {
@@ -61,7 +64,8 @@ export default function LibraryScreen() {
     initial === 'strength' ||
       initial === 'cardio' ||
       initial === 'climbing' ||
-      initial === 'rehab'
+      initial === 'rehab' ||
+      initial === 'hangboard'
       ? initial
       : 'all',
   )
@@ -76,7 +80,9 @@ export default function LibraryScreen() {
     () =>
       filter === 'rehab'
         ? getRehabTemplates()
-        : getTemplatesByType(filter === 'all' ? undefined : filter),
+        : filter === 'hangboard'
+          ? getHangboardTemplates()
+          : getTemplatesByType(filter === 'all' ? undefined : filter),
     [filter],
   )
   const tagColour = useTagColours()
@@ -94,18 +100,9 @@ export default function LibraryScreen() {
     // Pre-apply the user's default tags (A35); they can edit them on the next screen.
     const tags = await getDefaultTags()
     const draft =
-      newType === 'strength'
-        ? { name, type: 'strength' as const, tags, exercises: [] }
-        : newType === 'cardio'
-          ? { name, type: 'cardio' as const, tags, exercises: [], cardioActivity: 'run' as const }
-          : {
-              name,
-              type: 'climbing' as const,
-              tags,
-              exercises: [],
-              climbingKind: newType === 'hangboard' ? ('hangboard' as const) : ('workout' as const),
-              hangboardSets: [],
-            }
+      newType === 'cardio'
+        ? { name, type: 'cardio' as const, tags, exercises: [], cardioActivity: 'run' as const }
+        : { name, type: 'strength' as const, tags, exercises: [] }
     try {
       const id = await upsertTemplate(draft)
       setNewOpen(false)
@@ -117,20 +114,17 @@ export default function LibraryScreen() {
     }
   }
 
-  const climbingCreate = newType === 'hangboard' || newType === 'workout'
-  const newTypeOptions: { value: NewKind; label: string }[] = climbingCreate
-    ? [
-        { value: 'hangboard', label: 'Hangboard' },
-        { value: 'workout', label: 'Climbing workout' },
-      ]
-    : [
-        { value: 'strength', label: 'Strength' },
-        { value: 'cardio', label: 'Cardio' },
-      ]
+  // A73: new templates are strength or cardio. Hangboard/climbing-strength are
+  // built by logging a training session (with hangboard exercises) and saving it
+  // as a template.
+  const newTypeOptions: { value: NewKind; label: string }[] = [
+    { value: 'strength', label: 'Strength' },
+    { value: 'cardio', label: 'Cardio' },
+  ]
 
   function openNew() {
     setNewName('')
-    setNewType(filter === 'climbing' ? 'hangboard' : 'strength')
+    setNewType('strength')
     setNewOpen(true)
   }
 
@@ -179,12 +173,24 @@ export default function LibraryScreen() {
             }}
           />
 
-          {filter === 'climbing' && <ClimbingQuickStarts />}
+          {filter === 'climbing' && (
+            <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+              <DisciplineBadge badge={CLIMB_WORKOUT_BADGE} />
+              <span>Start Gym, Crag or Board sessions from the Home screen.</span>
+            </div>
+          )}
 
           {filter === 'rehab' && (
             <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
               <DisciplineBadge badge={REHAB_BADGE} />
               <span>Workouts that include rehab exercises.</span>
+            </div>
+          )}
+
+          {filter === 'hangboard' && (
+            <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+              <DisciplineBadge badge={HANGBOARD_BADGE} />
+              <span>Training workouts with hangboard exercises.</span>
             </div>
           )}
 
@@ -219,7 +225,15 @@ export default function LibraryScreen() {
             <EmptyState
               icon={Dumbbell}
               title="No workouts here"
-              subtitle={activeTag ? `No workouts tagged #${activeTag}.` : 'Tap New to create a workout routine.'}
+              subtitle={
+                activeTag
+                  ? `No workouts tagged #${activeTag}.`
+                  : filter === 'climbing'
+                    ? 'Start Gym, Crag or Board sessions from the Home screen.'
+                    : filter === 'hangboard'
+                      ? 'Log a session with hangboard exercises, then save it as a template.'
+                      : 'Tap New to create a workout routine.'
+              }
             />
           ) : (
             <div className="space-y-2">
@@ -243,7 +257,7 @@ export default function LibraryScreen() {
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
           <DialogHeader>
-            <DialogTitle>{climbingCreate ? 'New climbing workout' : 'New workout'}</DialogTitle>
+            <DialogTitle>New workout</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">

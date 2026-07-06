@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Activity, Bandage, Dumbbell, Flame, Mountain, Play, Plus, Settings } from 'lucide-react'
+import { Activity, Bandage, Dumbbell, Flame, Hand, Play, Plus, Settings } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import {
   createSession,
@@ -132,7 +132,7 @@ export default function HomeScreen() {
       </Button>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">Quick start</h2>
+        <h2 className="text-sm font-medium text-muted-foreground">Training</h2>
         <div className="grid grid-cols-2 gap-3">
           <QuickStart
             label="Strength"
@@ -147,22 +147,22 @@ export default function HomeScreen() {
             onClick={() => navigate('/library?type=cardio')}
           />
           <QuickStart
-            label="Climbing"
-            icon={Mountain}
-            className="bg-green-500/15 text-green-300"
-            onClick={() => navigate('/library?type=climbing')}
-          />
-          <QuickStart
             label="Rehab"
             icon={Bandage}
             className="bg-sky-500/15 text-sky-300"
             onClick={() => navigate('/library?type=rehab')}
           />
+          <QuickStart
+            label="Hangboard"
+            icon={Hand}
+            className="bg-green-500/15 text-green-300"
+            onClick={() => navigate('/library?type=hangboard')}
+          />
         </div>
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-medium text-muted-foreground">Start a climb</h2>
+        <h2 className="text-sm font-medium text-muted-foreground">Climbing</h2>
         <ClimbingQuickStarts />
       </section>
 

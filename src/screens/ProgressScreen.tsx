@@ -53,6 +53,9 @@ export default function ProgressScreen() {
           <TabsTrigger value="cardio" className="flex-1">
             Cardio
           </TabsTrigger>
+          <TabsTrigger value="hangboard" className="flex-1">
+            Hangboard
+          </TabsTrigger>
           <TabsTrigger value="climbing" className="flex-1">
             Climbing
           </TabsTrigger>
@@ -65,6 +68,9 @@ export default function ProgressScreen() {
         </TabsContent>
         <TabsContent value="cardio" className="pt-4">
           <CardioTab />
+        </TabsContent>
+        <TabsContent value="hangboard" className="pt-4">
+          <HangboardView />
         </TabsContent>
         <TabsContent value="climbing" className="pt-4">
           <ClimbingTab />
@@ -464,11 +470,11 @@ function metresPerSession(routes: ClimbingRoute[]): { date: string; metres: numb
 }
 
 function ClimbingTab() {
-  const [view, setView] = useState<'boulder' | 'roped' | 'hangboard'>('boulder')
+  // A73: the Climbing tab is route-only; hangboard progress lives on its own tab.
+  const [view, setView] = useState<'boulder' | 'roped'>('boulder')
   const [gradeMode, setGradeMode] = useState<ClimbGradeMode>('standard')
   const routes = useLiveQuery(() => getAllRoutes(), []) ?? []
   const boulder = view === 'boulder'
-  const isPyramid = view !== 'hangboard'
   // Only surface the Standard/Gym toggle once at least one gym-graded route
   // exists, so users who never use gym grades don't see an empty extra control.
   const hasGymGrades = useMemo(() => routes.some((r) => r.gymGrade != null), [routes])
@@ -476,8 +482,8 @@ function ClimbingTab() {
   // (e.g. the last gym route was deleted) can't strand an empty pyramid.
   const effectiveMode: ClimbGradeMode = hasGymGrades ? gradeMode : 'standard'
   const data = useMemo(
-    () => (isPyramid ? buildPyramid(routes, boulder, effectiveMode) : []),
-    [routes, boulder, effectiveMode, isPyramid],
+    () => buildPyramid(routes, boulder, effectiveMode),
+    [routes, boulder, effectiveMode],
   )
   // Character (A45) and style (A47) breakdowns, over clean sends.
   const cleanSends = useMemo(() => routes.filter((r) => isCleanTick(r.tick)), [routes])
@@ -502,13 +508,12 @@ function ClimbingTab() {
         options={[
           { value: 'boulder', label: 'Bouldering' },
           { value: 'roped', label: 'Roped' },
-          { value: 'hangboard', label: 'Hangboard' },
         ]}
         value={view}
         onChange={setView}
       />
 
-      {isPyramid && hasGymGrades && (
+      {hasGymGrades && (
         <SegmentedControl
           options={[
             { value: 'standard', label: 'Standard' },
@@ -519,9 +524,7 @@ function ClimbingTab() {
         />
       )}
 
-      {view === 'hangboard' ? (
-        <HangboardView />
-      ) : data.length === 0 ? (
+      {data.length === 0 ? (
         <EmptyState icon={LineIcon} title="No sends yet" subtitle="Clean sends build your pyramid." />
       ) : (
         <ChartFrame>
@@ -570,14 +573,14 @@ function ClimbingTab() {
         </ChartFrame>
       )}
 
-      {isPyramid && (charCounts.length > 0 || styleCounts.length > 0) && (
+      {(charCounts.length > 0 || styleCounts.length > 0) && (
         <div className="space-y-3 pt-1">
           {charCounts.length > 0 && <Breakdown title="Character — clean sends" items={charCounts} />}
           {styleCounts.length > 0 && <Breakdown title="Style — clean sends" items={styleCounts} />}
         </div>
       )}
 
-      {isPyramid && metresData.length > 0 && (
+      {metresData.length > 0 && (
         <div className="space-y-2 pt-1">
           <p className="text-sm font-medium text-muted-foreground">Metres climbed per session</p>
           <ChartFrame>

@@ -145,7 +145,7 @@ export default function SessionSummaryScreen() {
         )}
 
         {session.type === 'strength' && <StrengthSummary sets={sets} />}
-        {session.type === 'mixed' && <MixedSummary sets={sets} />}
+        {session.type === 'mixed' && <MixedSummary sets={sets} hangs={hangs} />}
         {session.type === 'cardio' && <CardioSummary cardio={cardio} />}
         {session.type === 'climbing' && (
           <ClimbingSummary routes={routes} hangCount={hangs.length} setCount={sets.length} />
@@ -217,14 +217,17 @@ function StrengthSummary({ sets }: { sets: LoggedSet[] }) {
 
 // A66 — a mixed session's exercises span types, so summarise by exercise/set
 // count rather than strength volume (which is meaningless across cardio/holds).
-function MixedSummary({ sets }: { sets: LoggedSet[] }) {
+function MixedSummary({ sets, hangs }: { sets: LoggedSet[]; hangs: LoggedHang[] }) {
   const byExercise = new Map<string, number>()
   for (const s of sets) byExercise.set(s.exerciseName, (byExercise.get(s.exerciseName) ?? 0) + 1)
+  const byGrip = new Map<string, number>()
+  for (const h of hangs) byGrip.set(h.gripType, (byGrip.get(h.gripType) ?? 0) + 1)
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2">
+      <div className={cn('grid gap-2', hangs.length > 0 ? 'grid-cols-3' : 'grid-cols-2')}>
         <Stat label="Exercises" value={byExercise.size} />
         <Stat label="Sets" value={sets.length} />
+        {hangs.length > 0 && <Stat label="Hangs" value={hangs.length} />}
       </div>
       {byExercise.size > 0 && (
         <div className="space-y-1">
@@ -233,6 +236,19 @@ function MixedSummary({ sets }: { sets: LoggedSet[] }) {
               <span className="truncate">{name}</span>
               <span className="text-muted-foreground">
                 {count} set{count === 1 ? '' : 's'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      {byGrip.size > 0 && (
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-muted-foreground">Hangboard</p>
+          {[...byGrip.entries()].map(([grip, count]) => (
+            <div key={grip} className="flex justify-between rounded-lg bg-card px-3 py-2 text-sm">
+              <span className="truncate">{grip}</span>
+              <span className="text-muted-foreground">
+                {count} hang{count === 1 ? '' : 's'}
               </span>
             </div>
           ))}
