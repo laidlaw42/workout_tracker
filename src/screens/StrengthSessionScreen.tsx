@@ -397,14 +397,20 @@ export default function StrengthSessionScreen() {
           tags: template?.tags ?? [],
           exercises: work
             .filter((e) => !e.skipped)
-            .map((e, i) => ({
-              exerciseId: e.exerciseId,
-              exerciseName: e.exerciseName,
-              order: i,
-              defaultSets: e.targetSets,
-              defaultReps: e.targetReps,
-              defaultRestSeconds: e.restSeconds,
-            })),
+            .map((e, i) => {
+              // Preserve a timed exercise's duration so saving back to the
+              // template doesn't collapse it into an untimed reps row.
+              const timed = e.durationSeconds != null
+              return {
+                exerciseId: e.exerciseId,
+                exerciseName: e.exerciseName,
+                order: i,
+                defaultSets: e.targetSets,
+                defaultReps: timed ? undefined : e.targetReps,
+                defaultDuration: timed ? e.durationSeconds : undefined,
+                defaultRestSeconds: e.restSeconds,
+              }
+            }),
           lastUsedAt: template?.lastUsedAt,
         })
       } catch {

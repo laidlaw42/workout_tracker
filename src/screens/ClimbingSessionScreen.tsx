@@ -394,21 +394,32 @@ export default function ClimbingSessionScreen() {
         targetReps: ex.targetReps,
         actualReps: data.actualReps,
         weightKg: data.weightKg,
+        additionalWeightKg: data.additionalWeightKg,
         durationSeconds: data.durationSeconds,
         skipped: false,
         loggedAt: Date.now(),
       })
       const repsMet = ex.targetReps == null || (data.actualReps ?? 0) >= ex.targetReps
-      if (repsMet && data.weightKg != null) {
-        await checkAndSavePR({
-          exerciseId: ex.exerciseId,
-          exerciseName: ex.exerciseName,
-          prType: 'weight',
-          value: data.weightKg,
-          unit: 'kg',
-          sessionId: id,
-          achievedAt: Date.now(),
-        })
+      if (repsMet) {
+        // Bodyweight-loadable moves (pull-up, lock-off, campus): the PR is the
+        // added load; everything else uses the entered weight (matches strength).
+        const loadable = exById.get(ex.exerciseId)?.supportsAdditionalWeight
+        const prValue = loadable
+          ? data.additionalWeightKg != null && data.additionalWeightKg > 0
+            ? data.additionalWeightKg
+            : undefined
+          : data.weightKg
+        if (prValue != null) {
+          await checkAndSavePR({
+            exerciseId: ex.exerciseId,
+            exerciseName: ex.exerciseName,
+            prType: 'weight',
+            value: prValue,
+            unit: 'kg',
+            sessionId: id,
+            achievedAt: Date.now(),
+          })
+        }
       }
       restTimedRef.current = ex.durationSeconds != null ? { kind: 'exercise', uid: ex.uid } : null
       rest.start(ex.restSeconds)

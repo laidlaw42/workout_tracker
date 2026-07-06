@@ -387,7 +387,12 @@ function SetRow({
           inputMode="decimal"
           placeholder="BW"
           inputRef={weightRef}
-          onChange={markDirty(setWeight)}
+          // Editing the weight dismisses the empty-weight warning (F39) for good,
+          // so re-clearing it later doesn't re-surface it without a fresh Log tap.
+          onChange={(v) => {
+            if (warnWeight) setWarnWeight(false)
+            markDirty(setWeight)(v)
+          }}
         />
       </SetField>
       {weightPct != null && (
