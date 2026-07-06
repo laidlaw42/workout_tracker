@@ -11,15 +11,11 @@ import { usePrecountBeeps } from '@/hooks/usePrecountBeeps'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import {
   getAutoAdvance,
-  getDefaultLocation,
   getGymGradePreference,
   getKeepAwake,
   getPrecountSeconds,
   getGymAreas,
-  getSavedLocations,
-  rememberLocation,
   setGymGradePreference,
-  type DefaultLocationType,
 } from '@/lib/prefs'
 import {
   addHang,
@@ -58,13 +54,7 @@ import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
+import { SessionLocationPills } from '@/components/SessionLocationPills'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -120,8 +110,6 @@ export default function ClimbingSessionScreen() {
   // Current abrahang phase label ('Hang' | 'Rest'), shown on the countdown (A37).
   const [abrahangLabel, setAbrahangLabel] = useState<string | null>(null)
   // "Not <name>?" rename prompt when a default gym/board was applied (A51).
-  const [renameOpen, setRenameOpen] = useState(false)
-  const [renameValue, setRenameValue] = useState('')
   // Active gym-area filter for the logged-route list (A70). '' = All.
   const [areaFilter, setAreaFilter] = useState('')
 
@@ -161,26 +149,28 @@ export default function ClimbingSessionScreen() {
   )
   const shownRoutes = areaFilter ? routes.filter((r) => r.gymArea === areaFilter) : routes
 
-  // A51 — when a gym/board session was started from a saved default, show a
-  // "Not <name>?" link so the user can change it for this session only (without
-  // touching the stored default).
-  const defaultLocType: DefaultLocationType | null =
-    venue === 'gym' ? 'gym' : venue === 'board' ? 'board' : null
-  const currentLocName = venue === 'gym' ? gym.trim() : venue === 'board' ? board.trim() : ''
-  const showRenameLink =
-    defaultLocType !== null && getDefaultLocation(defaultLocType) !== '' && currentLocName !== ''
-  const renameSaved = defaultLocType ? getSavedLocations(defaultLocType) : []
-  function applyRename(next: string) {
-    const n = next.trim()
+  // A78 — the session's chosen location name (gym/crag/board), driven by the
+  // pills row near the top of the screen. Optional; '' means no name.
+  const locName =
+    venue === 'gym'
+      ? gym.trim()
+      : venue === 'crag'
+        ? crag.trim()
+        : venue === 'board'
+          ? board.trim()
+          : ''
+  function setLocation(name: string) {
+    const n = name.trim()
     if (venue === 'gym') {
       setGym(n)
       void updateSession(id, { gym: n || undefined })
+    } else if (venue === 'crag') {
+      setCrag(n)
+      void updateSession(id, { crag: n || undefined })
     } else if (venue === 'board') {
       setBoard(n)
-      void updateSession(id, { board: n })
+      void updateSession(id, { board: n }) // '' still keeps the board flavour detectable
     }
-    if (defaultLocType && n) rememberLocation(defaultLocType, n) // remembered, but default unchanged
-    setRenameOpen(false)
   }
 
   // Rest-timer completion: haptic + auto-dismiss. For a timed set/hang, reaching
@@ -706,7 +696,7 @@ export default function ClimbingSessionScreen() {
   return (
     <div className="min-h-dvh pb-32">
       <SessionHeader
-        title={session?.templateName ?? 'Climbing session'}
+        title={locName || session?.templateName || 'Climbing session'}
         elapsedSeconds={clock.elapsed}
         paused={clock.paused}
         onPause={clock.pause}
@@ -715,107 +705,36 @@ export default function ClimbingSessionScreen() {
         onFinish={finish}
       />
 
-      {showRenameLink && (
-        <div className="px-4 pt-2">
-          <button
-            type="button"
-            onClick={() => {
-              setRenameValue(currentLocName)
-              setRenameOpen(true)
-            }}
-            className="text-xs text-muted-foreground underline underline-offset-2 active:text-foreground"
-          >
-            Not {currentLocName}?
-          </button>
-        </div>
-      )}
-
-      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
-        <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
-          <DialogHeader>
-            <DialogTitle>{venue === 'board' ? 'Change board' : 'Change gym'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2">
-            {renameSaved.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {renameSaved.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setRenameValue(s)}
-                    className="rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-foreground transition-colors active:bg-accent"
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            )}
-            <Label htmlFor="rename-loc">{venue === 'board' ? 'Board name' : 'Gym name'}</Label>
-            <Input
-              id="rename-loc"
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRenameOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => applyRename(renameValue)}>Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <div className="space-y-5 p-4">
-        {showRoutes &&
-          (() => {
-            const gymField = (
-              <div className="space-y-1.5">
-                <Label htmlFor="gym">Gym</Label>
-                <Input
-                  id="gym"
-                  value={gym}
-                  onChange={(e) => setGym(e.target.value)}
-                  onBlur={() => void updateSession(id, { gym: gym.trim() || undefined })}
-                  placeholder="optional"
-                />
-              </div>
-            )
-            const cragField = (
-              <div className="space-y-1.5">
-                <Label htmlFor="crag">Crag</Label>
-                <Input
-                  id="crag"
-                  value={crag}
-                  onChange={(e) => setCrag(e.target.value)}
-                  onBlur={() => void updateSession(id, { crag: crag.trim() || undefined })}
-                  placeholder="optional"
-                />
-              </div>
-            )
-            if (venue === 'board')
-              return (
-                <div className="space-y-1.5">
-                  <Label htmlFor="board">Board</Label>
-                  <Input
-                    id="board"
-                    value={board}
-                    onChange={(e) => setBoard(e.target.value)}
-                    onBlur={() => void updateSession(id, { board: board.trim() })}
-                    placeholder="optional"
-                  />
-                </div>
-              )
-            if (venue === 'gym') return gymField
-            if (venue === 'crag') return cragField
-            // Template / repeat climbing sessions: offer both.
-            return (
-              <div className="grid grid-cols-2 gap-3">
-                {gymField}
-                {cragField}
-              </div>
-            )
-          })()}
+        {/* A78 — pick the gym/board/crag inline; optional, above the climb-type
+            buttons. Undefined-venue (legacy template/repeat) keeps text fields. */}
+        {showRoutes && venue !== undefined && (
+          <SessionLocationPills venue={venue} value={locName} onChange={setLocation} />
+        )}
+        {showRoutes && venue === undefined && (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="gym">Gym</Label>
+              <Input
+                id="gym"
+                value={gym}
+                onChange={(e) => setGym(e.target.value)}
+                onBlur={() => void updateSession(id, { gym: gym.trim() || undefined })}
+                placeholder="optional"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="crag">Crag</Label>
+              <Input
+                id="crag"
+                value={crag}
+                onChange={(e) => setCrag(e.target.value)}
+                onBlur={() => void updateSession(id, { crag: crag.trim() || undefined })}
+                placeholder="optional"
+              />
+            </div>
+          </div>
+        )}
 
         {showExercises && (
           <div className="space-y-3">
