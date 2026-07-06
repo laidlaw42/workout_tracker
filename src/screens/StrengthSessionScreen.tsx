@@ -207,6 +207,7 @@ export default function StrengthSessionScreen() {
         weightKg: data.weightKg,
         additionalWeightKg: data.additionalWeightKg,
         durationSeconds: data.durationSeconds,
+        distanceKm: data.distanceKm, // cardio exercise in a mixed session (A66)
         skipped: false,
         swappedFrom: ex.swappedFrom,
         loggedAt: Date.now(),
@@ -234,7 +235,10 @@ export default function StrengthSessionScreen() {
           })
         }
       }
-      restTimedRef.current = ex.durationSeconds != null ? ex.uid : null
+      // Only a genuinely timed exercise (a hold) auto-advances its countdown —
+      // a cardio bout has a durationSeconds but no countdown (A66).
+      restTimedRef.current =
+        exById.get(ex.exerciseId)?.trackingType === 'duration' ? ex.uid : null
       rest.start(ex.restSeconds)
     } catch {
       toast.error('Could not log set')
@@ -306,14 +310,22 @@ export default function StrengthSessionScreen() {
   // Append picked exercises to the end of the queue as fresh, incomplete work.
   function appendExercises(exs: Exercise[]) {
     if (!exs.length) return
+    // A66: a build-from-scratch strength session becomes 'mixed' the first time a
+    // cardio or climbing exercise joins it (rehab reps/holds render fine as-is).
+    if (
+      session?.type === 'strength' &&
+      exs.some((e) => e.category === 'cardio' || e.category === 'climbing')
+    ) {
+      void updateSession(id, { type: 'mixed' })
+    }
     setWork((w) => [
       ...w,
       ...exs.map((ex) => ({
         uid: generateId(),
         exerciseId: ex.id,
         exerciseName: ex.name,
-        targetSets: 3,
-        targetReps: ex.trackingType === 'duration' ? undefined : 10,
+        targetSets: ex.trackingType === 'distance' ? 1 : 3,
+        targetReps: ex.trackingType === 'reps' ? 10 : undefined,
         durationSeconds: ex.trackingType === 'duration' ? 30 : undefined,
         restSeconds: 90,
         skipped: false,
@@ -331,10 +343,23 @@ export default function StrengthSessionScreen() {
 
   function swapCurrent(ex: Exercise) {
     if (!currentEx) return
+    // A66 — swapping in a cardio/climbing exercise turns a strength session mixed,
+    // mirroring appendExercises. Reset the targets to the new exercise's kind so
+    // it renders in the right row variant.
+    if (session?.type === 'strength' && (ex.category === 'cardio' || ex.category === 'climbing')) {
+      void updateSession(id, { type: 'mixed' })
+    }
     setWork((w) =>
       w.map((e) =>
         e.uid === currentEx.uid
-          ? { ...e, exerciseId: ex.id, exerciseName: ex.name, swappedFrom: e.exerciseName }
+          ? {
+              ...e,
+              exerciseId: ex.id,
+              exerciseName: ex.name,
+              swappedFrom: e.exerciseName,
+              targetReps: ex.trackingType === 'reps' ? (e.targetReps ?? 10) : undefined,
+              durationSeconds: ex.trackingType === 'duration' ? (e.durationSeconds ?? 30) : undefined,
+            }
           : e,
       ),
     )
@@ -393,7 +418,9 @@ export default function StrengthSessionScreen() {
         await upsertTemplate({
           id: session.templateId,
           name: session.templateName,
-          type: 'strength',
+          // Preserve the session's discipline (A66 — a mixed session must not be
+          // written back as a strength template).
+          type: session.type,
           tags: template?.tags ?? [],
           exercises: work
             .filter((e) => !e.skipped)
@@ -434,6 +461,12 @@ export default function StrengthSessionScreen() {
 
   const removeName = work.find((e) => e.uid === confirmRemoveUid)?.exerciseName
 
+  // A66 — a build-from-scratch session (no template) can gain any exercise type,
+  // so its add/swap pickers show every category grouped rather than strength+rehab.
+  const buildYourOwn =
+    session != null &&
+    (session.type === 'mixed' || (session.type === 'strength' && !session.templateId))
+
   return (
     <div className="min-h-dvh pb-32">
       <SessionHeader
@@ -456,28 +489,42 @@ export default function StrengthSessionScreen() {
           onReorder={reorderActive}
           onSkip={skip}
           onRemove={setConfirmRemoveUid}
-          renderItem={(ex, isCurrent) => (
-            <ExerciseCard
-              exercise={ex}
-              loggedSets={loggedFor(ex)}
-              isCurrent={isCurrent}
-              prefill={isCurrent ? prefill : undefined}
-              supportsAdditionalWeight={exById.get(ex.exerciseId)?.supportsAdditionalWeight}
-              onLog={(d) => handleLog(ex, d)}
-              onAddSet={() => addSetTo(ex.uid)}
-              onRemoveSet={() => removeSet(ex.uid)}
-              onSwap={isCurrent ? () => setPickerOpen(true) : undefined}
-              onEdit={(u) => editExercise(ex.uid, u)}
-              onStartCountdown={() => startTimedSet(ex)}
-              countdown={
-                isCurrent && precount.activeUid === ex.uid
-                  ? { remaining: precount.remaining, duration: precount.duration, precount: true }
-                  : isCurrent && countdown.activeUid === ex.uid
-                    ? { remaining: countdown.remaining, duration: countdown.duration }
-                    : null
-              }
-            />
-          )}
+          renderItem={(ex, isCurrent) => {
+            // A66 — dispatch each exercise to its row variant by category /
+            // tracking type: cardio → duration+distance; rehab reps hide the
+            // weight input (unless it carries extra load).
+            const meta = exById.get(ex.exerciseId)
+            const distanceMode = meta?.trackingType === 'distance'
+            const showWeight = !(
+              meta?.category === 'rehab' &&
+              meta?.trackingType === 'reps' &&
+              !meta?.supportsAdditionalWeight
+            )
+            return (
+              <ExerciseCard
+                exercise={ex}
+                loggedSets={loggedFor(ex)}
+                isCurrent={isCurrent}
+                prefill={isCurrent ? prefill : undefined}
+                supportsAdditionalWeight={meta?.supportsAdditionalWeight}
+                distanceMode={distanceMode}
+                showWeight={showWeight}
+                onLog={(d) => handleLog(ex, d)}
+                onAddSet={() => addSetTo(ex.uid)}
+                onRemoveSet={() => removeSet(ex.uid)}
+                onSwap={isCurrent ? () => setPickerOpen(true) : undefined}
+                onEdit={(u) => editExercise(ex.uid, u)}
+                onStartCountdown={() => startTimedSet(ex)}
+                countdown={
+                  isCurrent && precount.activeUid === ex.uid
+                    ? { remaining: precount.remaining, duration: precount.duration, precount: true }
+                    : isCurrent && countdown.activeUid === ex.uid
+                      ? { remaining: countdown.remaining, duration: countdown.duration }
+                      : null
+                }
+              />
+            )
+          }}
         />
 
         {inited && work.length === 0 ? (
@@ -513,8 +560,21 @@ export default function StrengthSessionScreen() {
         />
       )}
 
-      <ExercisePicker open={pickerOpen} onOpenChange={setPickerOpen} categories={['strength', 'rehab']} onSelect={(exs) => exs[0] && swapCurrent(exs[0])} />
-      <ExercisePicker open={addPickerOpen} onOpenChange={setAddPickerOpen} multiple categories={['strength', 'rehab']} onSelect={appendExercises} />
+      <ExercisePicker
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        grouped={buildYourOwn}
+        categories={buildYourOwn ? undefined : ['strength', 'rehab']}
+        onSelect={(exs) => exs[0] && swapCurrent(exs[0])}
+      />
+      <ExercisePicker
+        open={addPickerOpen}
+        onOpenChange={setAddPickerOpen}
+        multiple
+        grouped={buildYourOwn}
+        categories={buildYourOwn ? undefined : ['strength', 'rehab']}
+        onSelect={appendExercises}
+      />
 
       <AlertDialog open={confirmFinish} onOpenChange={setConfirmFinish}>
         <AlertDialogContent>

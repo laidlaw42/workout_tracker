@@ -145,6 +145,7 @@ export default function SessionSummaryScreen() {
         )}
 
         {session.type === 'strength' && <StrengthSummary sets={sets} />}
+        {session.type === 'mixed' && <MixedSummary sets={sets} />}
         {session.type === 'cardio' && <CardioSummary cardio={cardio} />}
         {session.type === 'climbing' && (
           <ClimbingSummary routes={routes} hangCount={hangs.length} setCount={sets.length} />
@@ -202,6 +203,33 @@ function StrengthSummary({ sets }: { sets: LoggedSet[] }) {
               key={name}
               className="flex justify-between rounded-lg bg-card px-3 py-2 text-sm"
             >
+              <span className="truncate">{name}</span>
+              <span className="text-muted-foreground">
+                {count} set{count === 1 ? '' : 's'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// A66 — a mixed session's exercises span types, so summarise by exercise/set
+// count rather than strength volume (which is meaningless across cardio/holds).
+function MixedSummary({ sets }: { sets: LoggedSet[] }) {
+  const byExercise = new Map<string, number>()
+  for (const s of sets) byExercise.set(s.exerciseName, (byExercise.get(s.exerciseName) ?? 0) + 1)
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-2">
+        <Stat label="Exercises" value={byExercise.size} />
+        <Stat label="Sets" value={sets.length} />
+      </div>
+      {byExercise.size > 0 && (
+        <div className="space-y-1">
+          {[...byExercise.entries()].map(([name, count]) => (
+            <div key={name} className="flex justify-between rounded-lg bg-card px-3 py-2 text-sm">
               <span className="truncate">{name}</span>
               <span className="text-muted-foreground">
                 {count} set{count === 1 ? '' : 's'}

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Check, Pencil, Play, Plus, Repeat, Save, Trash2 } from 'lucide-react'
@@ -9,6 +9,7 @@ import {
   deleteRoute,
   deleteSession,
   deleteSet,
+  getAllExercises,
   getCardioForSession,
   getHangsForSession,
   getRoutesForSession,
@@ -84,6 +85,10 @@ export default function SessionDetailScreen() {
   const cardio = useLiveQuery(() => getCardioForSession(id), [id])
   const routes = useLiveQuery(() => getRoutesForSession(id), [id]) ?? []
   const hangs = useLiveQuery(() => getHangsForSession(id), [id]) ?? []
+  // Exercise metadata (A66) — used to render each mixed-session exercise's sets
+  // in the right variant (reps / hold / cardio).
+  const exercises = useLiveQuery(() => getAllExercises(), []) ?? []
+  const exById = useMemo(() => new Map(exercises.map((e) => [e.id, e])), [exercises])
 
   const [editing, setEditing] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -229,6 +234,7 @@ export default function SessionDetailScreen() {
   const canSaveTemplate =
     session.endedAt != null &&
     (session.type === 'strength' ||
+      session.type === 'mixed' ||
       session.type === 'cardio' ||
       (session.type === 'climbing' && (sets.length > 0 || hangs.length > 0)))
 
@@ -291,6 +297,14 @@ export default function SessionDetailScreen() {
             onAddSet={addSetToExercise}
           />
         )}
+        {session.type === 'mixed' && (
+          <MixedDetail
+            sets={sets}
+            exById={exById}
+            editing={editing}
+            onAddExercise={() => setPickerOpen(true)}
+          />
+        )}
         {session.type === 'cardio' && <CardioDetail cardio={cardio} editing={editing} />}
         {session.type === 'climbing' && (
           <ClimbingDetail
@@ -336,7 +350,14 @@ export default function SessionDetailScreen() {
         open={pickerOpen}
         onOpenChange={setPickerOpen}
         multiple
-        categories={session.type === 'climbing' ? ['climbing', 'rehab'] : ['strength', 'rehab']}
+        grouped={session.type === 'mixed'}
+        categories={
+          session.type === 'mixed'
+            ? undefined
+            : session.type === 'climbing'
+              ? ['climbing', 'rehab']
+              : ['strength', 'rehab']
+        }
         onSelect={handleAddExercises}
       />
       <LogRouteSheet
@@ -548,6 +569,64 @@ function EditableSetRow({ set }: { set: LoggedSet }) {
       >
         <Trash2 className="size-4" />
       </button>
+    </div>
+  )
+}
+
+// --- Mixed (A66) ------------------------------------------------------------
+
+// Label one logged set by its exercise's tracking type: cardio → duration +
+// distance; hold → seconds; otherwise weight × reps.
+function mixedSetLabel(s: LoggedSet, ex?: Exercise): string {
+  const distance = ex?.trackingType === 'distance' || s.distanceKm != null
+  if (distance) {
+    const min = Math.round((s.durationSeconds ?? 0) / 60)
+    return s.distanceKm != null ? `${min} min · ${s.distanceKm} km` : `${min} min`
+  }
+  if (ex?.trackingType === 'duration' || (s.durationSeconds != null && s.actualReps == null)) {
+    return `${s.durationSeconds ?? 0}s`
+  }
+  const w = s.additionalWeightKg
+    ? `BW +${s.additionalWeightKg} kg`
+    : s.weightKg != null
+      ? `${s.weightKg} kg`
+      : 'BW'
+  return `${w} × ${s.actualReps ?? '—'}`
+}
+
+function MixedDetail({
+  sets,
+  exById,
+  editing,
+  onAddExercise,
+}: {
+  sets: LoggedSet[]
+  exById: Map<string, Exercise>
+  editing: boolean
+  onAddExercise: () => void
+}) {
+  const groups = groupByExercise(sets)
+  if (sets.length === 0 && !editing) {
+    return <p className="text-sm text-muted-foreground">No exercises were logged.</p>
+  }
+  return (
+    <div className="space-y-3">
+      {groups.map(([exId, name, exSets]) => (
+        <div key={exId} className="space-y-1 rounded-xl border border-border bg-card p-3">
+          <p className="font-medium">{name}</p>
+          {exSets.map((s) => (
+            <div key={s.id} className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Set {s.setNumber}</span>
+              <span className="font-medium">{mixedSetLabel(s, exById.get(exId))}</span>
+            </div>
+          ))}
+        </div>
+      ))}
+      {editing && (
+        <Button variant="outline" className="w-full" onClick={onAddExercise}>
+          <Plus className="size-4" /> Add exercise
+        </Button>
+      )}
     </div>
   )
 }

@@ -25,6 +25,9 @@ interface Props {
   /** Restrict the list (and default new exercises) to these categories (A36).
    *  Omit to show every exercise. */
   categories?: ExerciseCategory[]
+  /** Universal mode (A66): show every category grouped under sticky headers with
+   *  a category filter tab row (All default). Overrides `categories` filtering. */
+  grouped?: boolean
   onSelect: (exercises: Exercise[]) => void
 }
 
@@ -41,7 +44,28 @@ const CATEGORIES: { value: ExerciseCategory; label: string }[] = [
   { value: 'rehab', label: 'Rehab' },
 ]
 
-export function ExercisePicker({ open, onOpenChange, multiple = false, categories, onSelect }: Props) {
+// Grouping order + labels for the universal picker (A66).
+const GROUP_ORDER: ExerciseCategory[] = ['strength', 'climbing', 'rehab', 'cardio']
+const CATEGORY_LABEL: Record<ExerciseCategory, string> = {
+  strength: 'Strength',
+  climbing: 'Climbing',
+  rehab: 'Rehab',
+  cardio: 'Cardio',
+}
+type CatFilter = 'all' | ExerciseCategory
+const GROUP_TABS: { value: CatFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  ...GROUP_ORDER.map((c) => ({ value: c as CatFilter, label: CATEGORY_LABEL[c] })),
+]
+
+export function ExercisePicker({
+  open,
+  onOpenChange,
+  multiple = false,
+  categories,
+  grouped = false,
+  onSelect,
+}: Props) {
   const exercises = useLiveQuery(() => getAllExercises(), [])
   const defaultCategory = categories?.[0] ?? 'strength'
   const [query, setQuery] = useState('')
@@ -51,6 +75,7 @@ export function ExercisePicker({ open, onOpenChange, multiple = false, categorie
   const [category, setCategory] = useState<ExerciseCategory>(defaultCategory)
   const [muscles, setMuscles] = useState('')
   const [tracking, setTracking] = useState<TrackingType>('reps')
+  const [catFilter, setCatFilter] = useState<CatFilter>('all') // universal mode (A66)
 
   function reset() {
     setQuery('')
@@ -60,6 +85,7 @@ export function ExercisePicker({ open, onOpenChange, multiple = false, categorie
     setCategory(defaultCategory)
     setMuscles('')
     setTracking('reps')
+    setCatFilter('all')
   }
 
   function finish(chosen: Exercise[]) {
@@ -102,8 +128,40 @@ export function ExercisePicker({ open, onOpenChange, multiple = false, categorie
   const filtered = (exercises ?? []).filter(
     (e) =>
       e.name.toLowerCase().includes(query.trim().toLowerCase()) &&
-      (!categories || categories.includes(e.category)),
+      (grouped
+        ? catFilter === 'all' || e.category === catFilter
+        : !categories || categories.includes(e.category)),
   )
+
+  // A row (checkbox in multi-select) for one exercise.
+  function renderRow(e: Exercise) {
+    const isSelected = selected.includes(e.id)
+    return (
+      <button
+        key={e.id}
+        type="button"
+        onClick={() => onRow(e)}
+        className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors active:bg-accent"
+      >
+        {multiple && (
+          <span
+            className={cn(
+              'flex size-5 shrink-0 items-center justify-center rounded border',
+              isSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-input',
+            )}
+          >
+            {isSelected && <Check className="size-3.5" />}
+          </span>
+        )}
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium">{e.name}</span>
+          {e.muscleGroups.length > 0 && (
+            <span className="block text-xs text-muted-foreground">{e.muscleGroups.join(', ')}</span>
+          )}
+        </span>
+      </button>
+    )
+  }
 
   return (
     <Sheet
@@ -164,44 +222,50 @@ export function ExercisePicker({ open, onOpenChange, multiple = false, categorie
           </div>
         ) : (
           <>
-            <div className="border-b border-border p-4">
+            <div className="space-y-3 border-b border-border p-4">
               <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search exercises…"
               />
+              {grouped && (
+                <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1">
+                  {GROUP_TABS.map((t) => (
+                    <button
+                      key={t.value}
+                      type="button"
+                      onClick={() => setCatFilter(t.value)}
+                      className={cn(
+                        'shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors',
+                        catFilter === t.value
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground active:bg-accent',
+                      )}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="flex-1 overflow-y-auto p-2">
-              {filtered.map((e) => {
-                const isSelected = selected.includes(e.id)
-                return (
-                  <button
-                    key={e.id}
-                    type="button"
-                    onClick={() => onRow(e)}
-                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors active:bg-accent"
-                  >
-                    {multiple && (
-                      <span
-                        className={cn(
-                          'flex size-5 shrink-0 items-center justify-center rounded border',
-                          isSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-input',
-                        )}
-                      >
-                        {isSelected && <Check className="size-3.5" />}
-                      </span>
-                    )}
-                    <span className="min-w-0 flex-1">
-                      <span className="block font-medium">{e.name}</span>
-                      {e.muscleGroups.length > 0 && (
-                        <span className="block text-xs text-muted-foreground">
-                          {e.muscleGroups.join(', ')}
-                        </span>
-                      )}
-                    </span>
-                  </button>
-                )
-              })}
+              {grouped && catFilter === 'all' ? (
+                // Grouped by category with a sticky header per group (A66).
+                GROUP_ORDER.map((cat) => {
+                  const items = filtered.filter((e) => e.category === cat)
+                  if (items.length === 0) return null
+                  return (
+                    <div key={cat}>
+                      <p className="sticky top-0 z-10 bg-background px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {CATEGORY_LABEL[cat]}
+                      </p>
+                      {items.map(renderRow)}
+                    </div>
+                  )
+                })
+              ) : (
+                filtered.map(renderRow)
+              )}
               {filtered.length === 0 && (
                 <p className="px-3 py-6 text-center text-sm text-muted-foreground">
                   No matching exercises.

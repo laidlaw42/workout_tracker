@@ -2,7 +2,9 @@
 // Shared enums / unions
 // ---------------------------------------------------------------------------
 
-export type DisciplineType = 'strength' | 'cardio' | 'climbing'
+// 'mixed' (A66) — a build-from-scratch session that ended up spanning more than
+// one discipline (e.g. strength + cardio exercises logged together).
+export type DisciplineType = 'strength' | 'cardio' | 'climbing' | 'mixed'
 export type CardioActivityType = 'run' | 'ride' | 'row' | 'other'
 export type ClimbingStyle = 'bouldering' | 'top_rope' | 'lead'
 export type WallAngle = 'slab' | 'vertical' | 'overhang'
@@ -165,6 +167,7 @@ export interface LoggedSet {
   additionalWeightKg?: number // extra load on a bodyweight movement (pull-up, dip, …)
   restTakenSeconds?: number
   durationSeconds?: number // for timed exercises
+  distanceKm?: number // for a cardio exercise logged in a mixed session (A66)
   skipped: boolean
   swappedFrom?: string // original exerciseName if swapped
   loggedAt: number

@@ -3,6 +3,7 @@ import { ArrowLeftRight, Check, Minus, Pencil, Plus } from 'lucide-react'
 import { getBodyweight } from '@/lib/bodyweight'
 import { getWeightStep } from '@/lib/prefs'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { NumberStepper } from '@/components/NumberStepper'
 import { SetCountdown } from '@/components/SetCountdown'
 import type { LoggedSet } from '@/types'
@@ -25,6 +26,7 @@ export interface LoggedSetInput {
   additionalWeightKg?: number
   actualReps?: number
   durationSeconds?: number
+  distanceKm?: number // cardio exercise in a mixed session (A66)
 }
 
 // Fields editable inline mid-session (A31) — applied to remaining unlogged sets.
@@ -40,6 +42,10 @@ interface Props {
   prefill?: Pick<LoggedSet, 'weightKg' | 'additionalWeightKg' | 'actualReps'>
   /** Bodyweight movement that can carry extra load — shows the +kg field. */
   supportsAdditionalWeight?: boolean
+  /** Cardio exercise (A66): render the duration + distance row instead of reps. */
+  distanceMode?: boolean
+  /** Show the weight input on the reps row (A66: rehab reps hide it). Default true. */
+  showWeight?: boolean
   onLog: (data: LoggedSetInput) => void
   onAddSet: () => void
   /** Remove the current incomplete set (last set → confirms exercise removal). */
@@ -61,6 +67,8 @@ export function ExerciseCard({
   isCurrent,
   prefill,
   supportsAdditionalWeight,
+  distanceMode = false,
+  showWeight = true,
   onLog,
   onAddSet,
   onRemoveSet,
@@ -73,7 +81,7 @@ export function ExerciseCard({
   const doneCount = loggedSets.length
   const complete = doneCount >= exercise.targetSets
   const currentSetNumber = doneCount + 1
-  const timed = exercise.durationSeconds != null
+  const timed = !distanceMode && exercise.durationSeconds != null
   const canEdit = onEdit != null && !exercise.skipped && !complete
 
   return (
@@ -123,7 +131,7 @@ export function ExerciseCard({
       </div>
 
       {editing && canEdit && (
-        <EditPanel exercise={exercise} onEdit={onEdit!} />
+        <EditPanel exercise={exercise} distanceMode={distanceMode} onEdit={onEdit!} />
       )}
 
       {!exercise.skipped && (
@@ -136,22 +144,27 @@ export function ExerciseCard({
               <Check className="size-4 shrink-0" />
               <span className="w-12 text-muted-foreground">Set {s.setNumber}</span>
               <span className="font-medium text-foreground">
-                {s.durationSeconds != null
-                  ? `${s.durationSeconds}s`
-                  : `${
-                      s.additionalWeightKg
-                        ? `BW +${s.additionalWeightKg} kg`
-                        : s.weightKg != null
-                          ? `${s.weightKg} kg`
-                          : 'BW'
-                    } × ${s.actualReps ?? '—'}`}
+                {distanceMode
+                  ? `${Math.round((s.durationSeconds ?? 0) / 60)} min${s.distanceKm != null ? ` · ${s.distanceKm} km` : ''}`
+                  : s.durationSeconds != null
+                    ? `${s.durationSeconds}s`
+                    : `${
+                        s.additionalWeightKg
+                          ? `BW +${s.additionalWeightKg} kg`
+                          : s.weightKg != null
+                            ? `${s.weightKg} kg`
+                            : 'BW'
+                      } × ${s.actualReps ?? '—'}`}
               </span>
             </div>
           ))}
 
           {isCurrent &&
             !complete &&
-            (timed ? (
+            (distanceMode ? (
+              // Cardio exercise in a mixed session (A66): duration + distance.
+              <CardioSetRow key={currentSetNumber} onLog={onLog} onRemove={onRemoveSet} />
+            ) : timed ? (
               countdown ? (
                 <SetCountdown
                   remaining={countdown.remaining}
@@ -186,6 +199,7 @@ export function ExerciseCard({
                 plannedWeight={exercise.weight}
                 prefill={prefill}
                 supportsAdditionalWeight={supportsAdditionalWeight}
+                showWeight={showWeight}
                 onLog={onLog}
                 onRemove={onRemoveSet}
               />
@@ -206,8 +220,18 @@ export function ExerciseCard({
 
 // Inline editor for the remaining sets' targets (A31). Each stepper writes back
 // immediately, so changes take effect on the next unlogged set.
-function EditPanel({ exercise, onEdit }: { exercise: WorkExercise; onEdit: (u: ExerciseEdit) => void }) {
-  const timed = exercise.durationSeconds != null
+function EditPanel({
+  exercise,
+  distanceMode = false,
+  onEdit,
+}: {
+  exercise: WorkExercise
+  distanceMode?: boolean
+  onEdit: (u: ExerciseEdit) => void
+}) {
+  // A cardio exercise's duration/distance are entered per bout, so only Rest is
+  // editable here — never a stale "Duration (s)" hold field (A66).
+  const timed = !distanceMode && exercise.durationSeconds != null
   const [reps, setReps] = useState(exercise.targetReps != null ? String(exercise.targetReps) : '')
   const [duration, setDuration] = useState(
     exercise.durationSeconds != null ? String(exercise.durationSeconds) : '',
@@ -219,7 +243,7 @@ function EditPanel({ exercise, onEdit }: { exercise: WorkExercise; onEdit: (u: E
 
   return (
     <div className="space-y-2 rounded-lg border border-primary/40 bg-background p-3">
-      {timed ? (
+      {distanceMode ? null : timed ? (
         <EditField label="Duration (s)">
           <NumberStepper
             value={duration}
@@ -289,6 +313,8 @@ interface SetRowProps {
   plannedWeight?: number
   prefill?: Pick<LoggedSet, 'weightKg' | 'additionalWeightKg' | 'actualReps'>
   supportsAdditionalWeight?: boolean
+  /** Hide the primary weight input (A66: reps-based rehab exercises). */
+  showWeight?: boolean
   onLog: (data: LoggedSetInput) => void
   onRemove?: () => void
 }
@@ -303,6 +329,7 @@ function SetRow({
   plannedWeight,
   prefill,
   supportsAdditionalWeight,
+  showWeight = true,
   onLog,
   onRemove,
 }: SetRowProps) {
@@ -321,7 +348,7 @@ function SetRow({
   // bodyweight-loadable move (pull-up, dip) leaves the primary weight blank by
   // design, and timed exercises never reach SetRow. So the warning is gated to
   // exercises without a dedicated additional-weight field.
-  const weightExpected = !supportsAdditionalWeight
+  const weightExpected = showWeight && !supportsAdditionalWeight
   const showWeightWarning = warnWeight && weightExpected && weight.trim() === ''
 
   // The last-set prefill resolves asynchronously (and briefly holds the previous
@@ -378,24 +405,26 @@ function SetRow({
 
   return (
     <div className="space-y-3 rounded-lg border border-primary/40 bg-background p-3">
-      <SetField label="Weight (kg)">
-        <NumberStepper
-          value={weight}
-          ariaLabel="weight"
-          step={weightStep}
-          min={0}
-          inputMode="decimal"
-          placeholder="BW"
-          inputRef={weightRef}
-          // Editing the weight dismisses the empty-weight warning (F39) for good,
-          // so re-clearing it later doesn't re-surface it without a fresh Log tap.
-          onChange={(v) => {
-            if (warnWeight) setWarnWeight(false)
-            markDirty(setWeight)(v)
-          }}
-        />
-      </SetField>
-      {weightPct != null && (
+      {showWeight && (
+        <SetField label="Weight (kg)">
+          <NumberStepper
+            value={weight}
+            ariaLabel="weight"
+            step={weightStep}
+            min={0}
+            inputMode="decimal"
+            placeholder="BW"
+            inputRef={weightRef}
+            // Editing the weight dismisses the empty-weight warning (F39) for good,
+            // so re-clearing it later doesn't re-surface it without a fresh Log tap.
+            onChange={(v) => {
+              if (warnWeight) setWarnWeight(false)
+              markDirty(setWeight)(v)
+            }}
+          />
+        </SetField>
+      )}
+      {showWeight && weightPct != null && (
         <p className="-mt-2 pr-1 text-right text-xs text-muted-foreground">
           {weightPct}% of bodyweight
         </p>
@@ -469,6 +498,70 @@ function SetField({ label, children }: { label: string; children: React.ReactNod
     <div className="flex items-center gap-3">
       <span className="w-24 shrink-0 text-sm text-muted-foreground">{label}</span>
       <div className="flex-1">{children}</div>
+    </div>
+  )
+}
+
+// Cardio exercise row in a mixed session (A66): a duration (minutes) and an
+// optional distance (km) instead of weight/reps. Logs one bout as a LoggedSet
+// with durationSeconds + distanceKm.
+function CardioSetRow({
+  onLog,
+  onRemove,
+}: {
+  onLog: (data: LoggedSetInput) => void
+  onRemove?: () => void
+}) {
+  const [minutes, setMinutes] = useState('')
+  const [km, setKm] = useState('')
+  const clean = (raw: string) => raw.replace(/[^0-9.]/g, '')
+
+  function log() {
+    const m = minutes.trim() === '' ? undefined : Number(minutes)
+    const d = km.trim() === '' ? undefined : Number(km)
+    onLog({
+      durationSeconds: m != null && !Number.isNaN(m) ? Math.round(m * 60) : undefined,
+      distanceKm: d != null && !Number.isNaN(d) && d > 0 ? d : undefined,
+    })
+    setMinutes('')
+    setKm('')
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg border border-primary/40 bg-background p-3">
+      <SetField label="Duration (min)">
+        <Input
+          inputMode="decimal"
+          value={minutes}
+          placeholder="e.g. 20"
+          className="h-10 text-center"
+          onChange={(e) => setMinutes(clean(e.target.value))}
+        />
+      </SetField>
+      <SetField label="Distance (km)">
+        <Input
+          inputMode="decimal"
+          value={km}
+          placeholder="optional"
+          className="h-10 text-center"
+          onChange={(e) => setKm(clean(e.target.value))}
+        />
+      </SetField>
+      <div className="flex gap-2">
+        {onRemove && (
+          <button
+            type="button"
+            aria-label="Remove set"
+            onClick={onRemove}
+            className="flex size-10 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors active:bg-accent"
+          >
+            <Minus className="size-4" />
+          </button>
+        )}
+        <Button className="h-10 flex-1" onClick={log} disabled={minutes.trim() === ''}>
+          Log
+        </Button>
+      </div>
     </div>
   )
 }

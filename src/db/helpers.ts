@@ -602,7 +602,9 @@ export async function createTemplateFromSession(
       tags,
       exercises: [],
     }
-    if (src.type === 'strength') {
+    if (src.type === 'strength' || src.type === 'mixed') {
+      // A66 — a mixed template keeps its exercise list; each exercise's own
+      // tracking type drives the row variant when the template is started.
       base.exercises = planExercisesFromSets(await getSetsForSession(sourceId))
     } else if (src.type === 'cardio') {
       const c = await getCardioForSession(sourceId)

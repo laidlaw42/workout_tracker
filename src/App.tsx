@@ -43,6 +43,9 @@ export default function App() {
           <Route path="/library/:id" element={<TemplateDetailScreen />} />
           <Route path="/library/:id/edit" element={<TemplateEditScreen />} />
           <Route path="/session/strength/:id" element={<StrengthSessionScreen />} />
+          {/* A66 — a mixed-discipline session is built and rendered by the same
+              screen as strength, dispatching each exercise to its row variant. */}
+          <Route path="/session/mixed/:id" element={<StrengthSessionScreen />} />
           <Route path="/session/cardio/:id" element={<CardioSessionScreen />} />
           <Route path="/session/climbing/:id" element={<ClimbingSessionScreen />} />
           <Route path="/session/:id/summary" element={<SessionSummaryScreen />} />

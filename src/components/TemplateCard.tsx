@@ -14,7 +14,7 @@ const ACTIVITY_LABELS: Record<string, string> = {
 }
 
 function summarise(t: WorkoutTemplate): string {
-  if (t.type === 'strength') {
+  if (t.type === 'strength' || t.type === 'mixed') {
     const n = t.exercises.length
     return `${n} exercise${n === 1 ? '' : 's'}`
   }

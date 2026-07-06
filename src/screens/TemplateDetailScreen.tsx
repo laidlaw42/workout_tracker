@@ -88,6 +88,7 @@ export default function TemplateDetailScreen() {
         </div>
 
         {(template.type === 'strength' ||
+          template.type === 'mixed' ||
           (template.type === 'climbing' && template.climbingKind === 'workout')) && (
           <ol className="space-y-2">
             {template.exercises.map((ex, i) => (

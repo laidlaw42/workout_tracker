@@ -125,12 +125,12 @@ const EXERCISES: ExerciseSeed[] = [
   { id: 'ex_db_row', name: 'Dumbbell row', muscleGroups: ['back', 'biceps'], trackingType: 'reps' },
   { id: 'ex_push_up', name: 'Push-up', muscleGroups: ['chest', 'triceps'], trackingType: 'reps' },
   { id: 'ex_kettlebell_swing', name: 'Kettlebell swing', muscleGroups: ['glutes', 'hamstrings', 'back'], trackingType: 'reps' },
-  // Additional rehab / prehab (A55). Exact/near-duplicates of existing rows are
-  // intentionally omitted: Reverse wrist curl, Shoulder CARs and Dead hang
-  // (passive) already exist; "Banded shoulder external rotation" is covered by
-  // Theraband external rotation; Hip 90/90 stretch, Pronation and supination and
-  // Rice bucket (grip) match Hip 90/90, Pronation/supination and Rice bucket.
+  // Additional rehab / prehab (A55). Exact duplicates of existing rows are
+  // omitted (Reverse wrist curl, Shoulder CARs, Dead hang (passive)); the
+  // distinctly-named variants below are seeded per F41's explicit list.
+  { id: 'ex_banded_external_rotation', name: 'Banded shoulder external rotation', muscleGroups: ['shoulders'], trackingType: 'reps', category: 'rehab' },
   { id: 'ex_banded_internal_rotation', name: 'Banded shoulder internal rotation', muscleGroups: ['shoulders'], trackingType: 'reps', category: 'rehab' },
+  { id: 'ex_rice_bucket_grip', name: 'Rice bucket (grip)', muscleGroups: ['forearms'], trackingType: 'duration', category: 'rehab' },
   { id: 'ex_wrist_flexor_stretch', name: 'Wrist flexor stretch', muscleGroups: ['forearms'], trackingType: 'duration', category: 'rehab' },
   { id: 'ex_wrist_extensor_stretch', name: 'Wrist extensor stretch', muscleGroups: ['forearms'], trackingType: 'duration', category: 'rehab' },
   { id: 'ex_wrist_roller_flexion', name: 'Wrist roller (flexion)', muscleGroups: ['forearms'], trackingType: 'reps', category: 'rehab' },

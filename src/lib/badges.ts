@@ -11,6 +11,7 @@ import {
   Footprints,
   Hand,
   Home,
+  Layers,
   Mountain,
   Waves,
   Zap,
@@ -41,6 +42,7 @@ const TONE = {
   gym: 'bg-blue-500/15 text-blue-300 ring-blue-500/30', // #3b82f6
   crag: 'bg-amber-500/15 text-amber-300 ring-amber-500/30', // #f59e0b
   board: 'bg-green-500/15 text-green-300 ring-green-500/30', // #22c55e (formerly 'home', F30)
+  mixed: 'bg-violet-500/15 text-violet-300 ring-violet-500/30', // #8b5cf6 (A66)
 } as const
 
 const CARDIO: Record<CardioActivityType, { Icon: LucideIcon; label: string }> = {
@@ -77,6 +79,8 @@ export function normalizeVenue(v: string | null | undefined): ClimbingVenue | un
 }
 
 const STRENGTH: Badge = { Icon: Dumbbell, label: 'Strength', classes: TONE.strength }
+// Mixed-discipline session (A66) — a build-from-scratch workout spanning types.
+const MIXED: Badge = { Icon: Layers, label: 'Mixed', classes: TONE.mixed }
 const HANGBOARD = (classes: string): Badge => ({ Icon: Hand, label: 'Hangboard', classes })
 const CLIMB_WORKOUT = (classes: string): Badge => ({ Icon: Activity, label: 'Workout', classes })
 
@@ -87,6 +91,7 @@ function cardioBadge(activity: CardioActivityType = 'other'): Badge {
 
 export function badgeForTemplate(t: WorkoutTemplate): Badge {
   if (t.type === 'strength') return STRENGTH
+  if (t.type === 'mixed') return MIXED
   if (t.type === 'cardio') return cardioBadge(t.cardioActivity)
   // climbing template — hangboard or workout
   return t.climbingKind === 'hangboard' ? HANGBOARD(TONE.climbing) : CLIMB_WORKOUT(TONE.climbing)
@@ -104,6 +109,7 @@ export interface SessionKind {
 
 export function badgeForSession(s: WorkoutSession, kind?: SessionKind): Badge {
   if (s.type === 'strength') return STRENGTH
+  if (s.type === 'mixed') return MIXED
   if (s.type === 'cardio') return cardioBadge(kind?.cardioActivity ?? s.plannedActivity)
 
   // Climbing: colour follows the venue (blue/amber/green); the icon follows the

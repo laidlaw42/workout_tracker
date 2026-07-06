@@ -142,7 +142,9 @@ export default function TemplateEditScreen() {
     const isCardio = template.type === 'cardio'
     const isClimbing = template.type === 'climbing'
     const showExercises =
-      template.type === 'strength' || (isClimbing && template.climbingKind === 'workout')
+      template.type === 'strength' ||
+      template.type === 'mixed' ||
+      (isClimbing && template.climbingKind === 'workout')
     try {
       await upsertTemplate({
         id: template.id,
@@ -204,7 +206,9 @@ export default function TemplateEditScreen() {
   const isCardio = template?.type === 'cardio'
   const isClimbing = template?.type === 'climbing'
   const showExercises =
-    template?.type === 'strength' || (isClimbing && template?.climbingKind === 'workout')
+    template?.type === 'strength' ||
+    template?.type === 'mixed' ||
+    (isClimbing && template?.climbingKind === 'workout')
 
   return (
     <div className="min-h-dvh pb-24">
