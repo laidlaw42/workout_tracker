@@ -15,11 +15,13 @@ export const CLIMB_CHARACTER_LABEL: Record<ClimbCharacter, string> = Object.from
   CLIMB_CHARACTERS.map((c) => [c.value, c.label]),
 ) as Record<ClimbCharacter, string>
 
-// Freeform style descriptors for a route (A47), multi-select.
+// Freeform style descriptors for a route (A47), multi-select. Stretchy / Short /
+// Long appended at the end (A52).
 export const CLIMB_STYLE_TAGS = [
   'Crimpy', 'Juggy', 'Pumpy', 'Slopey', 'Pinchy', 'Dynamic', 'Static', 'Technical',
   'Powerful', 'Endurance', 'Compression', 'Balancy', 'Mantle', 'Stemmy', 'Roofed',
   'Fingery', 'Thuggish', 'Garbage', 'Sandbagged', 'Chossy', 'Painful',
+  'Stretchy', 'Short', 'Long',
 ] as const
 
 // --- Grades -----------------------------------------------------------------
@@ -62,6 +64,16 @@ export const STYLE_LABELS: Record<ClimbingStyle, string> = {
   bouldering: 'Bouldering',
   top_rope: 'Top rope',
   lead: 'Lead',
+}
+
+// Unicode symbols for the three climb types (F36), used in place of text labels
+// on the climb-type buttons (A24) and wherever a route's style is shown
+// (RouteCard, SessionDetail, History). Rendered large with a small text sublabel
+// so they stay accessible. Kept alongside STYLE_LABELS so the two never drift.
+export const CLIMB_STYLE_SYMBOLS: Record<ClimbingStyle, string> = {
+  bouldering: '⬟',
+  top_rope: '⤒',
+  lead: '⚑',
 }
 
 // --- Hangboard --------------------------------------------------------------

@@ -437,41 +437,8 @@ export function LogRouteSheet({
             )}
           </div>
 
-          {/* 6b — Style tags (A47) */}
-          <div className="space-y-2">
-            <Label>Style</Label>
-            <div className="flex flex-wrap gap-2">
-              {CLIMB_STYLE_TAGS.map((s) => {
-                const on = climbStyles.includes(s)
-                return (
-                  <button
-                    key={s}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() =>
-                      setClimbStyles((cur) => (on ? cur.filter((x) => x !== s) : [...cur, s]))
-                    }
-                    className={cn(
-                      'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-                      on
-                        ? 'border-primary bg-primary/10 text-foreground'
-                        : 'border-border text-muted-foreground',
-                    )}
-                  >
-                    {s}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* 7 — Route name */}
-          <div className="space-y-1.5">
-            <Label htmlFor="route-name">Route name</Label>
-            <Input id="route-name" value={routeName} onChange={(e) => setRouteName(e.target.value)} />
-          </div>
-
-          {/* 7b — Height (A44) — optional, 0.5 m steps */}
+          {/* 6c — Height (A44) — optional, 0.5 m steps. Sits directly below the
+              wall angle / character field for every venue (F33). */}
           <div className="space-y-1.5">
             <Label htmlFor="route-height">Height (m)</Label>
             <div className="flex items-center gap-2">
@@ -508,6 +475,40 @@ export function LogRouteSheet({
                 +
               </HoldButton>
             </div>
+          </div>
+
+          {/* 6b — Style tags (A47) */}
+          <div className="space-y-2">
+            <Label>Style</Label>
+            <div className="flex flex-wrap gap-2">
+              {CLIMB_STYLE_TAGS.map((s) => {
+                const on = climbStyles.includes(s)
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() =>
+                      setClimbStyles((cur) => (on ? cur.filter((x) => x !== s) : [...cur, s]))
+                    }
+                    className={cn(
+                      'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                      on
+                        ? 'border-primary bg-primary/10 text-foreground'
+                        : 'border-border text-muted-foreground',
+                    )}
+                  >
+                    {s}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* 7 — Route name */}
+          <div className="space-y-1.5">
+            <Label htmlFor="route-name">Route name</Label>
+            <Input id="route-name" value={routeName} onChange={(e) => setRouteName(e.target.value)} />
           </div>
 
           {/* 8 — Notes */}
