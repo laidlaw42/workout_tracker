@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { Check, Pencil, Play, Plus, Repeat, Save, Trash2 } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import {
+  addHang,
   addSet,
   createTemplateFromSession,
   deleteRoute,
@@ -23,6 +24,7 @@ import {
   updateSet,
 } from '@/db/helpers'
 import { ExercisePicker } from '@/components/ExercisePicker'
+import { LoggedHangList } from '@/components/LoggedHangList'
 import { LogRouteSheet } from '@/components/LogRouteSheet'
 import { PageHeader } from '@/components/PageHeader'
 import { RouteCard } from '@/components/RouteCard'
@@ -154,14 +156,32 @@ export default function SessionDetailScreen() {
 
   async function handleAddExercises(exs: Exercise[]) {
     for (const ex of exs) {
-      await addSet({
-        sessionId: id,
-        exerciseId: ex.id,
-        exerciseName: ex.name,
-        setNumber: 1,
-        skipped: false,
-        loggedAt: Date.now(),
-      })
+      // A73/F43 — a hangboard exercise logs a hang, not a blank strength set, so
+      // it lands in the Hangboard section carrying its protocol (grip/edge/…).
+      if (ex.category === 'hangboard' && ex.hangboard) {
+        const hb = ex.hangboard
+        await addHang({
+          sessionId: id,
+          gripType: hb.gripType,
+          edgeDepthMm: hb.edgeDepthMm,
+          setNumber: 1,
+          targetDurationSeconds: hb.durationSeconds,
+          weightKg: hb.weightKg,
+          hangType: hb.hangType,
+          abrahangReps: hb.abrahangReps,
+          skipped: false,
+          loggedAt: Date.now(),
+        })
+      } else {
+        await addSet({
+          sessionId: id,
+          exerciseId: ex.id,
+          exerciseName: ex.name,
+          setNumber: 1,
+          skipped: false,
+          loggedAt: Date.now(),
+        })
+      }
     }
   }
 
@@ -671,21 +691,7 @@ function MixedDetail({
           ))}
         </div>
       ))}
-      {hangs.length > 0 && (
-        <div className="space-y-1">
-          <p className="text-sm font-medium text-muted-foreground">Hangboard</p>
-          {hangs.map((h) => (
-            <div key={h.id} className="flex justify-between rounded-lg bg-card px-3 py-2 text-sm">
-              <span className="truncate">{h.gripType}</span>
-              <span className="text-muted-foreground">
-                {h.edgeDepthMm}mm · {h.actualDurationSeconds ?? h.targetDurationSeconds}s ·{' '}
-                {h.weightKg >= 0 ? '+' : ''}
-                {h.weightKg}kg
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+      <LoggedHangList hangs={hangs} />
       {editing && (
         <Button variant="outline" className="w-full" onClick={onAddExercise}>
           <Plus className="size-4" /> Add exercise
@@ -866,21 +872,7 @@ function ClimbingDetail({
         )
       )}
 
-      {hangs.length > 0 && (
-        <div className="space-y-1">
-          <p className="text-sm font-medium text-muted-foreground">Hangboard</p>
-          {hangs.map((h) => (
-            <div key={h.id} className="flex justify-between rounded-lg bg-card px-3 py-2 text-sm">
-              <span className="truncate">{h.gripType}</span>
-              <span className="text-muted-foreground">
-                {h.edgeDepthMm}mm · {h.actualDurationSeconds ?? h.targetDurationSeconds}s ·{' '}
-                {h.weightKg >= 0 ? '+' : ''}
-                {h.weightKg}kg
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
+      <LoggedHangList hangs={hangs} />
 
       {hasRoutes && (
         <div className="space-y-2">

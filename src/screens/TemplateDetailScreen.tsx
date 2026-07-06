@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatElapsed, formatWorkoutLength } from '@/lib/formatDuration'
+import { weightLabel } from '@/lib/climbing'
 import type { HangboardSet, HangType, TemplateExercise, WorkoutTemplate } from '@/types'
 
 function setsLabel(ex: TemplateExercise): string {
@@ -166,8 +167,7 @@ export default function TemplateDetailScreen() {
                 </div>
                 <p className="text-sm text-muted-foreground">{hangProtocol(h)}</p>
                 <p className="text-xs text-muted-foreground">
-                  {h.edgeDepthMm}mm edge · {h.weightKg >= 0 ? '+' : ''}
-                  {h.weightKg}kg
+                  {h.edgeDepthMm}mm edge · {weightLabel(h.weightKg)}
                 </p>
               </div>
             ))}

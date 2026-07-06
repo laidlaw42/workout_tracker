@@ -133,6 +133,14 @@ export const GRIP_TYPES = [
   'Sloper',
 ] as const
 
+// Human label for a hang's added/assisted load: 0 → "bodyweight", else "+5 kg" /
+// "-3 kg". Shared by the live hang card and every hang summary/preview so the
+// same load reads identically everywhere.
+export function weightLabel(kg: number): string {
+  if (kg === 0) return 'bodyweight'
+  return `${kg > 0 ? '+' : ''}${kg} kg`
+}
+
 // --- Tick types -------------------------------------------------------------
 
 export interface TickOption {

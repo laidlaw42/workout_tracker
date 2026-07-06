@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Check, Minus, Pencil, Plus } from 'lucide-react'
 import { getWeightStep } from '@/lib/prefs'
+import { weightLabel } from '@/lib/climbing'
 import { Button } from '@/components/ui/button'
 import { NumberStepper } from '@/components/NumberStepper'
 import { SetCountdown } from '@/components/SetCountdown'
@@ -23,11 +24,6 @@ interface Props {
   /** Start the hang countdown (session logs it + starts rest at zero). */
   onStartCountdown?: () => void
   countdown?: { remaining: number; duration: number; precount?: boolean; label?: string } | null
-}
-
-function weightLabel(kg: number): string {
-  if (kg === 0) return 'bodyweight'
-  return `${kg > 0 ? '+' : ''}${kg} kg`
 }
 
 // Body of a hang card. The shell (border, drag handle, long-press Skip/Remove)
