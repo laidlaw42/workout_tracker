@@ -95,7 +95,14 @@ function cardioBadge(activity: CardioActivityType = 'other'): Badge {
 
 export function badgeForTemplate(t: WorkoutTemplate): Badge {
   if (t.type === 'strength') return STRENGTH
-  if (t.type === 'mixed') return MIXED
+  if (t.type === 'mixed') {
+    // A73: a hang-only training template reads as Hangboard; with exercises too,
+    // it's a genuine Mixed workout.
+    if ((t.hangboardSets?.length ?? 0) > 0 && t.exercises.length === 0) {
+      return HANGBOARD(TONE.climbing)
+    }
+    return MIXED
+  }
   if (t.type === 'cardio') return cardioBadge(t.cardioActivity)
   // climbing template — hangboard or workout
   return t.climbingKind === 'hangboard' ? HANGBOARD(TONE.climbing) : CLIMB_WORKOUT(TONE.climbing)
@@ -113,7 +120,12 @@ export interface SessionKind {
 
 export function badgeForSession(s: WorkoutSession, kind?: SessionKind): Badge {
   if (s.type === 'strength') return STRENGTH
-  if (s.type === 'mixed') return MIXED
+  if (s.type === 'mixed') {
+    // A73: a training session whose only logged content is hangs reads as a
+    // Hangboard session (green identity); anything with sets too stays Mixed.
+    if (kind?.climbingIsHangboard) return HANGBOARD(TONE.climbing)
+    return MIXED
+  }
   if (s.type === 'cardio') return cardioBadge(kind?.cardioActivity ?? s.plannedActivity)
 
   // Climbing: colour follows the venue (blue/amber/green); the icon follows the
@@ -160,6 +172,10 @@ export function deriveSessionKind(
     }
     if (data.hasHang) return { climbingIsHangboard: true }
     if (data.hasSet) return { climbingIsWorkout: true }
+  }
+  // A73: a mixed (training) session with hangs but no sets is a hangboard session.
+  if (session.type === 'mixed' && data.hasHang && !data.hasSet) {
+    return { climbingIsHangboard: true }
   }
   return {}
 }

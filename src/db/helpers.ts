@@ -625,6 +625,12 @@ export async function createTemplateFromSession(
       // A66 — a mixed template keeps its exercise list; each exercise's own
       // tracking type drives the row variant when the template is started.
       base.exercises = planExercisesFromSets(await getSetsForSession(sourceId))
+      // A73 — a training (mixed) session may also log hangs (hangboard exercises);
+      // preserve them so the saved template rebuilds the hang rows too.
+      if (src.type === 'mixed') {
+        const ph = planHangsFromHangs(await getHangsForSession(sourceId))
+        if (ph.length) base.hangboardSets = ph
+      }
     } else if (src.type === 'cardio') {
       const c = await getCardioForSession(sourceId)
       base.cardioActivity = c?.activityType ?? 'other'
@@ -951,6 +957,7 @@ export async function describeSessions(
     const out: Record<string, SessionKind> = {}
     const climbing = sessions.filter((s) => s.type === 'climbing')
     const cardio = sessions.filter((s) => s.type === 'cardio')
+    const mixed = sessions.filter((s) => s.type === 'mixed')
 
     if (cardio.length) {
       const ids = cardio.map((s) => s.id)
@@ -980,6 +987,21 @@ export async function describeSessions(
           hasSet: hasSet.has(s.id),
         })
       })
+    }
+
+    // A73: mixed (training) sessions may contain hangs — a hang-only one reads as
+    // a Hangboard session, so load their hang/set presence too.
+    if (mixed.length) {
+      const ids = mixed.map((s) => s.id)
+      const [hangs, sets] = await Promise.all([
+        db.hangs.where('sessionId').anyOf(ids).toArray(),
+        db.sets.where('sessionId').anyOf(ids).toArray(),
+      ])
+      const hasHang = new Set(hangs.map((h) => h.sessionId))
+      const hasSet = new Set(sets.map((x) => x.sessionId))
+      for (const s of mixed) {
+        out[s.id] = deriveSessionKind(s, { hasHang: hasHang.has(s.id), hasSet: hasSet.has(s.id) })
+      }
     }
 
     return out
