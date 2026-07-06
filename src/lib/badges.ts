@@ -1,12 +1,9 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   Activity,
-  Anchor,
   Bandage,
   Bike,
-  Box,
   Building2,
-  Cable,
   Dumbbell,
   Footprints,
   Hand,
@@ -16,6 +13,7 @@ import {
   Waves,
   Zap,
 } from 'lucide-react'
+import { CLIMB_STYLE_ICONS } from '@/lib/climbing'
 import type {
   CardioActivityType,
   ClimbingRoute,
@@ -53,10 +51,12 @@ const CARDIO: Record<CardioActivityType, { Icon: LucideIcon; label: string }> = 
   other: { Icon: Zap, label: 'Cardio' },
 }
 
+// F44 — one Lucide icon set for the three climb types across the whole app; the
+// badges reuse the same CLIMB_STYLE_ICONS the climb-type buttons/RouteCards use.
 const STYLE: Record<ClimbingStyle, { Icon: LucideIcon; label: string }> = {
-  bouldering: { Icon: Box, label: 'Bouldering' },
-  top_rope: { Icon: Cable, label: 'Top rope' },
-  lead: { Icon: Anchor, label: 'Lead' },
+  bouldering: { Icon: CLIMB_STYLE_ICONS.bouldering, label: 'Bouldering' },
+  top_rope: { Icon: CLIMB_STYLE_ICONS.top_rope, label: 'Top rope' },
+  lead: { Icon: CLIMB_STYLE_ICONS.lead, label: 'Lead' },
 }
 
 // Venue quick-start entries in the Library (lucide icons, per-venue colour).

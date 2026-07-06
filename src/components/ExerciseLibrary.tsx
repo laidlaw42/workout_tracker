@@ -112,7 +112,7 @@ export function ExerciseLibrary() {
   return (
     <div className="space-y-3">
       <Button variant="outline" className="w-full" onClick={openNew}>
-        <Plus className="size-4" /> Add exercise
+        <Plus className="size-4" /> Add new exercise
       </Button>
 
       <SegmentedControl

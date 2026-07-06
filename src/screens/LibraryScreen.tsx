@@ -90,10 +90,10 @@ export default function LibraryScreen() {
         <ExerciseLibrary />
       ) : (
         <>
-          {/* A80 — same add affordance as the Exercises tab's "Add exercise".
+          {/* A80 — same add affordance as the Exercises tab's "Add new exercise".
               A81 — goes straight to the in-memory creation view (no dialog). */}
           <Button variant="outline" className="w-full" onClick={() => navigate('/library/new')}>
-            <Plus className="size-4" /> New workout
+            <Plus className="size-4" /> Add new workout
           </Button>
 
           <SegmentedControl
@@ -147,7 +147,7 @@ export default function LibraryScreen() {
                         ? 'No rehab workouts yet.'
                         : filter === 'mixed'
                           ? 'No mixed workouts yet.'
-                          : 'Tap “New workout” to create one.'
+                          : 'Tap “Add new workout” to create one.'
               }
             />
           ) : (

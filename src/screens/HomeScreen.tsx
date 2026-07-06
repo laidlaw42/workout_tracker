@@ -128,7 +128,7 @@ export default function HomeScreen() {
       </div>
 
       <Button size="lg" className="w-full" onClick={startNewWorkout}>
-        <Plus className="size-5" /> New workout
+        <Plus className="size-5" /> Start new workout
       </Button>
 
       <section className="space-y-3">
