@@ -7,4 +7,5 @@ dev-dist
 *.log
 npm-debug.log*
 *.tsbuildinfo
-.tasks.md
+tasks.md
+updates.md
