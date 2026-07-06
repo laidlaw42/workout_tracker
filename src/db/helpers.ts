@@ -43,6 +43,14 @@ function withCategory(e: Exercise): Exercise {
     : { ...e, category: e.trackingType === 'distance' ? 'cardio' : 'strength' }
 }
 
+// A pre-F30 backup may store the board venue as 'home'; normalise it to 'board'
+// on import so it matches the renamed discriminator.
+function withBoardVenue(s: WorkoutSession): WorkoutSession {
+  return (s as { climbingVenue?: string }).climbingVenue === 'home'
+    ? { ...s, climbingVenue: 'board' }
+    : s
+}
+
 const MIN = Dexie.minKey
 const MAX = Dexie.maxKey
 
@@ -255,6 +263,23 @@ export async function getTemplatesByType(
   })
 }
 
+// Templates that contain at least one rehab-category exercise (F31). Rehab isn't
+// a template discipline — it's an exercise category (A42) — so this is a
+// content-based filter rather than a `type` query.
+export async function getRehabTemplates(): Promise<WorkoutTemplate[]> {
+  return run('getRehabTemplates', async () => {
+    const rehabIds = new Set(
+      (await db.exercises.where('category').equals('rehab').toArray()).map((e) => e.id),
+    )
+    const list = (await db.templates.toArray()).filter((t) =>
+      t.exercises.some((e) => rehabIds.has(e.exerciseId)),
+    )
+    return list.sort(
+      (a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || a.name.localeCompare(b.name),
+    )
+  })
+}
+
 export async function getTemplate(id: string): Promise<WorkoutTemplate | undefined> {
   return run('getTemplate', () => db.templates.get(id))
 }
@@ -379,6 +404,19 @@ export async function migrateWallAngles(): Promise<void> {
       delete r.wallAngle
     })
     await db.meta.put({ key: 'wallAngleMigrated', value: true })
+  })
+}
+
+// One-time migration of the board venue discriminator 'home' → 'board' (F30).
+// Idempotent via a meta flag; run at startup after seeding.
+export async function migrateHomeVenueToBoard(): Promise<void> {
+  return run('migrateHomeVenueToBoard', async () => {
+    if ((await db.meta.get('homeVenueBoardMigrated'))?.value) return
+    await db.sessions.toCollection().modify((s) => {
+      const v = s as { climbingVenue?: string }
+      if (v.climbingVenue === 'home') v.climbingVenue = 'board'
+    })
+    await db.meta.put({ key: 'homeVenueBoardMigrated', value: true })
   })
 }
 
@@ -988,7 +1026,7 @@ export async function importAllData(json: string): Promise<void> {
         ])
         if (d.exercises?.length) await db.exercises.bulkAdd(d.exercises.map(withCategory))
         if (d.templates?.length) await db.templates.bulkAdd(d.templates)
-        if (d.sessions?.length) await db.sessions.bulkAdd(d.sessions)
+        if (d.sessions?.length) await db.sessions.bulkAdd(d.sessions.map(withBoardVenue))
         if (d.sets?.length) await db.sets.bulkAdd(d.sets)
         if (d.cardio?.length) await db.cardio.bulkAdd(d.cardio)
         if (d.routes?.length) await db.routes.bulkAdd(d.routes)
@@ -1098,7 +1136,7 @@ export async function mergeData(json: string): Promise<{ inserted: number; skipp
 
         await mergeInto(db.exercises, d.exercises?.map(withCategory))
         await mergeInto(db.templates, d.templates)
-        await mergeInto(db.sessions, d.sessions)
+        await mergeInto(db.sessions, d.sessions?.map(withBoardVenue))
         await mergeInto(db.sets, d.sets, (s) => newSets.push(s))
         await mergeInto(db.cardio, d.cardio)
         await mergeInto(db.routes, d.routes, (r) => newRoutes.push(r))

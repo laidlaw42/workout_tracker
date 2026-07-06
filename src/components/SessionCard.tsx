@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 import { DisciplineBadge } from './DisciplineBadge'
-import { badgesForSession, type SessionKind } from '@/lib/badges'
+import { badgesForSession, normalizeVenue, type SessionKind } from '@/lib/badges'
 import { formatRelativeDay } from '@/lib/date'
 import { formatWorkoutLength, workoutDurationSeconds } from '@/lib/formatDuration'
 import type { WorkoutSession } from '@/types'
@@ -19,13 +19,14 @@ export function SessionCard({ session, kind, stat }: Props) {
   const durationSeconds = inProgress ? undefined : workoutDurationSeconds(session)
 
   // Climbing sessions surface their venue name (gym / crag / board) when set.
+  const venue = normalizeVenue(session.climbingVenue)
   const locationName =
     session.type === 'climbing'
-      ? (session.climbingVenue === 'gym'
+      ? (venue === 'gym'
           ? session.gym
-          : session.climbingVenue === 'crag'
+          : venue === 'crag'
             ? session.crag
-            : session.climbingVenue === 'home'
+            : venue === 'board'
               ? session.board
               : undefined
         )?.trim() || undefined

@@ -2,6 +2,7 @@ import type { LucideIcon } from 'lucide-react'
 import {
   Activity,
   Anchor,
+  Bandage,
   Bike,
   Box,
   Building2,
@@ -36,9 +37,10 @@ const TONE = {
   strength: 'bg-red-500/15 text-red-300 ring-red-500/30',
   cardio: 'bg-orange-500/15 text-orange-300 ring-orange-500/30',
   climbing: 'bg-green-500/15 text-green-300 ring-green-500/30',
+  rehab: 'bg-sky-500/15 text-sky-300 ring-sky-500/30', // #38bdf8 (F31)
   gym: 'bg-blue-500/15 text-blue-300 ring-blue-500/30', // #3b82f6
   crag: 'bg-amber-500/15 text-amber-300 ring-amber-500/30', // #f59e0b
-  home: 'bg-green-500/15 text-green-300 ring-green-500/30', // #22c55e
+  board: 'bg-green-500/15 text-green-300 ring-green-500/30', // #22c55e (formerly 'home', F30)
 } as const
 
 const CARDIO: Record<CardioActivityType, { Icon: LucideIcon; label: string }> = {
@@ -55,10 +57,23 @@ const STYLE: Record<ClimbingStyle, { Icon: LucideIcon; label: string }> = {
 }
 
 // Venue quick-start entries in the Library (lucide icons, per-venue colour).
-export const VENUE_BADGES: Record<'gym' | 'crag' | 'home', Badge> = {
+export const VENUE_BADGES: Record<'gym' | 'crag' | 'board', Badge> = {
   gym: { Icon: Building2, label: 'Gym', classes: TONE.gym },
   crag: { Icon: Mountain, label: 'Crag', classes: TONE.crag },
-  home: { Icon: Home, label: 'Home', classes: TONE.home },
+  board: { Icon: Home, label: 'Board', classes: TONE.board },
+}
+
+// Rehab exercise category (F31) — sky blue with a bandage icon.
+export const REHAB_BADGE: Badge = { Icon: Bandage, label: 'Rehab', classes: TONE.rehab }
+
+export type ClimbingVenue = 'gym' | 'crag' | 'board'
+
+// Normalise a stored climbingVenue to a known key. Pre-F30 sessions may still
+// hold the legacy 'home' value if the one-time migration hasn't run (it's
+// best-effort); treat it as 'board' so lookups never fall through to undefined.
+export function normalizeVenue(v: string | null | undefined): ClimbingVenue | undefined {
+  if (v === 'home') return 'board'
+  return v === 'gym' || v === 'crag' || v === 'board' ? v : undefined
 }
 
 const STRENGTH: Badge = { Icon: Dumbbell, label: 'Strength', classes: TONE.strength }
@@ -93,7 +108,8 @@ export function badgeForSession(s: WorkoutSession, kind?: SessionKind): Badge {
 
   // Climbing: colour follows the venue (blue/amber/green); the icon follows the
   // logged subtype so a crag-lead and a gym-boulder read apart.
-  const classes = s.climbingVenue ? TONE[s.climbingVenue] : TONE.climbing
+  const venue = normalizeVenue(s.climbingVenue)
+  const classes = venue ? TONE[venue] : TONE.climbing
   if (kind?.climbingStyle) {
     const st = STYLE[kind.climbingStyle]
     return { Icon: st.Icon, label: st.label, classes }
@@ -101,7 +117,7 @@ export function badgeForSession(s: WorkoutSession, kind?: SessionKind): Badge {
   if (kind?.climbingIsHangboard) return HANGBOARD(classes)
   if (kind?.climbingIsWorkout) return CLIMB_WORKOUT(classes)
   // Nothing logged yet — fall back to the venue identity, else generic climbing.
-  if (s.climbingVenue) return VENUE_BADGES[s.climbingVenue]
+  if (venue) return VENUE_BADGES[venue]
   return { Icon: Mountain, label: 'Climbing', classes: TONE.climbing }
 }
 
@@ -142,7 +158,8 @@ export function deriveSessionKind(
 // completed climbing sessions (A25); other cases return a single badge.
 export function badgesForSession(s: WorkoutSession, kind?: SessionKind): Badge[] {
   if (s.type === 'climbing' && kind?.climbingStyles && kind.climbingStyles.length) {
-    const classes = s.climbingVenue ? TONE[s.climbingVenue] : TONE.climbing
+    const venue = normalizeVenue(s.climbingVenue)
+    const classes = venue ? TONE[venue] : TONE.climbing
     return kind.climbingStyles.map((st) => ({ Icon: STYLE[st].Icon, label: STYLE[st].label, classes }))
   }
   return [badgeForSession(s, kind)]

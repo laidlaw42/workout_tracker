@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { seedIfNeeded } from '@/db/seed'
-import { migrateWallAngles, syncAllTagMeta } from '@/db/helpers'
+import { migrateHomeVenueToBoard, migrateWallAngles, syncAllTagMeta } from '@/db/helpers'
 
 function LoadingScreen() {
   return (
@@ -22,6 +22,10 @@ export function Root() {
       .then(() => syncAllTagMeta().catch((err) => console.error('Tag sync failed', err)))
       // Migrate legacy wallAngle → climbCharacter (A45), best-effort.
       .then(() => migrateWallAngles().catch((err) => console.error('Wall-angle migration failed', err)))
+      // Migrate board venue 'home' → 'board' (F30), best-effort.
+      .then(() =>
+        migrateHomeVenueToBoard().catch((err) => console.error('Board-venue migration failed', err)),
+      )
       .catch((err) => console.error('Seeding failed', err))
       .finally(() => setReady(true))
   }, [])

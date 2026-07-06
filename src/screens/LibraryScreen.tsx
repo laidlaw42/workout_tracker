@@ -4,8 +4,16 @@ import { toast } from 'sonner'
 import { Dumbbell, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useTagColours } from '@/hooks/useTagColours'
-import { deleteTemplate, getDefaultTags, getTemplatesByType, upsertTemplate } from '@/db/helpers'
+import {
+  deleteTemplate,
+  getDefaultTags,
+  getRehabTemplates,
+  getTemplatesByType,
+  upsertTemplate,
+} from '@/db/helpers'
+import { REHAB_BADGE } from '@/lib/badges'
 import { SegmentedControl } from '@/components/SegmentedControl'
+import { DisciplineBadge } from '@/components/DisciplineBadge'
 import { TemplateCard } from '@/components/TemplateCard'
 import { ExerciseLibrary } from '@/components/ExerciseLibrary'
 import { ClimbingQuickStarts } from '@/components/ClimbingQuickStarts'
@@ -34,7 +42,7 @@ import {
 } from '@/components/ui/dialog'
 import type { DisciplineType, WorkoutTemplate } from '@/types'
 
-type Filter = 'all' | DisciplineType
+type Filter = 'all' | DisciplineType | 'rehab'
 type NewKind = 'strength' | 'cardio' | 'hangboard' | 'workout'
 
 const OPTIONS: { value: Filter; label: string }[] = [
@@ -42,6 +50,7 @@ const OPTIONS: { value: Filter; label: string }[] = [
   { value: 'strength', label: 'Strength' },
   { value: 'cardio', label: 'Cardio' },
   { value: 'climbing', label: 'Climbing' },
+  { value: 'rehab', label: 'Rehab' },
 ]
 
 export default function LibraryScreen() {
@@ -49,7 +58,12 @@ export default function LibraryScreen() {
   const [params] = useSearchParams()
   const initial = params.get('type')
   const [filter, setFilter] = useState<Filter>(
-    initial === 'strength' || initial === 'cardio' || initial === 'climbing' ? initial : 'all',
+    initial === 'strength' ||
+      initial === 'cardio' ||
+      initial === 'climbing' ||
+      initial === 'rehab'
+      ? initial
+      : 'all',
   )
   const [view, setView] = useState<'workouts' | 'exercises'>('workouts')
   const [activeTag, setActiveTag] = useState<string | null>(null)
@@ -59,7 +73,10 @@ export default function LibraryScreen() {
   const [newType, setNewType] = useState<NewKind>('strength')
 
   const templates = useLiveQuery(
-    () => getTemplatesByType(filter === 'all' ? undefined : filter),
+    () =>
+      filter === 'rehab'
+        ? getRehabTemplates()
+        : getTemplatesByType(filter === 'all' ? undefined : filter),
     [filter],
   )
   const tagColour = useTagColours()
@@ -162,6 +179,13 @@ export default function LibraryScreen() {
           />
 
           {filter === 'climbing' && <ClimbingQuickStarts />}
+
+          {filter === 'rehab' && (
+            <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
+              <DisciplineBadge badge={REHAB_BADGE} />
+              <span>Workouts that include rehab exercises.</span>
+            </div>
+          )}
 
           {allTags.length > 0 && (
             <div className="flex flex-wrap gap-2">

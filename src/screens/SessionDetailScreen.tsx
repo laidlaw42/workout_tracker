@@ -24,7 +24,7 @@ import { LogRouteSheet } from '@/components/LogRouteSheet'
 import { PageHeader } from '@/components/PageHeader'
 import { RouteCard } from '@/components/RouteCard'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
-import { badgeForSession, deriveSessionKind } from '@/lib/badges'
+import { badgeForSession, deriveSessionKind, normalizeVenue } from '@/lib/badges'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -181,10 +181,10 @@ export default function SessionDetailScreen() {
     }),
   )
 
-  const venue: 'gym' | 'crag' | 'home' | undefined =
-    session.climbingVenue ??
+  const venue: 'gym' | 'crag' | 'board' | undefined =
+    normalizeVenue(session.climbingVenue) ??
     (session.board !== undefined
-      ? 'home'
+      ? 'board'
       : session.crag !== undefined
         ? 'crag'
         : session.gym !== undefined
@@ -588,7 +588,7 @@ function ClimbingDetail({
   hangs: LoggedHang[]
   sets: LoggedSet[]
   editing: boolean
-  venue?: 'gym' | 'crag' | 'home'
+  venue?: 'gym' | 'crag' | 'board'
   onAddExercise: () => void
   onAddSet: (exerciseId: string, exerciseName: string) => void
   onEditRoute: (r: ClimbingRoute) => void
@@ -686,7 +686,7 @@ function ClimbingDetail({
             )
           )}
           {editing &&
-            (venue === 'home' ? (
+            (venue === 'board' ? (
               <Button variant="outline" className="w-full" onClick={() => onNewRoute('bouldering')}>
                 <Plus className="size-4" /> Boulder
               </Button>

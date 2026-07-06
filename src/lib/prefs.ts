@@ -139,6 +139,40 @@ export function renameSavedLocation(type: LocationType, oldName: string, newName
   return next
 }
 
+// --- Default gym / board (A51) ---------------------------------------------
+
+// Gym and board sessions can have a saved default location; when set, a session
+// starts with that name pre-applied and no prompt. Crags never have a default.
+export type DefaultLocationType = 'gym' | 'board'
+const DEFAULT_KEYS: Record<DefaultLocationType, string> = {
+  gym: 'default_gym',
+  board: 'default_board',
+}
+
+export function getDefaultLocation(type: DefaultLocationType): string {
+  try {
+    return localStorage.getItem(DEFAULT_KEYS[type]) ?? ''
+  } catch {
+    return ''
+  }
+}
+export function setDefaultLocation(type: DefaultLocationType, name: string): void {
+  try {
+    const n = name.trim()
+    if (n) localStorage.setItem(DEFAULT_KEYS[type], n)
+    else localStorage.removeItem(DEFAULT_KEYS[type])
+  } catch {
+    /* ignore */
+  }
+}
+export function clearDefaultLocation(type: DefaultLocationType): void {
+  try {
+    localStorage.removeItem(DEFAULT_KEYS[type])
+  } catch {
+    /* ignore */
+  }
+}
+
 // --- Gym grade ranges (A21) -------------------------------------------------
 
 export type GymStyle = 'bouldering' | 'top_rope' | 'lead'
@@ -242,6 +276,8 @@ export function deleteGym(name: string): string[] {
     delete prefs[name]
     writeAllGymGradePrefs(prefs)
   }
+  // A deleted gym can't stay the default (A51).
+  if (getDefaultLocation('gym').toLowerCase() === name.toLowerCase()) clearDefaultLocation('gym')
   return removeSavedLocation('gym', name)
 }
 export function renameGym(oldName: string, newName: string): string[] {
@@ -261,5 +297,7 @@ export function renameGym(oldName: string, newName: string): string[] {
     delete prefs[oldName]
     writeAllGymGradePrefs(prefs)
   }
+  // Keep the default pointing at the renamed gym (A51).
+  if (getDefaultLocation('gym').toLowerCase() === oldName.toLowerCase()) setDefaultLocation('gym', n)
   return renameSavedLocation('gym', oldName, n)
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Activity, Dumbbell, Flame, Mountain, Play, Settings } from 'lucide-react'
+import { Activity, Bandage, Dumbbell, Flame, Mountain, Play, Settings } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { deleteSession, describeSessions, getAllSessions, getUnfinishedSession } from '@/db/helpers'
 import { computeStreak } from '@/lib/streak'
@@ -9,6 +9,7 @@ import { formatLongDate, greeting } from '@/lib/date'
 import { getUserName } from '@/lib/userName'
 import { cn } from '@/lib/utils'
 import { SessionCard } from '@/components/SessionCard'
+import { ClimbingQuickStarts } from '@/components/ClimbingQuickStarts'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -106,7 +107,7 @@ export default function HomeScreen() {
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-muted-foreground">Quick start</h2>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <QuickStart
             label="Strength"
             icon={Dumbbell}
@@ -125,7 +126,18 @@ export default function HomeScreen() {
             className="bg-green-500/15 text-green-300"
             onClick={() => navigate('/library?type=climbing')}
           />
+          <QuickStart
+            label="Rehab"
+            icon={Bandage}
+            className="bg-sky-500/15 text-sky-300"
+            onClick={() => navigate('/library?type=rehab')}
+          />
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-medium text-muted-foreground">Start a climb</h2>
+        <ClimbingQuickStarts />
       </section>
 
       <section className="space-y-3">

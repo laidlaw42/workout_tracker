@@ -11,10 +11,14 @@ import { usePrecountBeeps } from '@/hooks/usePrecountBeeps'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import {
   getAutoAdvance,
+  getDefaultLocation,
   getGymGradePreference,
   getKeepAwake,
   getPrecountSeconds,
+  getSavedLocations,
+  rememberLocation,
   setGymGradePreference,
+  type DefaultLocationType,
 } from '@/lib/prefs'
 import {
   addHang,
@@ -32,6 +36,7 @@ import {
   updateSession,
 } from '@/db/helpers'
 import { STYLE_LABELS, isCleanTick, vGradeIndex } from '@/lib/climbing'
+import { normalizeVenue } from '@/lib/badges'
 import { SessionHeader } from '@/components/SessionHeader'
 import { RouteCard } from '@/components/RouteCard'
 import { LogRouteSheet } from '@/components/LogRouteSheet'
@@ -44,6 +49,13 @@ import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -95,6 +107,9 @@ export default function ClimbingSessionScreen() {
   const [confirmDeleteRouteId, setConfirmDeleteRouteId] = useState<string | null>(null)
   // Current abrahang phase label ('Hang' | 'Rest'), shown on the countdown (A37).
   const [abrahangLabel, setAbrahangLabel] = useState<string | null>(null)
+  // "Not <name>?" rename prompt when a default gym/board was applied (A51).
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [renameValue, setRenameValue] = useState('')
 
   const clock = useSessionTimer(id, session?.startedAt ?? Date.now(), session?.pausedDuration ?? 0)
   // Pausing the session freezes the rest, hang/precount and Abrahang countdowns
@@ -108,17 +123,39 @@ export default function ClimbingSessionScreen() {
 
   // Which venue field to show. Prefer the explicit discriminator; fall back to
   // field presence for sessions created before it existed.
-  const venue: 'gym' | 'crag' | 'home' | undefined =
-    session?.climbingVenue ??
+  const venue: 'gym' | 'crag' | 'board' | undefined =
+    normalizeVenue(session?.climbingVenue) ??
     (session?.board !== undefined
-      ? 'home'
+      ? 'board'
       : session?.crag !== undefined
         ? 'crag'
         : session?.gym !== undefined
           ? 'gym'
           : undefined)
-  const isBoard = venue === 'home'
+  const isBoard = venue === 'board'
   const gymName = gym.trim() || session?.gym || undefined
+
+  // A51 — when a gym/board session was started from a saved default, show a
+  // "Not <name>?" link so the user can change it for this session only (without
+  // touching the stored default).
+  const defaultLocType: DefaultLocationType | null =
+    venue === 'gym' ? 'gym' : venue === 'board' ? 'board' : null
+  const currentLocName = venue === 'gym' ? gym.trim() : venue === 'board' ? board.trim() : ''
+  const showRenameLink =
+    defaultLocType !== null && getDefaultLocation(defaultLocType) !== '' && currentLocName !== ''
+  const renameSaved = defaultLocType ? getSavedLocations(defaultLocType) : []
+  function applyRename(next: string) {
+    const n = next.trim()
+    if (venue === 'gym') {
+      setGym(n)
+      void updateSession(id, { gym: n || undefined })
+    } else if (venue === 'board') {
+      setBoard(n)
+      void updateSession(id, { board: n })
+    }
+    if (defaultLocType && n) rememberLocation(defaultLocType, n) // remembered, but default unchanged
+    setRenameOpen(false)
+  }
 
   // Rest-timer completion: haptic + auto-dismiss. For a timed set/hang, reaching
   // 0 auto-starts the next set's countdown (A8, if enabled).
@@ -641,6 +678,57 @@ export default function ClimbingSessionScreen() {
         onFinish={finish}
       />
 
+      {showRenameLink && (
+        <div className="px-4 pt-2">
+          <button
+            type="button"
+            onClick={() => {
+              setRenameValue(currentLocName)
+              setRenameOpen(true)
+            }}
+            className="text-xs text-muted-foreground underline underline-offset-2 active:text-foreground"
+          >
+            Not {currentLocName}?
+          </button>
+        </div>
+      )}
+
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>{venue === 'board' ? 'Change board' : 'Change gym'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            {renameSaved.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {renameSaved.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setRenameValue(s)}
+                    className="rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-foreground transition-colors active:bg-accent"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+            <Label htmlFor="rename-loc">{venue === 'board' ? 'Board name' : 'Gym name'}</Label>
+            <Input
+              id="rename-loc"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => applyRename(renameValue)}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="space-y-5 p-4">
         {showRoutes &&
           (() => {
@@ -668,7 +756,7 @@ export default function ClimbingSessionScreen() {
                 />
               </div>
             )
-            if (venue === 'home')
+            if (venue === 'board')
               return (
                 <div className="space-y-1.5">
                   <Label htmlFor="board">Board</Label>

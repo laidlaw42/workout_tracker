@@ -129,10 +129,10 @@ export interface WorkoutSession {
   modifiedFromTemplate: boolean
   notes?: string
   // climbing-only metadata
-  climbingVenue?: 'gym' | 'crag' | 'home' // which venue a quick-start session is; undefined for template/repeat sessions
+  climbingVenue?: 'gym' | 'crag' | 'board' // which venue a quick-start session is; undefined for template/repeat sessions ('board' was formerly 'home', F30)
   gym?: string
   crag?: string
-  board?: string // set (possibly '') for a "Home" board session; distinguishes it from gym/crag
+  board?: string // set (possibly '') for a board session; distinguishes it from gym/crag
   // Plan snapshot for a "repeat" session (created from a past session, not a
   // template). Session screens read these when there is no linked template.
   plannedExercises?: TemplateExercise[]

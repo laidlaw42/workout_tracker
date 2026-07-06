@@ -26,7 +26,7 @@ export function SegmentedControl<T extends string>({
           type="button"
           onClick={() => onChange(o.value)}
           className={cn(
-            'min-h-9 flex-1 rounded-md px-3 text-sm font-medium transition-colors',
+            'min-h-9 flex-1 rounded-md px-2 text-sm font-medium transition-colors',
             value === o.value
               ? 'bg-background text-foreground shadow-sm'
               : 'text-muted-foreground',

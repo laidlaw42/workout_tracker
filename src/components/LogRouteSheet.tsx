@@ -36,7 +36,7 @@ import {
 import { cn } from '@/lib/utils'
 import type { ClimbCharacter, ClimbingRoute, ClimbingStyle, ClimbingTick } from '@/types'
 
-type Venue = 'gym' | 'crag' | 'home'
+type Venue = 'gym' | 'crag' | 'board'
 
 interface Props {
   open: boolean
@@ -67,9 +67,9 @@ export function LogRouteSheet({
   onGradeSystemChange,
   onSaved,
 }: Props) {
-  const isBoard = venue === 'home'
+  const isBoard = venue === 'board'
   const isGym = venue === 'gym'
-  // Degree input is shown for Home (−45..90) and Gym (0..90); Crag has none (A45).
+  // Degree input is shown for Board (−45..90) and Gym (0..90); Crag has none (A45).
   const showDegrees = isBoard || isGym
   const degMin = isBoard ? -45 : 0
 

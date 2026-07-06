@@ -7,6 +7,9 @@ interface Props {
 }
 
 export function DisciplineBadge({ badge, className }: Props) {
+  // Defensive: never crash the whole list if a badge fails to resolve (there is
+  // no error boundary above this in the tree).
+  if (!badge) return null
   const { Icon } = badge
   return (
     <span
