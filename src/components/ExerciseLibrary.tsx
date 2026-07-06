@@ -36,14 +36,14 @@ const TRACKING_LABEL: Record<TrackingType, string> = {
 // exercise categories). Filtering is a straight match on `ex.category`.
 type CatFilter = 'all' | ExerciseCategory
 
-// A79 — fixed order: All, Strength, Cardio, Hangboard, Climbing, Rehab.
+// A93 — fixed strictly-alphabetical order, All pinned first.
 const CATEGORY_OPTIONS: { value: CatFilter; label: string }[] = [
   { value: 'all', label: 'All' },
-  { value: 'strength', label: 'Strength' },
   { value: 'cardio', label: 'Cardio' },
-  { value: 'hangboard', label: 'Hangboard' },
   { value: 'climbing', label: 'Climbing' },
+  { value: 'hangboard', label: 'Hangboard' },
   { value: 'rehab', label: 'Rehab' },
+  { value: 'strength', label: 'Strength' },
 ]
 
 export function ExerciseLibrary() {

@@ -4,8 +4,7 @@ import { Dumbbell, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useTagColours } from '@/hooks/useTagColours'
 import {
-  getClimbingTemplates,
-  getHangboardTemplates,
+  getClimbingLibraryTemplates,
   getRehabTemplates,
   getTemplatesByType,
 } from '@/db/helpers'
@@ -18,37 +17,37 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { DisciplineType } from '@/types'
 
-// Content-based filters (A73/A74/A86): rehab, hangboard and climbing aren't
-// template `type`s — they filter by the categories of the exercises / hang rows a
-// template contains. Mixed (A86) is the `type: 'mixed'` view.
-type Filter = 'all' | DisciplineType | 'rehab' | 'hangboard'
+// Content-based filters: rehab and climbing aren't template `type`s — they filter
+// by the categories of the exercises a template contains. Climbing also folds in
+// hangboard templates (A92). Mixed (A86) is the `type: 'mixed'` view.
+type Filter = 'all' | DisciplineType | 'rehab'
 
-// A79/A86 — fixed workout-tab order: All, Strength, Cardio, Hangboard, Climbing,
-// Rehab, Mixed. Never reordered by content/alphabet.
+// A93 — fixed strictly-alphabetical order, All pinned first. Hardcoded so it never
+// reorders by content. Workout tabs have Mixed but not Hangboard (A92).
 const OPTIONS: { value: Filter; label: string }[] = [
   { value: 'all', label: 'All' },
-  { value: 'strength', label: 'Strength' },
   { value: 'cardio', label: 'Cardio' },
-  { value: 'hangboard', label: 'Hangboard' },
   { value: 'climbing', label: 'Climbing' },
-  { value: 'rehab', label: 'Rehab' },
   { value: 'mixed', label: 'Mixed' },
+  { value: 'rehab', label: 'Rehab' },
+  { value: 'strength', label: 'Strength' },
 ]
 
 export default function LibraryScreen() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const initial = params.get('type')
-  const [filter, setFilter] = useState<Filter>(
-    initial === 'strength' ||
+  const [filter, setFilter] = useState<Filter>(() => {
+    // A92 — hangboard templates now live under the Climbing tab.
+    if (initial === 'hangboard') return 'climbing'
+    return initial === 'strength' ||
       initial === 'cardio' ||
       initial === 'climbing' ||
       initial === 'rehab' ||
-      initial === 'hangboard' ||
       initial === 'mixed'
       ? initial
-      : 'all',
-  )
+      : 'all'
+  })
   const [view, setView] = useState<'workouts' | 'exercises'>('workouts')
   const [activeTag, setActiveTag] = useState<string | null>(null)
 
@@ -56,11 +55,9 @@ export default function LibraryScreen() {
     () =>
       filter === 'rehab'
         ? getRehabTemplates()
-        : filter === 'hangboard'
-          ? getHangboardTemplates()
-          : filter === 'climbing'
-            ? getClimbingTemplates()
-            : getTemplatesByType(filter === 'all' ? undefined : filter),
+        : filter === 'climbing'
+          ? getClimbingLibraryTemplates() // A92 — climbing + hangboard templates
+          : getTemplatesByType(filter === 'all' ? undefined : filter),
     [filter],
   )
   const tagColour = useTagColours()
@@ -139,15 +136,13 @@ export default function LibraryScreen() {
               subtitle={
                 activeTag
                   ? `No workouts tagged #${activeTag}.`
-                  : filter === 'hangboard'
-                    ? 'No hangboard templates yet.'
-                    : filter === 'climbing'
-                      ? 'No climbing workouts yet.'
-                      : filter === 'rehab'
-                        ? 'No rehab workouts yet.'
-                        : filter === 'mixed'
-                          ? 'No mixed workouts yet.'
-                          : 'Tap “Add new workout” to create one.'
+                  : filter === 'climbing'
+                    ? 'No climbing workouts yet.'
+                    : filter === 'rehab'
+                      ? 'No rehab workouts yet.'
+                      : filter === 'mixed'
+                        ? 'No mixed workouts yet.'
+                        : 'Tap “Add new workout” to create one.'
               }
             />
           ) : (

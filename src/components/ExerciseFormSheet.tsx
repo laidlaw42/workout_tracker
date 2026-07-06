@@ -42,12 +42,13 @@ const TRACKING: { value: TrackingType; label: string }[] = [
   { value: 'distance', label: 'Distance' },
 ]
 
+// A93 — alphabetical category order (value selector; default stays 'strength').
 const CATEGORIES: { value: ExerciseCategory; label: string }[] = [
-  { value: 'strength', label: 'Strength' },
   { value: 'cardio', label: 'Cardio' },
   { value: 'climbing', label: 'Climbing' },
-  { value: 'rehab', label: 'Rehab' },
   { value: 'hangboard', label: 'Hangboard' },
+  { value: 'rehab', label: 'Rehab' },
+  { value: 'strength', label: 'Strength' },
 ]
 
 export function ExerciseFormSheet({

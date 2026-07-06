@@ -42,14 +42,14 @@ import type { Exercise, ExerciseCategory, HangboardSet } from '@/types'
 
 type CatFilter = 'all' | ExerciseCategory
 
-// A79 fixed order.
+// A93 — fixed strictly-alphabetical order, All pinned first.
 const CATEGORY_TABS: { value: CatFilter; label: string }[] = [
   { value: 'all', label: 'All' },
-  { value: 'strength', label: 'Strength' },
   { value: 'cardio', label: 'Cardio' },
-  { value: 'hangboard', label: 'Hangboard' },
   { value: 'climbing', label: 'Climbing' },
+  { value: 'hangboard', label: 'Hangboard' },
   { value: 'rehab', label: 'Rehab' },
+  { value: 'strength', label: 'Strength' },
 ]
 
 export default function TemplateCreateScreen() {

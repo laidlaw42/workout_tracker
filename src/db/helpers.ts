@@ -307,6 +307,19 @@ export async function getHangboardTemplates(): Promise<WorkoutTemplate[]> {
   })
 }
 
+// A92 — the Library's Climbing tab: climbing-strength templates PLUS hangboard
+// templates (hangboarding now lives under Climbing in the workout library).
+export async function getClimbingLibraryTemplates(): Promise<WorkoutTemplate[]> {
+  return run('getClimbingLibraryTemplates', async () => {
+    const [climb, hang] = await Promise.all([getClimbingTemplates(), getHangboardTemplates()])
+    const seen = new Set<string>()
+    const merged = [...climb, ...hang].filter((t) => !seen.has(t.id) && seen.add(t.id))
+    return merged.sort(
+      (a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || a.name.localeCompare(b.name),
+    )
+  })
+}
+
 export async function getTemplate(id: string): Promise<WorkoutTemplate | undefined> {
   return run('getTemplate', () => db.templates.get(id))
 }

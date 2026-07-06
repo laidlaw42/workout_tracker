@@ -37,20 +37,20 @@ const TRACKING: { value: TrackingType; label: string }[] = [
   { value: 'distance', label: 'Distance' },
 ]
 
-// Categories offered by the "Create new exercise" form. Hangboard (A73/F43) is
-// included so a hang exercise can be created inline with its protocol defaults.
+// Categories offered by the "Create new exercise" form (A93 alphabetical).
+// Hangboard (A73/F43) is included so a hang exercise can be created inline.
 const CREATE_CATEGORIES: { value: ExerciseCategory; label: string }[] = [
-  { value: 'strength', label: 'Strength' },
   { value: 'cardio', label: 'Cardio' },
   { value: 'climbing', label: 'Climbing' },
-  { value: 'rehab', label: 'Rehab' },
   { value: 'hangboard', label: 'Hangboard' },
+  { value: 'rehab', label: 'Rehab' },
+  { value: 'strength', label: 'Strength' },
 ]
 
-// Grouping order + labels for the universal picker (A66, A73). A79 fixes the
-// order everywhere: Strength, Cardio, Hangboard, Climbing, Rehab (All prepended
-// for the tab row).
-const GROUP_ORDER: ExerciseCategory[] = ['strength', 'cardio', 'hangboard', 'climbing', 'rehab']
+// Grouping order + labels for the universal picker (A66, A73). A93 — strictly
+// alphabetical (All is prepended for the tab row): Cardio, Climbing, Hangboard,
+// Rehab, Strength.
+const GROUP_ORDER: ExerciseCategory[] = ['cardio', 'climbing', 'hangboard', 'rehab', 'strength']
 const CATEGORY_LABEL: Record<ExerciseCategory, string> = {
   strength: 'Strength',
   hangboard: 'Hangboard',
