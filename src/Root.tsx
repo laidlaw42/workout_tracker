@@ -40,7 +40,12 @@ export function Root() {
         if (provider) toast.success(`Connected ${providerLabel(provider)}`)
       })
       .catch((err) => toast.error((err as Error)?.message ?? 'Sign-in failed'))
-    const cleanup = initScheduledBackups()
+    let cleanup = () => {}
+    try {
+      cleanup = initScheduledBackups()
+    } catch (err) {
+      console.error('Backup schedule init failed', err)
+    }
     return cleanup
   }, [])
 
