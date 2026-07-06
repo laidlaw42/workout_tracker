@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Plus, Trash2 } from 'lucide-react'
@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useLiveQuery } from '@/hooks/useDb'
-import { deleteTemplate, getTemplate, upsertTemplate } from '@/db/helpers'
+import { deleteTemplate, getAllExercises, getTemplate, upsertTemplate } from '@/db/helpers'
 import { generateId } from '@/lib/id'
 import { ExercisePicker } from '@/components/ExercisePicker'
 import { IntervalsEditor } from '@/components/IntervalsEditor'
@@ -51,6 +51,10 @@ export default function TemplateEditScreen() {
   // A81 — new workouts are built in the dedicated creation view (TemplateCreate);
   // this screen only edits existing templates now.
   const template = useLiveQuery(() => getTemplate(id).then((t) => t ?? null), [id])
+  // Exercise tracking types drive the reps-vs-hold row variant (stable across a
+  // cleared value, so clearing Hold can't silently flip a timed row to reps).
+  const exercises = useLiveQuery(() => getAllExercises(), []) ?? []
+  const exById = useMemo(() => new Map(exercises.map((e) => [e.id, e])), [exercises])
 
   const [name, setName] = useState('')
   const [tags, setTags] = useState<string[]>([])
@@ -264,14 +268,18 @@ export default function TemplateEditScreen() {
                 strategy={verticalListSortingStrategy}
               >
                 <div className="space-y-2">
-                  {rows.map((row) => (
-                    <TemplateExerciseRow
-                      key={row.uid}
-                      row={row}
-                      onChange={(patch) => patchRow(row.uid, patch)}
-                      onRemove={() => removeRow(row.uid)}
-                    />
-                  ))}
+                  {rows.map((row) => {
+                    const ex = exById.get(row.exerciseId)
+                    return (
+                      <TemplateExerciseRow
+                        key={row.uid}
+                        row={row}
+                        timed={ex ? ex.trackingType === 'duration' : undefined}
+                        onChange={(patch) => patchRow(row.uid, patch)}
+                        onRemove={() => removeRow(row.uid)}
+                      />
+                    )
+                  })}
                 </div>
               </SortableContext>
             </DndContext>

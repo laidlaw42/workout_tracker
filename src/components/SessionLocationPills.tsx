@@ -72,12 +72,18 @@ export function SessionLocationPills({ venue, value, onChange }: Props) {
           )
         })}
 
-        {/* A "just this once" name that isn't in the saved list still reads as selected. */}
+        {/* A name that isn't in the saved list (a "just this once" pick or a
+            pre-applied default that was never saved) still reads as selected —
+            and stays tappable so it can be cleared. */}
         {selected && !inSaved(selected) && (
-          <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary px-3 py-1 text-sm font-medium text-primary-foreground ring-1 ring-inset ring-primary">
+          <button
+            type="button"
+            onClick={() => onChange('')}
+            className="flex shrink-0 items-center gap-1 rounded-full bg-primary px-3 py-1 text-sm font-medium text-primary-foreground ring-1 ring-inset ring-primary"
+          >
             <Check className="size-3.5" />
             {selected}
-          </span>
+          </button>
         )}
 
         <button

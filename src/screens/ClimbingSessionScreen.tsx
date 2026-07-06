@@ -109,7 +109,6 @@ export default function ClimbingSessionScreen() {
   const [confirmDeleteRouteId, setConfirmDeleteRouteId] = useState<string | null>(null)
   // Current abrahang phase label ('Hang' | 'Rest'), shown on the countdown (A37).
   const [abrahangLabel, setAbrahangLabel] = useState<string | null>(null)
-  // "Not <name>?" rename prompt when a default gym/board was applied (A51).
   // Active gym-area filter for the logged-route list (A70). '' = All.
   const [areaFilter, setAreaFilter] = useState('')
 

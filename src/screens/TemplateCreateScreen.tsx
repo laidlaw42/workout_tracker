@@ -68,10 +68,11 @@ export default function TemplateCreateScreen() {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
 
-  // Pre-apply the user's default tags (A35) once; user edits then win.
+  // Pre-apply the user's default tags (A35) once the query resolves — but never
+  // clobber tags the user already typed while it was loading (keep theirs).
   useEffect(() => {
     if (!tagsSeeded && defaultTags) {
-      setTags(defaultTags)
+      setTags((prev) => (prev.length ? prev : defaultTags))
       setTagsSeeded(true)
     }
   }, [defaultTags, tagsSeeded])
@@ -243,14 +244,18 @@ export default function TemplateCreateScreen() {
                     strategy={verticalListSortingStrategy}
                   >
                     <div className="space-y-2">
-                      {visibleRows.map((row) => (
-                        <TemplateExerciseRow
-                          key={row.uid}
-                          row={row}
-                          onChange={(patch) => patchRow(row.uid, patch)}
-                          onRemove={() => removeRow(row.uid)}
-                        />
-                      ))}
+                      {visibleRows.map((row) => {
+                        const ex = exById.get(row.exerciseId)
+                        return (
+                          <TemplateExerciseRow
+                            key={row.uid}
+                            row={row}
+                            timed={ex ? ex.trackingType === 'duration' : undefined}
+                            onChange={(patch) => patchRow(row.uid, patch)}
+                            onRemove={() => removeRow(row.uid)}
+                          />
+                        )
+                      })}
                     </div>
                   </SortableContext>
                 </DndContext>

@@ -11,16 +11,20 @@ interface RowProps {
   row: TemplateRow
   onChange: (patch: Partial<TemplateRow>) => void
   onRemove: () => void
+  /** Whether to show the Hold (s) field instead of Reps. Pass the exercise's
+   *  tracking type so clearing the value can't flip the field (and lose it);
+   *  falls back to whether a duration is currently set. */
+  timed?: boolean
 }
 
 // One draggable exercise row in a workout builder: sets, reps-or-hold, and rest,
-// all editable inline. A duration-tracked exercise (defaultDuration set) shows a
-// Hold (s) field instead of Reps. Must be wrapped in a DndContext + SortableContext.
-export function TemplateExerciseRow({ row, onChange, onRemove }: RowProps) {
+// all editable inline. A duration-tracked exercise shows a Hold (s) field instead
+// of Reps. Must be wrapped in a DndContext + SortableContext.
+export function TemplateExerciseRow({ row, onChange, onRemove, timed: timedProp }: RowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: row.uid,
   })
-  const timed = row.defaultDuration != null
+  const timed = timedProp ?? row.defaultDuration != null
 
   return (
     <div
