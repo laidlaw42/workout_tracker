@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { seedIfNeeded } from '@/db/seed'
 import { migrateHomeVenueToBoard, migrateWallAngles, syncAllTagMeta } from '@/db/helpers'
+import { completeConnectFromRedirect, initScheduledBackups, providerLabel } from '@/lib/backup'
 
 function LoadingScreen() {
   return (
@@ -28,6 +30,18 @@ export function Root() {
       )
       .catch((err) => console.error('Seeding failed', err))
       .finally(() => setReady(true))
+  }, [])
+
+  // A89 — complete a cloud OAuth sign-in redirect, then arm the daily backup
+  // schedule (which also runs an overdue backup immediately). Best-effort.
+  useEffect(() => {
+    completeConnectFromRedirect()
+      .then((provider) => {
+        if (provider) toast.success(`Connected ${providerLabel(provider)}`)
+      })
+      .catch((err) => toast.error((err as Error)?.message ?? 'Sign-in failed'))
+    const cleanup = initScheduledBackups()
+    return cleanup
   }, [])
 
   if (!ready) return <LoadingScreen />

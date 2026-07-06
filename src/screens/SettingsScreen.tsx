@@ -1,8 +1,38 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ChevronRight, Combine, Download, Minus, Plus, RotateCcw, Trash2, Upload } from 'lucide-react'
+import {
+  ChevronRight,
+  Cloud,
+  CloudUpload,
+  Combine,
+  Download,
+  Loader2,
+  Minus,
+  Plus,
+  RotateCcw,
+  Trash2,
+  Upload,
+} from 'lucide-react'
 import { clearAllData, exportAllData, importAllData, mergeData } from '@/db/helpers'
+import {
+  PROVIDERS,
+  backupAfterSession,
+  backupScheduled,
+  beginConnect,
+  connectedAccount,
+  disconnect,
+  fetchCloudBackup,
+  getScheduleTime,
+  initScheduledBackups,
+  isConnected,
+  isProviderConfigured,
+  listCloudBackups,
+  providerLabel,
+  runBackup,
+  setScheduleTime,
+  type OAuthProviderId,
+} from '@/lib/backup'
 import { restoreDefaults } from '@/db/seed'
 import { getUserName, setUserName } from '@/lib/userName'
 import { getBodyweight, setBodyweight } from '@/lib/bodyweight'
@@ -92,6 +122,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 const REPO_URL = 'https://github.com/laidlaw42/workout_tracker'
 
@@ -574,6 +611,8 @@ export default function SettingsScreen() {
             </Button>
           </div>
         </section>
+
+        <BackupsSection />
 
         <section className="space-y-2">
           <h2 className="text-sm font-medium text-muted-foreground">About</h2>
@@ -1116,6 +1155,320 @@ function ThemeSwatch({ id }: { id: string }) {
         />
       ))}
     </span>
+  )
+}
+
+// A89 — cloud backup + restore settings.
+function BackupsSection() {
+  const [afterSession, setAfterSession] = useState(() => backupAfterSession.get())
+  const [scheduled, setScheduled] = useState(() => backupScheduled.get())
+  const [time, setTime] = useState(() => getScheduleTime())
+  const [, bumpConn] = useReducer((n: number) => n + 1, 0)
+  const [busy, setBusy] = useState(false)
+  const [restoreOpen, setRestoreOpen] = useState(false)
+  const [listProvider, setListProvider] = useState<OAuthProviderId | null>(null)
+  const [cloudFiles, setCloudFiles] = useState<
+    { id: string; name: string; modified: number }[] | null
+  >(null)
+  const [listError, setListError] = useState('')
+  const [pendingJson, setPendingJson] = useState<string | null>(null)
+  const restoreFileRef = useRef<HTMLInputElement>(null)
+
+  const oauthProviders = PROVIDERS.filter((p) => p.oauth)
+
+  function toggleAfter(on: boolean) {
+    setAfterSession(on)
+    backupAfterSession.set(on)
+  }
+  function toggleScheduled(on: boolean) {
+    setScheduled(on)
+    backupScheduled.set(on)
+    initScheduledBackups()
+  }
+  function changeTime(v: string) {
+    setTime(v)
+    setScheduleTime(v)
+    initScheduledBackups()
+  }
+
+  async function backupNow() {
+    setBusy(true)
+    try {
+      const results = await runBackup(true)
+      if (results.length === 0) return // share sheet cancelled
+      const ok = results.filter((r) => r.ok).map((r) => r.destination)
+      const bad = results.filter((r) => !r.ok)
+      if (ok.length) toast.success(`Backup saved to ${ok.join(', ')}`)
+      if (bad.length) {
+        toast.error(`Backup to ${bad.map((b) => b.destination).join(', ')} failed`, {
+          action: { label: 'Retry', onClick: () => void backupNow() },
+        })
+      }
+    } catch (e) {
+      toast.error((e as Error).message || 'Backup failed', {
+        action: { label: 'Retry', onClick: () => void backupNow() },
+      })
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function connect(id: OAuthProviderId) {
+    try {
+      await beginConnect(id)
+    } catch (e) {
+      toast.error((e as Error).message)
+    }
+  }
+  function handleDisconnect(id: OAuthProviderId) {
+    disconnect(id)
+    bumpConn()
+  }
+
+  async function openCloudList(id: OAuthProviderId) {
+    setListProvider(id)
+    setCloudFiles(null)
+    setListError('')
+    try {
+      setCloudFiles(await listCloudBackups(id))
+    } catch (e) {
+      setListError((e as Error).message)
+    }
+  }
+  async function pickCloudFile(id: OAuthProviderId, fileId: string) {
+    try {
+      setPendingJson(await fetchCloudBackup(id, fileId))
+    } catch {
+      toast.error('Could not download that backup')
+    }
+  }
+  async function pickLocalFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (file) setPendingJson(await file.text())
+  }
+
+  async function restore(mode: 'replace' | 'merge') {
+    const json = pendingJson
+    if (!json) return
+    try {
+      if (mode === 'replace') {
+        await importAllData(json)
+        toast.success('Data restored')
+      } else {
+        const { inserted, skipped } = await mergeData(json)
+        toast.success(`Merged — ${inserted} added, ${skipped} skipped`)
+      }
+      setPendingJson(null)
+      setRestoreOpen(false)
+      setListProvider(null)
+      setCloudFiles(null)
+    } catch {
+      toast.error('Restore failed — is this a valid backup file?')
+    }
+  }
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-sm font-medium text-muted-foreground">Backups</h2>
+
+      <SettingSwitch
+        label="Back up after every session"
+        description="Save a backup automatically when you finish a workout."
+        checked={afterSession}
+        onChange={toggleAfter}
+      />
+      <SettingSwitch
+        label="Daily scheduled backup"
+        description="Back up once a day; runs on next app open if it was missed."
+        checked={scheduled}
+        onChange={toggleScheduled}
+      >
+        {scheduled && (
+          <div className="flex items-center gap-2">
+            <Label htmlFor="backup-time" className="text-xs text-muted-foreground">
+              Time
+            </Label>
+            <Input
+              id="backup-time"
+              type="time"
+              value={time}
+              onChange={(e) => changeTime(e.target.value)}
+              className="w-32"
+            />
+          </div>
+        )}
+      </SettingSwitch>
+
+      <Button className="w-full justify-start" disabled={busy} onClick={backupNow}>
+        {busy ? <Loader2 className="size-4 animate-spin" /> : <CloudUpload className="size-4" />} Back
+        up now
+      </Button>
+
+      <div className="space-y-2">
+        {oauthProviders.map((p) => {
+          const configured = isProviderConfigured(p.id)
+          const connected = isConnected(p.id)
+          return (
+            <div
+              key={p.id}
+              className="flex items-center justify-between gap-2 rounded-xl border border-border bg-card p-3"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-medium">{p.label}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {!configured
+                    ? 'Not configured'
+                    : connected
+                      ? (connectedAccount(p.id as OAuthProviderId) ?? 'Connected')
+                      : 'Not connected'}
+                </p>
+              </div>
+              {connected ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleDisconnect(p.id as OAuthProviderId)}
+                >
+                  Disconnect
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!configured}
+                  onClick={() => connect(p.id as OAuthProviderId)}
+                >
+                  Connect
+                </Button>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      <Button variant="outline" className="w-full justify-start" onClick={() => setRestoreOpen(true)}>
+        <Cloud className="size-4" /> Restore from cloud
+      </Button>
+      <p className="px-1 text-xs text-muted-foreground">
+        A backup is the same JSON as Export. With no cloud provider connected, backups are shared to
+        Files or downloaded. Cloud providers need the app’s OAuth client IDs to connect.
+      </p>
+
+      <Dialog
+        open={restoreOpen}
+        onOpenChange={(o) => {
+          setRestoreOpen(o)
+          if (!o) {
+            setListProvider(null)
+            setCloudFiles(null)
+            setListError('')
+          }
+        }}
+      >
+        <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>{listProvider ? providerLabel(listProvider) : 'Restore a backup'}</DialogTitle>
+          </DialogHeader>
+          {!listProvider ? (
+            <div className="space-y-2">
+              {oauthProviders
+                .filter((p) => isConnected(p.id))
+                .map((p) => (
+                  <Button
+                    key={p.id}
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => openCloudList(p.id as OAuthProviderId)}
+                  >
+                    <Cloud className="size-4" /> {p.label}
+                  </Button>
+                ))}
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => restoreFileRef.current?.click()}
+              >
+                <Upload className="size-4" /> From a file (iCloud / Files / other)
+              </Button>
+              {oauthProviders.every((p) => !isConnected(p.id)) && (
+                <p className="px-1 text-xs text-muted-foreground">
+                  No cloud provider connected — restore from a file, or connect one above.
+                </p>
+              )}
+            </div>
+          ) : cloudFiles == null && !listError ? (
+            <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" /> Loading backups…
+            </div>
+          ) : listError ? (
+            <p className="p-3 text-sm text-destructive">{listError}</p>
+          ) : cloudFiles && cloudFiles.length === 0 ? (
+            <p className="p-3 text-sm text-muted-foreground">
+              No backups found on {providerLabel(listProvider)}.
+            </p>
+          ) : (
+            <div className="max-h-72 space-y-1 overflow-y-auto">
+              {cloudFiles!.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => pickCloudFile(listProvider, f.id)}
+                  className="flex w-full items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-left text-sm active:bg-accent"
+                >
+                  <span className="truncate">{f.name}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {new Date(f.modified).toLocaleDateString()}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          <DialogFooter>
+            {listProvider && (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setListProvider(null)
+                  setCloudFiles(null)
+                  setListError('')
+                }}
+              >
+                Back
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={pendingJson != null} onOpenChange={(o) => !o && setPendingJson(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore this backup?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Replace all current data, or merge in only records not already on this device.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <Button variant="outline" onClick={() => restore('merge')}>
+              Merge
+            </Button>
+            <AlertDialogAction variant="destructive" onClick={() => restore('replace')}>
+              Replace all
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <input
+        ref={restoreFileRef}
+        type="file"
+        accept="application/json,.json"
+        hidden
+        onChange={pickLocalFile}
+      />
+    </section>
   )
 }
 
