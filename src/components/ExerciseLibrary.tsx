@@ -1,9 +1,22 @@
 import { useMemo, useState } from 'react'
-import { ChevronRight, Dumbbell, Plus } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
+import { ChevronRight, Dumbbell, Pencil, Play, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
-import { getAllExercises, getAllTemplates, getDefaultTags } from '@/db/helpers'
+import {
+  getAllExercises,
+  getAllTemplates,
+  getDefaultTags,
+  startSessionFromExercise,
+} from '@/db/helpers'
 import { ExerciseFormSheet } from '@/components/ExerciseFormSheet'
 import { EmptyState } from '@/components/EmptyState'
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { Exercise, TrackingType } from '@/types'
@@ -15,11 +28,23 @@ const TRACKING_LABEL: Record<TrackingType, string> = {
 }
 
 export function ExerciseLibrary() {
+  const navigate = useNavigate()
   const exercises = useLiveQuery(() => getAllExercises(), [])
   const templates = useLiveQuery(() => getAllTemplates(), [])
   const defaultTags = useLiveQuery(() => getDefaultTags(), []) ?? []
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Exercise | null>(null)
+
+  // A59 — start a template-less session pre-loaded with just this exercise, then
+  // jump straight into it. Only offered for set-based (non-distance) exercises.
+  async function startAsWorkout(ex: Exercise) {
+    try {
+      const id = await startSessionFromExercise(ex)
+      navigate(`/session/strength/${id}`)
+    } catch {
+      toast.error('Could not start workout')
+    }
+  }
 
   const usage = useMemo(() => {
     const map = new Map<string, number>()
@@ -56,9 +81,11 @@ export function ExerciseLibrary() {
         <div className="space-y-2">
           {exercises.map((ex) => {
             const used = usage.get(ex.id) ?? 0
-            return (
+            // Distance (cardio) exercises aren't set-based, so "Start as workout"
+            // (A59) doesn't apply — those cards have no context menu.
+            const canStart = ex.trackingType !== 'distance'
+            const card = (
               <button
-                key={ex.id}
                 type="button"
                 onClick={() => openEdit(ex)}
                 className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-3 text-left transition-colors active:bg-accent"
@@ -77,6 +104,20 @@ export function ExerciseLibrary() {
                 </div>
                 <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
               </button>
+            )
+            if (!canStart) return <div key={ex.id}>{card}</div>
+            return (
+              <ContextMenu key={ex.id}>
+                <ContextMenuTrigger asChild>{card}</ContextMenuTrigger>
+                <ContextMenuContent>
+                  <ContextMenuItem onSelect={() => void startAsWorkout(ex)}>
+                    <Play /> Start as workout
+                  </ContextMenuItem>
+                  <ContextMenuItem onSelect={() => openEdit(ex)}>
+                    <Pencil /> Edit exercise
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
             )
           })}
         </div>

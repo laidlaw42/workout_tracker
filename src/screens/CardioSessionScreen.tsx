@@ -36,7 +36,12 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { formatElapsed, formatPace } from '@/lib/formatDuration'
-import type { CardioActivityType, CompletedInterval, IntervalBlock } from '@/types'
+import type {
+  CardioActivityType,
+  CompletedInterval,
+  IntervalBlock,
+  WorkoutTemplate,
+} from '@/types'
 
 const ACTIVITY_LABELS: Record<CardioActivityType, string> = {
   run: 'Run',
@@ -50,10 +55,19 @@ export default function CardioSessionScreen() {
   const navigate = useNavigate()
 
   const session = useLiveQuery(() => getSessionById(id).then((s) => s ?? null), [id])
-  const template = useLiveQuery(
-    () => (session?.templateId ? getTemplate(session.templateId).then((t) => t ?? null) : null),
+  // Keyed to the session's templateId (F38): distinguishes a still-resolving
+  // query from a deleted template, since useLiveQuery holds the stale previous
+  // value across a key change.
+  const templateQuery = useLiveQuery(
+    () =>
+      session?.templateId
+        ? getTemplate(session.templateId).then((t) => ({ forId: session.templateId!, template: t ?? null }))
+        : { forId: null as string | null, template: null as WorkoutTemplate | null },
     [session?.templateId],
   )
+  const templateSettled =
+    templateQuery !== undefined && templateQuery.forId === (session?.templateId ?? null)
+  const template = templateSettled ? templateQuery!.template : undefined
   // A reopened session (F23) already has a logged cardio row — re-hydrate its
   // distance below and update (not duplicate) it on finish.
   const existingCardio = useLiveQuery(() => getCardioForSession(id), [id])
@@ -72,13 +86,15 @@ export default function CardioSessionScreen() {
   const [intervals, setIntervals] = useState<IntervalBlock[]>([])
   const [inited, setInited] = useState(false)
   useEffect(() => {
-    if (inited || !session || template === undefined) return
-    if (session.templateId && !template) return
+    // Wait for the keyed template query to settle before seeding. A deleted
+    // template resolves to null (F38) and we fall back to the session's own plan.
+    if (inited || !session) return
+    if (session.templateId && !templateSettled) return
     setActivity(session.plannedActivity ?? template?.cardioActivity ?? 'other')
     setIntervals(session.plannedIntervals ?? template?.intervals ?? [])
     setNotes(session.notes ?? '')
     setInited(true)
-  }, [session, template, inited])
+  }, [session, template, templateSettled, inited])
 
   // Re-hydrate the distance field from an existing cardio row (reopened session,
   // F23), once — so re-finishing keeps the recorded distance instead of blanking it.

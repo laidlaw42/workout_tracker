@@ -27,6 +27,7 @@ import {
   deleteRoute,
   deleteSession,
   endSession,
+  getAllExercises,
   getHangsForSession,
   getLastSetForExercise,
   getRoutesForSession,
@@ -90,6 +91,9 @@ export default function ClimbingSessionScreen() {
   const hangs = useLiveQuery(() => getHangsForSession(id), [id]) ?? []
   const loggedSetsRaw = useLiveQuery(() => getSetsForSession(id), [id])
   const loggedSets = loggedSetsRaw ?? []
+  // For the +kg additional-weight field and the F39 empty-weight warning gating.
+  const exercises = useLiveQuery(() => getAllExercises(), []) ?? []
+  const exById = useMemo(() => new Map(exercises.map((e) => [e.id, e])), [exercises])
 
   const [gym, setGym] = useState('')
   const [crag, setCrag] = useState('')
@@ -798,6 +802,7 @@ export default function ClimbingSessionScreen() {
                   loggedSets={loggedForEx(ex)}
                   isCurrent={isCurrent}
                   prefill={isCurrent ? prefill : undefined}
+                  supportsAdditionalWeight={exById.get(ex.exerciseId)?.supportsAdditionalWeight}
                   onLog={(d) => logExerciseSet(ex, d)}
                   onAddSet={() => addSetTo(ex.uid)}
                   onRemoveSet={() => removeSet(ex.uid)}

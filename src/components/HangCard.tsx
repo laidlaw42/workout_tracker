@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Check, Minus, Pencil, Plus } from 'lucide-react'
+import { getWeightStep } from '@/lib/prefs'
 import { Button } from '@/components/ui/button'
 import { NumberStepper } from '@/components/NumberStepper'
 import { SetCountdown } from '@/components/SetCountdown'
@@ -173,7 +174,7 @@ function HangEditPanel({ hangSet, onEdit }: { hangSet: HangboardSet; onEdit: (u:
         <NumberStepper
           value={weight}
           ariaLabel="hang weight"
-          step={0.5}
+          step={getWeightStep()}
           inputMode="decimal"
           onChange={(v) => {
             setWeight(v)

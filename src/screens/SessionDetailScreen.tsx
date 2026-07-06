@@ -1,10 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Check, Pencil, Play, Plus, Repeat, Trash2 } from 'lucide-react'
+import { Check, Pencil, Play, Plus, Repeat, Save, Trash2 } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import {
   addSet,
+  createTemplateFromSession,
   deleteRoute,
   deleteSession,
   deleteSet,
@@ -23,6 +24,7 @@ import { ExercisePicker } from '@/components/ExercisePicker'
 import { LogRouteSheet } from '@/components/LogRouteSheet'
 import { PageHeader } from '@/components/PageHeader'
 import { RouteCard } from '@/components/RouteCard'
+import { TagInput } from '@/components/TagInput'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
 import { badgeForSession, deriveSessionKind, normalizeVenue } from '@/lib/badges'
 import { CLIMB_STYLE_SYMBOLS } from '@/lib/climbing'
@@ -31,6 +33,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
   Accordion,
   AccordionContent,
@@ -85,6 +94,10 @@ export default function SessionDetailScreen() {
   const [newRouteStyle, setNewRouteStyle] = useState<ClimbingStyle>('bouldering')
   const [notes, setNotes] = useState('')
   const [notesInited, setNotesInited] = useState(false)
+  // A61 — "Save as template" dialog state.
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
+  const [templateName, setTemplateName] = useState('')
+  const [templateTags, setTemplateTags] = useState<string[]>([])
 
   useEffect(() => {
     if (session && !notesInited) {
@@ -92,6 +105,23 @@ export default function SessionDetailScreen() {
       setNotesInited(true)
     }
   }, [session, notesInited])
+
+  function openSaveTemplate() {
+    if (!session) return
+    setTemplateName(session.templateName)
+    setTemplateTags([])
+    setSaveTemplateOpen(true)
+  }
+
+  async function saveAsTemplate() {
+    try {
+      await createTemplateFromSession(id, templateName.trim() || session!.templateName, templateTags)
+      setSaveTemplateOpen(false)
+      toast.success('Template saved')
+    } catch {
+      toast.error('Could not save template')
+    }
+  }
 
   async function addSetToExercise(exerciseId: string, exerciseName: string) {
     const group = sets.filter((s) => s.exerciseId === exerciseId)
@@ -192,6 +222,16 @@ export default function SessionDetailScreen() {
           ? 'gym'
           : undefined)
 
+  // A61 — "Save as template" is for completed sessions that have a reusable
+  // structure: any strength/cardio session, and climbing sessions that logged
+  // exercises or hangs. Route-only climbing sessions (Gym/Crag/Board) have no
+  // template structure, so it's hidden for them.
+  const canSaveTemplate =
+    session.endedAt != null &&
+    (session.type === 'strength' ||
+      session.type === 'cardio' ||
+      (session.type === 'climbing' && (sets.length > 0 || hangs.length > 0)))
+
   return (
     <div className="min-h-dvh pb-6">
       <PageHeader
@@ -235,6 +275,11 @@ export default function SessionDetailScreen() {
             <Button variant="outline" className="w-full" onClick={useAsWorkout}>
               <Repeat className="size-4" /> Use as workout
             </Button>
+            {canSaveTemplate && (
+              <Button variant="outline" className="w-full" onClick={openSaveTemplate}>
+                <Save className="size-4" /> Save as template
+              </Button>
+            )}
           </div>
         )}
 
@@ -334,6 +379,36 @@ export default function SessionDetailScreen() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={saveTemplateOpen} onOpenChange={setSaveTemplateOpen}>
+        <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
+          <DialogHeader>
+            <DialogTitle>Save as template</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="new-template-name">Template name</Label>
+              <Input
+                id="new-template-name"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Tags</Label>
+              <TagInput value={templateTags} onChange={setTemplateTags} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaveTemplateOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={saveAsTemplate} disabled={!templateName.trim()}>
+              Save template
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -15,6 +15,8 @@ interface Props {
   ariaLabel: string
   className?: string
   inputClassName?: string
+  /** Forwarded to the underlying input, e.g. to focus it (F39). */
+  inputRef?: React.Ref<HTMLInputElement>
 }
 
 // A numeric field flanked by hold-to-repeat − / + steppers (A32). The field stays
@@ -31,6 +33,7 @@ export function NumberStepper({
   ariaLabel,
   className,
   inputClassName,
+  inputRef,
 }: Props) {
   const allowNegative = min == null || min < 0
 
@@ -60,6 +63,7 @@ export function NumberStepper({
         <Minus className="size-4" />
       </HoldButton>
       <Input
+        ref={inputRef}
         inputMode={inputMode}
         value={value}
         placeholder={placeholder}

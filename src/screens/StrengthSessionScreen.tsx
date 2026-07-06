@@ -22,7 +22,7 @@ import {
   updateSession,
   upsertTemplate,
 } from '@/db/helpers'
-import { Plus } from 'lucide-react'
+import { Dumbbell, Plus } from 'lucide-react'
 import { generateId } from '@/lib/id'
 import { SessionHeader } from '@/components/SessionHeader'
 import { ExerciseCard, type LoggedSetInput, type WorkExercise } from '@/components/ExerciseCard'
@@ -40,17 +40,29 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import type { Exercise, LoggedSet } from '@/types'
+import type { Exercise, LoggedSet, WorkoutTemplate } from '@/types'
 
 export default function StrengthSessionScreen() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
 
   const session = useLiveQuery(() => getSessionById(id).then((s) => s ?? null), [id])
-  const template = useLiveQuery(
-    () => (session?.templateId ? getTemplate(session.templateId).then((t) => t ?? null) : null),
+  // Keyed to the session's templateId (F38): Dexie's useLiveQuery holds the
+  // previous result across a key change, so a bare null can't distinguish a
+  // still-resolving query from a genuinely deleted template. `forId` only equals
+  // the current templateId once the query has settled for it.
+  const templateQuery = useLiveQuery(
+    () =>
+      session?.templateId
+        ? getTemplate(session.templateId).then((t) => ({ forId: session.templateId!, template: t ?? null }))
+        : { forId: null as string | null, template: null as WorkoutTemplate | null },
     [session?.templateId],
   )
+  const templateSettled =
+    templateQuery !== undefined && templateQuery.forId === (session?.templateId ?? null)
+  // The resolved template once settled: the record, or `null` if it was deleted
+  // (F38). `undefined` means still loading — callers wait on `templateSettled`.
+  const template = templateSettled ? templateQuery!.template : undefined
   const loggedSetsRaw = useLiveQuery(() => getSetsForSession(id), [id])
   const loggedSets = loggedSetsRaw ?? []
   const exercises = useLiveQuery(() => getAllExercises(), []) ?? []
@@ -81,11 +93,12 @@ export default function StrengthSessionScreen() {
   // session) the plan snapshotted onto the session.
   useEffect(() => {
     if (inited || !session || loggedSetsRaw === undefined) return
-    // When the session references a template, wait for it to actually load
-    // before seeding the working list. `template` is transiently null while the
-    // templateId-keyed query re-subscribes; seeding then would build an empty
-    // list and the `inited` guard would prevent it from ever recovering.
-    if (session.templateId && !template) return
+    // When the session references a template, wait for the keyed query to settle
+    // before seeding — otherwise a transient stale value would build an empty
+    // list and the `inited` guard would stop it recovering. Once settled a
+    // deleted template resolves to null (F38) and we fall back to the session's
+    // own plan / logged sets, so the session still opens.
+    if (session.templateId && !templateSettled) return
     const plan = template?.exercises ?? session.plannedExercises ?? []
     const seeded: WorkExercise[] = [...plan]
       .sort((a, b) => a.order - b.order)
@@ -125,7 +138,7 @@ export default function StrengthSessionScreen() {
     }
     setWork(seeded)
     setInited(true)
-  }, [session, template, inited, loggedSetsRaw])
+  }, [session, template, templateSettled, inited, loggedSetsRaw])
 
   const setsByExercise = useMemo(() => {
     const map = new Map<string, LoggedSet[]>()
@@ -461,9 +474,21 @@ export default function StrengthSessionScreen() {
           )}
         />
 
-        <Button variant="outline" className="mt-3 w-full" onClick={() => setAddPickerOpen(true)}>
-          <Plus className="size-4" /> Add exercise
-        </Button>
+        {inited && work.length === 0 ? (
+          // A62 — a brand-new empty workout: the primary action is adding the
+          // first exercise. Build the whole session from scratch here.
+          <div className="mt-4 flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border p-8 text-center">
+            <Dumbbell className="size-8 text-muted-foreground" aria-hidden />
+            <p className="text-sm text-muted-foreground">Add your first exercise to get started.</p>
+            <Button size="lg" onClick={() => setAddPickerOpen(true)}>
+              <Plus className="size-4" /> Add exercise
+            </Button>
+          </div>
+        ) : (
+          <Button variant="outline" className="mt-3 w-full" onClick={() => setAddPickerOpen(true)}>
+            <Plus className="size-4" /> Add exercise
+          </Button>
+        )}
 
         {allDone && (
           <div className="mt-3 rounded-2xl border border-green-500/30 bg-green-500/10 p-4 text-center">

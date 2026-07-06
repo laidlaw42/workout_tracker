@@ -1,9 +1,15 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Activity, Bandage, Dumbbell, Flame, Mountain, Play, Settings } from 'lucide-react'
+import { Activity, Bandage, Dumbbell, Flame, Mountain, Play, Plus, Settings } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
-import { deleteSession, describeSessions, getAllSessions, getUnfinishedSession } from '@/db/helpers'
+import {
+  createSession,
+  deleteSession,
+  describeSessions,
+  getAllSessions,
+  getUnfinishedSession,
+} from '@/db/helpers'
 import { computeStreak } from '@/lib/streak'
 import { formatLongDate, greeting } from '@/lib/date'
 import { getUserName } from '@/lib/userName'
@@ -46,6 +52,22 @@ export default function HomeScreen() {
       setConfirmDiscard(false)
     } catch {
       toast.error('Could not discard workout')
+    }
+  }
+
+  // A62 — start a blank strength session with no template and go straight to it;
+  // the user builds it up by adding exercises on the empty session screen.
+  async function startNewWorkout() {
+    try {
+      const id = await createSession({
+        templateName: 'New workout',
+        type: 'strength',
+        startedAt: Date.now(),
+        modifiedFromTemplate: false,
+      })
+      navigate(`/session/strength/${id}`)
+    } catch {
+      toast.error('Could not start workout')
     }
   }
 
@@ -104,6 +126,10 @@ export default function HomeScreen() {
           </p>
         </div>
       </div>
+
+      <Button size="lg" className="w-full" onClick={startNewWorkout}>
+        <Plus className="size-5" /> New workout
+      </Button>
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-muted-foreground">Quick start</h2>

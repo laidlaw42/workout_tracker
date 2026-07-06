@@ -67,6 +67,58 @@ export function setWeekStart(v: 0 | 1): void {
   }
 }
 
+// --- Weight increment (A60) -------------------------------------------------
+
+// Opt-in custom step size for the +/− buttons on active-session weight inputs
+// (standard, additional and hang weight). Off by default; when off the steppers
+// use the built-in default. Direct text entry is never restricted — this only
+// governs the button step. Stored as a number ('weightIncrement') plus a boolean
+// flag ('weightIncrementEnabled').
+export const DEFAULT_WEIGHT_STEP = 0.5 // kg (the app is currently kg-only)
+
+export function getWeightIncrementEnabled(): boolean {
+  try {
+    return localStorage.getItem('weightIncrementEnabled') === '1'
+  } catch {
+    return false
+  }
+}
+export function setWeightIncrementEnabled(on: boolean): void {
+  try {
+    localStorage.setItem('weightIncrementEnabled', on ? '1' : '0')
+  } catch {
+    /* ignore */
+  }
+}
+
+// The configured increment (a positive number, ≤2dp). Falls back to the default
+// step when unset or invalid.
+export function getWeightIncrement(): number {
+  try {
+    const raw = localStorage.getItem('weightIncrement')
+    if (raw == null) return DEFAULT_WEIGHT_STEP
+    const v = Number(raw)
+    return Number.isFinite(v) && v > 0 ? v : DEFAULT_WEIGHT_STEP
+  } catch {
+    return DEFAULT_WEIGHT_STEP
+  }
+}
+export function setWeightIncrement(n: number): void {
+  try {
+    // Clamp to a positive value with at most two decimal places.
+    const v = Math.round(Math.max(0, n) * 100) / 100
+    if (v > 0) localStorage.setItem('weightIncrement', String(v))
+  } catch {
+    /* ignore */
+  }
+}
+
+// The step the weight +/− buttons should use right now: the configured increment
+// when enabled, otherwise the built-in default.
+export function getWeightStep(): number {
+  return getWeightIncrementEnabled() ? getWeightIncrement() : DEFAULT_WEIGHT_STEP
+}
+
 // Pre-count ("Get ready") seconds before a timed exercise countdown (A30).
 // 0 disables it. Clamped 0–10, defaults to 5.
 export function getPrecountSeconds(): number {

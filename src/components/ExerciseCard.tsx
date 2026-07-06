@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowLeftRight, Check, Minus, Pencil, Plus } from 'lucide-react'
 import { getBodyweight } from '@/lib/bodyweight'
+import { getWeightStep } from '@/lib/prefs'
 import { Button } from '@/components/ui/button'
 import { NumberStepper } from '@/components/NumberStepper'
 import { SetCountdown } from '@/components/SetCountdown'
@@ -247,7 +248,7 @@ function EditPanel({ exercise, onEdit }: { exercise: WorkExercise; onEdit: (u: E
             <NumberStepper
               value={weight}
               ariaLabel="weight"
-              step={0.5}
+              step={getWeightStep()}
               min={0}
               inputMode="decimal"
               onChange={(v) => {
@@ -311,6 +312,17 @@ function SetRow({
   const [weight, setWeight] = useState(seedWeight)
   const [addl, setAddl] = useState(seedAddl)
   const [reps, setReps] = useState(seedReps)
+  // F39 — advisory warning when logging a weighted set with an empty weight.
+  const [warnWeight, setWarnWeight] = useState(false)
+  const weightRef = useRef<HTMLInputElement>(null)
+  const weightStep = getWeightStep() // A60 — configurable +/− step
+
+  // Weight is a relevant, expected field only for plain weighted exercises: a
+  // bodyweight-loadable move (pull-up, dip) leaves the primary weight blank by
+  // design, and timed exercises never reach SetRow. So the warning is gated to
+  // exercises without a dedicated additional-weight field.
+  const weightExpected = !supportsAdditionalWeight
+  const showWeightWarning = warnWeight && weightExpected && weight.trim() === ''
 
   // The last-set prefill resolves asynchronously (and briefly holds the previous
   // exercise's value across an exercise change). Adopt it once it arrives, but
@@ -338,7 +350,8 @@ function SetRow({
   const weightPct = bw != null && wNum != null && Number.isFinite(wNum) && wNum > 0 ? Math.round((wNum / bw) * 100) : null
   const addlPct = bw != null && aNum != null && Number.isFinite(aNum) && aNum > 0 ? Math.round(((bw + aNum) / bw) * 100) : null
 
-  function log() {
+  function doLog() {
+    setWarnWeight(false)
     const w = weight.trim() === '' ? undefined : Number(weight)
     const a = addl.trim() === '' ? undefined : Number(addl)
     const r = reps.trim() === '' ? undefined : Number(reps)
@@ -352,16 +365,28 @@ function SetRow({
     setReps(seedReps())
   }
 
+  // Logging is never blocked — an empty weight only surfaces an advisory warning
+  // first (F39). Some exercises are legitimately done unloaded, so a second tap
+  // ("Log anyway") proceeds with weightKg undefined.
+  function attemptLog() {
+    if (weightExpected && weight.trim() === '') {
+      setWarnWeight(true)
+      return
+    }
+    doLog()
+  }
+
   return (
     <div className="space-y-3 rounded-lg border border-primary/40 bg-background p-3">
       <SetField label="Weight (kg)">
         <NumberStepper
           value={weight}
           ariaLabel="weight"
-          step={0.5}
+          step={weightStep}
           min={0}
           inputMode="decimal"
           placeholder="BW"
+          inputRef={weightRef}
           onChange={markDirty(setWeight)}
         />
       </SetField>
@@ -370,12 +395,36 @@ function SetRow({
           {weightPct}% of bodyweight
         </p>
       )}
+      {showWeightWarning && (
+        <div className="-mt-1 flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
+          <span className="text-amber-300">No weight entered — are you sure?</span>
+          <div className="ml-auto flex gap-2">
+            <button
+              type="button"
+              onClick={doLog}
+              className="rounded-md border border-border px-2 py-1 font-medium text-foreground transition-colors active:bg-accent"
+            >
+              Log anyway
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setWarnWeight(false)
+                weightRef.current?.focus()
+              }}
+              className="rounded-md border border-border px-2 py-1 font-medium text-foreground transition-colors active:bg-accent"
+            >
+              Add weight
+            </button>
+          </div>
+        </div>
+      )}
       {supportsAdditionalWeight && (
         <SetField label="Additional (kg)">
           <NumberStepper
             value={addl}
             ariaLabel="additional weight"
-            step={0.5}
+            step={weightStep}
             min={0}
             inputMode="decimal"
             placeholder="0"
@@ -402,7 +451,7 @@ function SetRow({
             <Minus className="size-4" />
           </button>
         )}
-        <Button className="h-10 flex-1" onClick={log} disabled={reps.trim() === ''}>
+        <Button className="h-10 flex-1" onClick={attemptLog} disabled={reps.trim() === ''}>
           Log set
         </Button>
       </div>

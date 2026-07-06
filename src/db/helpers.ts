@@ -484,13 +484,18 @@ function planExercisesFromSets(sets: LoggedSet[]): TemplateExercise[] {
   }
   return order.map((exId, i) => {
     const g = groups.get(exId)!
+    const first = g[0]
+    // Preserve a timed exercise's duration so the rebuilt template stays timed
+    // (rather than collapsing to an untimed reps row with no target).
+    const timed = first.durationSeconds != null
     return {
       exerciseId: exId,
-      exerciseName: g[0].exerciseName,
+      exerciseName: first.exerciseName,
       order: i,
       defaultSets: g.length,
-      defaultReps: g[0].targetReps ?? g[0].actualReps,
-      defaultRestSeconds: g[0].restTakenSeconds ?? 90,
+      defaultReps: timed ? undefined : (first.targetReps ?? first.actualReps),
+      defaultDuration: timed ? first.durationSeconds : undefined,
+      defaultRestSeconds: first.restTakenSeconds ?? 90,
     }
   })
 }
@@ -567,6 +572,66 @@ export async function repeatSession(sourceId: string): Promise<string> {
   })
 }
 
+// A template name not already taken; on collision appends " 2", " 3", … (A61).
+async function uniqueTemplateName(base: string): Promise<string> {
+  const trimmed = base.trim() || 'Workout'
+  const taken = new Set((await db.templates.toArray()).map((t) => t.name))
+  if (!taken.has(trimmed)) return trimmed
+  let n = 2
+  while (taken.has(`${trimmed} ${n}`)) n++
+  return `${trimmed} ${n}`
+}
+
+// Creates a brand-new template from a completed session's logged data (A61):
+// exercises/sets/reps/rest for strength & climbing, hangs for hangboard,
+// activity + intervals for cardio. The source session is never modified. Returns
+// the new template id. Route-only climbing sessions have no reusable structure,
+// so callers don't offer this for them.
+export async function createTemplateFromSession(
+  sourceId: string,
+  name: string,
+  tags: string[],
+): Promise<string> {
+  return run('createTemplateFromSession', async () => {
+    const src = await db.sessions.get(sourceId)
+    if (!src) throw new Error('source session not found')
+    const templateName = await uniqueTemplateName(name || src.templateName)
+    const base: Omit<WorkoutTemplate, 'id' | 'createdAt'> = {
+      name: templateName,
+      type: src.type,
+      tags,
+      exercises: [],
+    }
+    if (src.type === 'strength') {
+      base.exercises = planExercisesFromSets(await getSetsForSession(sourceId))
+    } else if (src.type === 'cardio') {
+      const c = await getCardioForSession(sourceId)
+      base.cardioActivity = c?.activityType ?? 'other'
+      if (c?.distanceKm != null) base.targetDistanceKm = c.distanceKm
+      if (c?.durationSeconds) base.targetDurationSeconds = c.durationSeconds
+      if (c?.intervals?.length) {
+        base.intervals = [
+          {
+            repeat: 1,
+            steps: c.intervals.map((iv) => ({
+              label: iv.label,
+              durationSeconds: iv.durationSeconds,
+            })),
+          },
+        ]
+      }
+    } else {
+      // Climbing workout / hangboard: reconstruct both blocks; kind follows content.
+      const pe = planExercisesFromSets(await getSetsForSession(sourceId))
+      const ph = planHangsFromHangs(await getHangsForSession(sourceId))
+      base.exercises = pe
+      base.hangboardSets = ph.length ? ph : undefined
+      base.climbingKind = pe.length > 0 ? 'workout' : 'hangboard'
+    }
+    return upsertTemplate(base)
+  })
+}
+
 // Deletes a session and everything logged under it.
 export async function deleteSession(id: string): Promise<void> {
   return run('deleteSession', async () => {
@@ -638,6 +703,36 @@ export async function startSessionFromTemplate(
     })
     await db.templates.update(t.id, { lastUsedAt: Date.now() })
     return { sessionId, type: t.type }
+  })
+}
+
+// Starts a fresh, template-less session pre-loaded with a single exercise (A59).
+// The exercise's default sets/reps or duration/rest come from the same defaults
+// the "Add exercise" flow uses (3 sets · 10 reps or 30s · 90s rest). Returns the
+// new session id; the caller navigates to the strength session screen. Distance
+// (cardio) exercises aren't set-based, so callers should not offer this for them.
+export async function startSessionFromExercise(exercise: Exercise): Promise<string> {
+  return run('startSessionFromExercise', async () => {
+    const timed = exercise.trackingType === 'duration'
+    const planned: TemplateExercise = {
+      exerciseId: exercise.id,
+      exerciseName: exercise.name,
+      order: 0,
+      defaultSets: 3,
+      defaultReps: timed ? undefined : 10,
+      defaultDuration: timed ? 30 : undefined,
+      defaultRestSeconds: 90,
+    }
+    const id = generateId()
+    await db.sessions.put({
+      id,
+      templateName: exercise.name,
+      type: 'strength',
+      startedAt: Date.now(),
+      modifiedFromTemplate: false,
+      plannedExercises: [planned],
+    })
+    return id
   })
 }
 
