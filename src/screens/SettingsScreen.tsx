@@ -481,7 +481,7 @@ export default function SettingsScreen() {
               }}
             />
             <Button onClick={handleAddColour} disabled={!newColourName.trim()}>
-              Add
+              Add colour
             </Button>
           </div>
           {colourError && <p className="px-1 text-xs text-destructive">{colourError}</p>}
@@ -499,7 +499,7 @@ export default function SettingsScreen() {
               }}
             />
             <Button onClick={handleAddGym} disabled={!newGym.trim()}>
-              Add
+              Add gym
             </Button>
           </div>
           {gyms.length > 0 ? (
@@ -623,6 +623,7 @@ export default function SettingsScreen() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
+              variant="destructive"
               onClick={() => {
                 setConfirmClear(false)
                 setConfirmClear2(true)
@@ -880,7 +881,7 @@ function GymEditSheet({
                 }}
               />
               <Button onClick={addArea} disabled={!newArea.trim()}>
-                Add
+                Add area
               </Button>
             </div>
             {areas.map((a) => (
@@ -924,7 +925,9 @@ function GymEditSheet({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={remove}>Delete</AlertDialogAction>
+            <AlertDialogAction variant="destructive" onClick={remove}>
+              Delete
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -1055,7 +1058,7 @@ function ClimbStylesManager() {
           }}
         />
         <Button onClick={add} disabled={!newStyle.trim()}>
-          Add
+          Add style
         </Button>
       </div>
       {styles.length > 0 && (
@@ -1089,7 +1092,9 @@ function ClimbStylesManager() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
+            <AlertDialogAction variant="destructive" onClick={confirmDelete}>
+              Delete
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

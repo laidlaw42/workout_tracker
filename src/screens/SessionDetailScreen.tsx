@@ -344,7 +344,7 @@ export default function SessionDetailScreen() {
               </Button>
             )}
             <Button variant="outline" className="w-full" onClick={useAsWorkout}>
-              <Repeat className="size-4" /> Use as workout
+              <Repeat className="size-4" /> Start workout
             </Button>
             {canSaveTemplate && (
               <Button variant="outline" className="w-full" onClick={openSaveTemplate}>
@@ -448,7 +448,9 @@ export default function SessionDetailScreen() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteSession}>Delete</AlertDialogAction>
+            <AlertDialogAction variant="destructive" onClick={handleDeleteSession}>
+              Delete workout
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -488,7 +490,7 @@ export default function SessionDetailScreen() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSaveTemplateOpen(false)}>
+            <Button variant="ghost" onClick={() => setSaveTemplateOpen(false)}>
               Cancel
             </Button>
             <Button onClick={saveAsTemplate} disabled={!templateName.trim()}>

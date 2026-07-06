@@ -106,7 +106,7 @@ export default function HomeScreen() {
             >
               Resume
             </Button>
-            <Button variant="outline" className="flex-1" onClick={() => setConfirmDiscard(true)}>
+            <Button variant="destructive" className="flex-1" onClick={() => setConfirmDiscard(true)}>
               Discard
             </Button>
           </div>

@@ -184,7 +184,7 @@ export default function TemplateDetailScreen() {
           size="lg"
           onClick={() => navigate(`/library/${template.id}/edit`)}
         >
-          Edit
+          Edit workout
         </Button>
       </div>
     </div>

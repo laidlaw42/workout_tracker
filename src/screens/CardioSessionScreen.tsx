@@ -299,7 +299,9 @@ export default function CardioSessionScreen() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep workout</AlertDialogCancel>
-            <AlertDialogAction onClick={handleCancel}>Discard workout</AlertDialogAction>
+            <AlertDialogAction variant="destructive" onClick={handleCancel}>
+              Discard workout
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

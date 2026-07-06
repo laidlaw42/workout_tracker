@@ -256,7 +256,7 @@ export function ExercisePicker({
                 Back
               </Button>
               <Button className="flex-1" onClick={createNew} disabled={!name.trim()}>
-                Create & add
+                Add exercise
               </Button>
             </div>
           </div>
@@ -324,7 +324,7 @@ export function ExercisePicker({
                   setName(query)
                 }}
               >
-                <Plus className="size-4" /> Create new exercise
+                <Plus className="size-4" /> Add new exercise
               </Button>
             </div>
           </>
