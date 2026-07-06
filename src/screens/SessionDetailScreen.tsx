@@ -345,6 +345,7 @@ export default function SessionDetailScreen() {
         {session.type === 'mixed' && (
           <MixedDetail
             sets={sets}
+            hangs={hangs}
             exById={exById}
             editing={editing}
             onAddExercise={() => setPickerOpen(true)}
@@ -642,17 +643,19 @@ function mixedSetLabel(s: LoggedSet, ex?: Exercise): string {
 
 function MixedDetail({
   sets,
+  hangs,
   exById,
   editing,
   onAddExercise,
 }: {
   sets: LoggedSet[]
+  hangs: LoggedHang[]
   exById: Map<string, Exercise>
   editing: boolean
   onAddExercise: () => void
 }) {
   const groups = groupByExercise(sets)
-  if (sets.length === 0 && !editing) {
+  if (sets.length === 0 && hangs.length === 0 && !editing) {
     return <p className="text-sm text-muted-foreground">No exercises were logged.</p>
   }
   return (
@@ -668,6 +671,21 @@ function MixedDetail({
           ))}
         </div>
       ))}
+      {hangs.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-muted-foreground">Hangboard</p>
+          {hangs.map((h) => (
+            <div key={h.id} className="flex justify-between rounded-lg bg-card px-3 py-2 text-sm">
+              <span className="truncate">{h.gripType}</span>
+              <span className="text-muted-foreground">
+                {h.edgeDepthMm}mm · {h.actualDurationSeconds ?? h.targetDurationSeconds}s ·{' '}
+                {h.weightKg >= 0 ? '+' : ''}
+                {h.weightKg}kg
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
       {editing && (
         <Button variant="outline" className="w-full" onClick={onAddExercise}>
           <Plus className="size-4" /> Add exercise

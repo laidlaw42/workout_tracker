@@ -56,7 +56,7 @@ export interface Exercise {
   supportsAdditionalWeight?: boolean
   // Hangboard exercises (A73, category 'hangboard') carry a default protocol
   // config; adding one to a training session seeds a HangboardSet from it.
-  hangboard?: Omit<HangboardSet, 'id' | 'order'>
+  hangboard?: HangConfig
   createdAt: number
 }
 
@@ -103,6 +103,11 @@ export interface HangboardSet {
   intraRestSeconds?: number
   order: number
 }
+
+// The tunable part of a hangboard protocol, without its per-instance id/order.
+// Used as an exercise's default hang config (Exercise.hangboard) and as the shape
+// the shared HangConfigFields editor operates on.
+export type HangConfig = Omit<HangboardSet, 'id' | 'order'>
 
 export interface WorkoutTemplate {
   id: string

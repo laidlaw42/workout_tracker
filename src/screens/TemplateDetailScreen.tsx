@@ -9,7 +9,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatElapsed, formatWorkoutLength } from '@/lib/formatDuration'
-import type { TemplateExercise, WorkoutTemplate } from '@/types'
+import type { HangboardSet, HangType, TemplateExercise, WorkoutTemplate } from '@/types'
 
 function setsLabel(ex: TemplateExercise): string {
   const rep =
@@ -19,6 +19,23 @@ function setsLabel(ex: TemplateExercise): string {
         ? `${ex.defaultDuration}s`
         : '—'
   return `${ex.defaultSets} × ${rep} · ${ex.defaultRestSeconds}s rest`
+}
+
+const HANG_TYPE_LABELS: Record<HangType, string> = {
+  sub_max: 'Sub-max',
+  max_hang: 'Max hang',
+  abrahang: 'Abrahang',
+}
+
+// The protocol line for a hang row. Abrahang shows its rep + work/rest structure;
+// other hang types show sets × duration. Never reps (hangs are duration-based).
+function hangProtocol(h: HangboardSet): string {
+  if ((h.hangType ?? 'sub_max') === 'abrahang') {
+    const reps = h.abrahangReps ?? 6
+    const intra = h.intraRestSeconds ?? 3
+    return `${h.sets} × ${reps} reps (${h.durationSeconds}s on / ${intra}s off) · ${h.restSeconds}s rest`
+  }
+  return `${h.sets} × ${h.durationSeconds}s · ${h.restSeconds}s rest`
 }
 
 const ACTIVITY_LABELS: Record<string, string> = {
@@ -87,9 +104,7 @@ export default function TemplateDetailScreen() {
           ))}
         </div>
 
-        {(template.type === 'strength' ||
-          template.type === 'mixed' ||
-          (template.type === 'climbing' && template.climbingKind === 'workout')) && (
+        {template.type !== 'cardio' && template.exercises.length > 0 && (
           <ol className="space-y-2">
             {template.exercises.map((ex, i) => (
               <li
@@ -138,20 +153,21 @@ export default function TemplateDetailScreen() {
           </div>
         )}
 
-        {template.type === 'climbing' && (template.hangboardSets?.length ?? 0) > 0 && (
+        {(template.hangboardSets?.length ?? 0) > 0 && (
           <div className="space-y-2">
             <p className="text-sm font-medium text-muted-foreground">Hangboard</p>
             {template.hangboardSets!.map((h) => (
-              <div key={h.id} className="rounded-xl border border-border bg-card p-3 text-sm">
+              <div key={h.id} className="space-y-0.5 rounded-xl border border-border bg-card p-3">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="font-medium">{h.gripType}</span>
-                  <span className="shrink-0 text-muted-foreground">
-                    {h.sets} × {h.durationSeconds}s
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {HANG_TYPE_LABELS[h.hangType ?? 'sub_max']}
                   </span>
                 </div>
+                <p className="text-sm text-muted-foreground">{hangProtocol(h)}</p>
                 <p className="text-xs text-muted-foreground">
                   {h.edgeDepthMm}mm edge · {h.weightKg >= 0 ? '+' : ''}
-                  {h.weightKg}kg · {h.restSeconds}s rest
+                  {h.weightKg}kg
                 </p>
               </div>
             ))}

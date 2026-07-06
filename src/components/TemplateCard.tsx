@@ -15,8 +15,15 @@ const ACTIVITY_LABELS: Record<string, string> = {
 
 function summarise(t: WorkoutTemplate): string {
   if (t.type === 'strength' || t.type === 'mixed') {
-    const n = t.exercises.length
-    return `${n} exercise${n === 1 ? '' : 's'}`
+    // A73/F43 — a mixed (training) template may carry hangboard sets as well as
+    // exercises; count both so a hang-only template doesn't read "0 exercises".
+    const exs = t.exercises.length
+    const hangs = t.hangboardSets?.length ?? 0
+    const parts = [
+      exs ? `${exs} exercise${exs === 1 ? '' : 's'}` : null,
+      hangs ? `${hangs} hang${hangs === 1 ? '' : 's'}` : null,
+    ].filter(Boolean)
+    return parts.length ? parts.join(' · ') : 'No exercises'
   }
   if (t.type === 'climbing') {
     const hangs = t.hangboardSets?.length ?? 0

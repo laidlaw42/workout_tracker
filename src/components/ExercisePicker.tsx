@@ -4,6 +4,7 @@ import { Check, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { getAllExercises, upsertExercise } from '@/db/helpers'
 import { SegmentedControl } from '@/components/SegmentedControl'
+import { DEFAULT_HANG, HangConfigFields } from '@/components/HangConfigFields'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -15,7 +16,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
-import type { Exercise, ExerciseCategory, TrackingType } from '@/types'
+import type { Exercise, ExerciseCategory, HangConfig, TrackingType } from '@/types'
 
 interface Props {
   open: boolean
@@ -37,11 +38,14 @@ const TRACKING: { value: TrackingType; label: string }[] = [
   { value: 'distance', label: 'Distance' },
 ]
 
-const CATEGORIES: { value: ExerciseCategory; label: string }[] = [
+// Categories offered by the "Create new exercise" form. Hangboard (A73/F43) is
+// included so a hang exercise can be created inline with its protocol defaults.
+const CREATE_CATEGORIES: { value: ExerciseCategory; label: string }[] = [
   { value: 'strength', label: 'Strength' },
   { value: 'cardio', label: 'Cardio' },
   { value: 'climbing', label: 'Climbing' },
   { value: 'rehab', label: 'Rehab' },
+  { value: 'hangboard', label: 'Hangboard' },
 ]
 
 // Grouping order + labels for the universal picker (A66, A73).
@@ -76,7 +80,14 @@ export function ExercisePicker({
   const [category, setCategory] = useState<ExerciseCategory>(defaultCategory)
   const [muscles, setMuscles] = useState('')
   const [tracking, setTracking] = useState<TrackingType>('reps')
+  const [hangCfg, setHangCfg] = useState<HangConfig>(DEFAULT_HANG)
   const [catFilter, setCatFilter] = useState<CatFilter>('all') // universal mode (A66)
+
+  // The create-form category selector only offers what this picker can add; when
+  // unrestricted (grouped mode) it offers every category, hangboard included.
+  const createCategories = categories
+    ? CREATE_CATEGORIES.filter((c) => categories.includes(c.value))
+    : CREATE_CATEGORIES
 
   function reset() {
     setQuery('')
@@ -86,6 +97,7 @@ export function ExercisePicker({
     setCategory(defaultCategory)
     setMuscles('')
     setTracking('reps')
+    setHangCfg(DEFAULT_HANG)
     setCatFilter('all')
   }
 
@@ -118,9 +130,23 @@ export function ExercisePicker({
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean)
+    // Hangboard exercises are always duration-tracked and carry a default hang
+    // protocol so they seed a HangboardSet when added to a session/template.
+    const isHang = category === 'hangboard'
+    const trackingType: TrackingType = isHang ? 'duration' : tracking
+    const hangboard = isHang ? hangCfg : undefined
     try {
-      const id = await upsertExercise({ name: trimmed, category, muscleGroups, trackingType: tracking, tags: [] })
-      finish([{ id, name: trimmed, category, muscleGroups, trackingType: tracking, tags: [], createdAt: Date.now() }])
+      const id = await upsertExercise({
+        name: trimmed,
+        category,
+        muscleGroups,
+        trackingType,
+        tags: [],
+        hangboard,
+      })
+      finish([
+        { id, name: trimmed, category, muscleGroups, trackingType, tags: [], hangboard, createdAt: Date.now() },
+      ])
     } catch {
       toast.error('Could not create exercise')
     }
@@ -188,7 +214,7 @@ export function ExercisePicker({
           <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
             <div className="space-y-2">
               <Label>Category</Label>
-              <SegmentedControl options={CATEGORIES} value={category} onChange={setCategory} />
+              <SegmentedControl options={createCategories} value={category} onChange={setCategory} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="ex-name">Name</Label>
@@ -196,7 +222,7 @@ export function ExercisePicker({
                 id="ex-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Front squat"
+                placeholder={category === 'hangboard' ? 'e.g. Max hangs' : 'e.g. Front squat'}
               />
             </div>
             <div className="space-y-2">
@@ -208,10 +234,17 @@ export function ExercisePicker({
                 placeholder="comma separated, e.g. quads, glutes"
               />
             </div>
-            <div className="space-y-2">
-              <Label>Tracking</Label>
-              <SegmentedControl options={TRACKING} value={tracking} onChange={setTracking} />
-            </div>
+            {category === 'hangboard' ? (
+              <div className="space-y-2">
+                <Label>Hang defaults</Label>
+                <HangConfigFields value={hangCfg} onChange={(p) => setHangCfg((c) => ({ ...c, ...p }))} />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>Tracking</Label>
+                <SegmentedControl options={TRACKING} value={tracking} onChange={setTracking} />
+              </div>
+            )}
             <div className="mt-auto flex gap-3 pt-2">
               <Button variant="outline" className="flex-1" onClick={() => setCreating(false)}>
                 Back

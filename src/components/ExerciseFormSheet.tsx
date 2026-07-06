@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { deleteExercise, updateExercise, upsertExercise } from '@/db/helpers'
 import { SegmentedControl } from '@/components/SegmentedControl'
+import { DEFAULT_HANG, HangConfigFields } from '@/components/HangConfigFields'
 import { TagInput } from '@/components/TagInput'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,7 +24,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import type { Exercise, ExerciseCategory, TrackingType } from '@/types'
+import type { Exercise, ExerciseCategory, HangConfig, TrackingType } from '@/types'
 
 interface Props {
   open: boolean
@@ -46,6 +47,7 @@ const CATEGORIES: { value: ExerciseCategory; label: string }[] = [
   { value: 'cardio', label: 'Cardio' },
   { value: 'climbing', label: 'Climbing' },
   { value: 'rehab', label: 'Rehab' },
+  { value: 'hangboard', label: 'Hangboard' },
 ]
 
 export function ExerciseFormSheet({
@@ -60,6 +62,7 @@ export function ExerciseFormSheet({
   const [category, setCategory] = useState<ExerciseCategory>('strength')
   const [muscles, setMuscles] = useState('')
   const [tracking, setTracking] = useState<TrackingType>('reps')
+  const [hangCfg, setHangCfg] = useState<HangConfig>(DEFAULT_HANG)
   const [tags, setTags] = useState<string[]>([])
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -72,6 +75,7 @@ export function ExerciseFormSheet({
     setCategory(exercise?.category ?? 'strength')
     setMuscles(exercise?.muscleGroups.join(', ') ?? '')
     setTracking(exercise?.trackingType ?? 'reps')
+    setHangCfg(exercise?.hangboard ?? DEFAULT_HANG)
     setTags(exercise?.tags ?? defaultTags)
   }, [open, exercise])
 
@@ -82,13 +86,32 @@ export function ExerciseFormSheet({
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean)
+    // Hangboard exercises are always duration-tracked and carry their hang
+    // protocol defaults; switching away from hangboard clears the config.
+    const isHang = category === 'hangboard'
+    const trackingType: TrackingType = isHang ? 'duration' : tracking
+    const hangboard = isHang ? hangCfg : undefined
     try {
       let id: string
       if (exercise) {
-        await updateExercise(exercise.id, { name: trimmed, category, muscleGroups, trackingType: tracking, tags })
+        await updateExercise(exercise.id, {
+          name: trimmed,
+          category,
+          muscleGroups,
+          trackingType,
+          tags,
+          hangboard,
+        })
         id = exercise.id
       } else {
-        id = await upsertExercise({ name: trimmed, category, muscleGroups, trackingType: tracking, tags })
+        id = await upsertExercise({
+          name: trimmed,
+          category,
+          muscleGroups,
+          trackingType,
+          tags,
+          hangboard,
+        })
       }
       onSaved?.(id)
       onOpenChange(false)
@@ -144,10 +167,17 @@ export function ExerciseFormSheet({
               onChange={(e) => setMuscles(e.target.value)}
             />
           </div>
-          <div className="space-y-2">
-            <Label>Tracking</Label>
-            <SegmentedControl options={TRACKING} value={tracking} onChange={setTracking} />
-          </div>
+          {category === 'hangboard' ? (
+            <div className="space-y-2">
+              <Label>Hang defaults</Label>
+              <HangConfigFields value={hangCfg} onChange={(p) => setHangCfg((c) => ({ ...c, ...p }))} />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label>Tracking</Label>
+              <SegmentedControl options={TRACKING} value={tracking} onChange={setTracking} />
+            </div>
+          )}
           <div className="space-y-2">
             <Label>Tags</Label>
             <TagInput value={tags} onChange={setTags} />

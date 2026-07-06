@@ -121,19 +121,37 @@ export default function TemplateEditScreen() {
     setDirty(true)
   }
 
+  // A73/F43 — hangboard exercises become hang rows seeded from their protocol
+  // config; everything else becomes an exercise row (duration-tracked exercises
+  // get a default hold time rather than reps).
   function addExercises(exs: Exercise[]) {
-    setRows((rs) => [
-      ...rs,
-      ...exs.map((ex, i) => ({
-        uid: generateId(),
-        exerciseId: ex.id,
-        exerciseName: ex.name,
-        order: rs.length + i,
-        defaultSets: 3,
-        defaultReps: 10,
-        defaultRestSeconds: 90,
-      })),
-    ])
+    const hangboardExs = exs.filter((e) => e.category === 'hangboard' && e.hangboard)
+    const regularExs = exs.filter((e) => !(e.category === 'hangboard' && e.hangboard))
+    if (regularExs.length) {
+      setRows((rs) => [
+        ...rs,
+        ...regularExs.map((ex, i) => ({
+          uid: generateId(),
+          exerciseId: ex.id,
+          exerciseName: ex.name,
+          order: rs.length + i,
+          defaultSets: 3,
+          defaultReps: ex.trackingType === 'duration' ? undefined : 10,
+          defaultDuration: ex.trackingType === 'duration' ? 30 : undefined,
+          defaultRestSeconds: 90,
+        })),
+      ])
+    }
+    if (hangboardExs.length) {
+      setHangSets((hs) => [
+        ...hs,
+        ...hangboardExs.map((ex, i) => ({
+          id: generateId(),
+          order: hs.length + i,
+          ...ex.hangboard!,
+        })),
+      ])
+    }
     setDirty(true)
   }
 
@@ -141,10 +159,13 @@ export default function TemplateEditScreen() {
     if (!template) return
     const isCardio = template.type === 'cardio'
     const isClimbing = template.type === 'climbing'
+    // Exercise rows: strength, mixed, or a legacy climbing-workout template.
     const showExercises =
       template.type === 'strength' ||
       template.type === 'mixed' ||
       (isClimbing && template.climbingKind === 'workout')
+    // Hang rows live on mixed (training) templates post-A73, plus legacy climbing.
+    const showHangboard = template.type === 'mixed' || isClimbing
     try {
       await upsertTemplate({
         id: template.id,
@@ -170,7 +191,7 @@ export default function TemplateEditScreen() {
         targetDistanceKm: isCardio && distanceKm.trim() ? Number(distanceKm) : undefined,
         intervals: isCardio && intervals.length > 0 ? intervals : undefined,
         climbingKind: isClimbing ? template.climbingKind : undefined,
-        hangboardSets: isClimbing ? hangSets.map((h, i) => ({ ...h, order: i })) : undefined,
+        hangboardSets: showHangboard ? hangSets.map((h, i) => ({ ...h, order: i })) : undefined,
         lastUsedAt: template.lastUsedAt,
       })
       toast.success('Saved')
@@ -209,6 +230,7 @@ export default function TemplateEditScreen() {
     template?.type === 'strength' ||
     template?.type === 'mixed' ||
     (isClimbing && template?.climbingKind === 'workout')
+  const showHangboard = template?.type === 'mixed' || isClimbing
 
   return (
     <div className="min-h-dvh pb-24">
@@ -340,7 +362,7 @@ export default function TemplateEditScreen() {
           </div>
         )}
 
-        {isClimbing && (
+        {showHangboard && (
           <div className="space-y-3">
             <p className="text-sm font-medium text-muted-foreground">Hangboard</p>
             {hangSets.length === 0 && (
@@ -363,7 +385,17 @@ export default function TemplateEditScreen() {
         open={pickerOpen}
         onOpenChange={setPickerOpen}
         multiple
-        categories={template?.type === 'climbing' ? ['climbing', 'rehab'] : ['strength', 'rehab']}
+        // A mixed (training) template can hold any discipline, so it uses the
+        // grouped picker with a category tab row (Hangboard included, F43),
+        // matching the session's build-your-own flow.
+        grouped={template?.type === 'mixed'}
+        categories={
+          template?.type === 'climbing'
+            ? ['climbing', 'rehab']
+            : template?.type === 'mixed'
+              ? undefined
+              : ['strength', 'rehab']
+        }
         onSelect={addExercises}
       />
 
