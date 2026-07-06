@@ -74,6 +74,29 @@ export class WorkoutDB extends Dexie {
             }
           })
       })
+    // v7 (A73): merge hangboarding into training. A climbing session that is a
+    // hangboard/workout (no route venue) becomes a training session, type
+    // 'mixed', so it renders on the training session screen. Route sessions
+    // (gym/crag/board — they carry a climbingVenue) keep type 'climbing'. Every
+    // other table (sets, routes, hangs, …) is left completely untouched. A
+    // per-record try/catch means one bad row is logged and skipped rather than
+    // aborting the whole upgrade. Runs exactly once (Dexie versioning).
+    this.version(7)
+      .stores({ sessions: '&id, type, startedAt, templateId' })
+      .upgrade(async (tx) => {
+        await tx
+          .table('sessions')
+          .toCollection()
+          .modify((s: { id?: string; type?: string; climbingVenue?: string }) => {
+            try {
+              if (s.type === 'climbing' && s.climbingVenue == null) {
+                s.type = 'mixed'
+              }
+            } catch (err) {
+              console.error('A73 session migration failed for record', s.id, err)
+            }
+          })
+      })
   }
 }
 

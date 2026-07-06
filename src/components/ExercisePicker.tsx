@@ -44,10 +44,11 @@ const CATEGORIES: { value: ExerciseCategory; label: string }[] = [
   { value: 'rehab', label: 'Rehab' },
 ]
 
-// Grouping order + labels for the universal picker (A66).
-const GROUP_ORDER: ExerciseCategory[] = ['strength', 'climbing', 'rehab', 'cardio']
+// Grouping order + labels for the universal picker (A66, A73).
+const GROUP_ORDER: ExerciseCategory[] = ['strength', 'hangboard', 'climbing', 'rehab', 'cardio']
 const CATEGORY_LABEL: Record<ExerciseCategory, string> = {
   strength: 'Strength',
+  hangboard: 'Hangboard',
   climbing: 'Climbing',
   rehab: 'Rehab',
   cardio: 'Cardio',

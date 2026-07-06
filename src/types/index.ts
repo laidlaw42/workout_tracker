@@ -11,8 +11,10 @@ export type WallAngle = 'slab' | 'vertical' | 'overhang'
 // Physical character of a climb (A45) — supersedes WallAngle (a superset of it).
 export type ClimbCharacter = 'slab' | 'vertical' | 'overhang' | 'roof' | 'cave' | 'crack'
 export type TrackingType = 'reps' | 'duration' | 'distance'
-// Discipline bucket an exercise belongs to (A36); 'rehab' is discipline-agnostic (A42).
-export type ExerciseCategory = 'strength' | 'cardio' | 'climbing' | 'rehab'
+// Discipline bucket an exercise belongs to (A36); 'rehab' is discipline-agnostic
+// (A42); 'hangboard' (A73) is a training category whose exercises carry a
+// hangboard protocol config and log as LoggedHang rather than LoggedSet.
+export type ExerciseCategory = 'strength' | 'cardio' | 'climbing' | 'rehab' | 'hangboard'
 
 // theCrag tick types — bouldering subset
 export type BoulderTick = 'onsight' | 'flash' | 'send' | 'working' | 'repeat' | 'dab'
@@ -52,6 +54,9 @@ export interface Exercise {
   // Bodyweight movements that can carry extra load (pull-up, dip, …). When true,
   // set logging shows an "Additional weight" (+kg) field.
   supportsAdditionalWeight?: boolean
+  // Hangboard exercises (A73, category 'hangboard') carry a default protocol
+  // config; adding one to a training session seeds a HangboardSet from it.
+  hangboard?: Omit<HangboardSet, 'id' | 'order'>
   createdAt: number
 }
 

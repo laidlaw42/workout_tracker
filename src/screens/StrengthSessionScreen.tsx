@@ -10,11 +10,13 @@ import { usePrecountBeeps } from '@/hooks/usePrecountBeeps'
 import { useWakeLock } from '@/hooks/useWakeLock'
 import { getAutoAdvance, getKeepAwake, getPrecountSeconds } from '@/lib/prefs'
 import {
+  addHang,
   addSet,
   checkAndSavePR,
   deleteSession,
   endSession,
   getAllExercises,
+  getHangsForSession,
   getLastSetForExercise,
   getSessionById,
   getSetsForSession,
@@ -26,6 +28,7 @@ import { Dumbbell, Plus } from 'lucide-react'
 import { generateId } from '@/lib/id'
 import { SessionHeader } from '@/components/SessionHeader'
 import { ExerciseCard, type LoggedSetInput, type WorkExercise } from '@/components/ExerciseCard'
+import { HangCard } from '@/components/HangCard'
 import { SortableList } from '@/components/SortableList'
 import { RestTimer } from '@/components/RestTimer'
 import { ExercisePicker } from '@/components/ExercisePicker'
@@ -40,7 +43,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import type { Exercise, LoggedSet, WorkoutTemplate } from '@/types'
+import type { Exercise, HangboardSet, LoggedSet, WorkoutTemplate } from '@/types'
+
+// A hangboard row in the working plan (A73). Hangboard exercises log as
+// LoggedHang, so they run on a parallel queue to the strength ExerciseCards.
+type WorkHang = HangboardSet & { skipped: boolean }
 
 export default function StrengthSessionScreen() {
   const { id = '' } = useParams()
@@ -65,10 +72,12 @@ export default function StrengthSessionScreen() {
   const template = templateSettled ? templateQuery!.template : undefined
   const loggedSetsRaw = useLiveQuery(() => getSetsForSession(id), [id])
   const loggedSets = loggedSetsRaw ?? []
+  const loggedHangs = useLiveQuery(() => getHangsForSession(id), [id]) ?? []
   const exercises = useLiveQuery(() => getAllExercises(), []) ?? []
   const exById = useMemo(() => new Map(exercises.map((e) => [e.id, e])), [exercises])
 
   const [work, setWork] = useState<WorkExercise[]>([])
+  const [hangWork, setHangWork] = useState<WorkHang[]>([]) // A73 — hangboard rows
   const [inited, setInited] = useState(false)
   const [modified, setModified] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -76,6 +85,9 @@ export default function StrengthSessionScreen() {
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [confirmRemoveUid, setConfirmRemoveUid] = useState<string | null>(null)
   const [confirmRemoveLastUid, setConfirmRemoveLastUid] = useState<string | null>(null)
+  const [confirmRemoveHangId, setConfirmRemoveHangId] = useState<string | null>(null)
+  const [confirmRemoveLastHangId, setConfirmRemoveLastHangId] = useState<string | null>(null)
+  const [abrahangLabel, setAbrahangLabel] = useState<string | null>(null) // A37 phase label
   const [addPickerOpen, setAddPickerOpen] = useState(false)
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
 
@@ -137,6 +149,11 @@ export default function StrengthSessionScreen() {
       })
     }
     setWork(seeded)
+    // A73 — seed hangboard rows from the template or the session's plan snapshot.
+    const planHangs = template?.hangboardSets ?? session.plannedHangs ?? []
+    setHangWork(
+      [...planHangs].sort((a, b) => a.order - b.order).map((h) => ({ ...h, skipped: false })),
+    )
     setInited(true)
   }, [session, template, templateSettled, inited, loggedSetsRaw])
 
@@ -156,7 +173,14 @@ export default function StrengthSessionScreen() {
 
   const currentIndex = work.findIndex((ex) => !isComplete(ex))
   const currentEx = currentIndex >= 0 ? work[currentIndex] : undefined
-  const allDone = work.length > 0 && currentIndex === -1
+  // Done when every exercise and every hang row is complete (A73). Inlined hang
+  // check (isCompleteHang is defined below) to avoid a temporal-dead-zone ref.
+  const allDone =
+    (work.length > 0 || hangWork.length > 0) &&
+    currentIndex === -1 &&
+    hangWork.every(
+      (h) => h.skipped || loggedHangs.filter((lg) => lg.hangSetId === h.id).length >= h.sets,
+    )
 
   const prefillRaw = useLiveQuery(
     () => (currentEx ? getLastSetForExercise(currentEx.exerciseId) : undefined),
@@ -170,7 +194,10 @@ export default function StrengthSessionScreen() {
   // Rest-timer completion: haptic (no-op on iOS) + auto-dismiss. For a timed
   // set, reaching 0 auto-starts the next set's countdown (A8, if enabled).
   const firedRef = useRef(false)
-  const restTimedRef = useRef<string | null>(null) // timed exercise uid the rest follows, else null
+  // The timed item (exercise or hangboard hang) the current rest follows, so its
+  // countdown can auto-start when the rest expires (A8). Null when the rest
+  // follows an untimed set.
+  const restTimedRef = useRef<{ kind: 'exercise' | 'hang'; uid: string } | null>(null)
   const autoAdvanceRef = useRef<() => boolean>(() => false)
   useEffect(() => {
     if (rest.isRunning && rest.remaining === 0) {
@@ -238,7 +265,7 @@ export default function StrengthSessionScreen() {
       // Only a genuinely timed exercise (a hold) auto-advances its countdown —
       // a cardio bout has a durationSeconds but no countdown (A66).
       restTimedRef.current =
-        exById.get(ex.exerciseId)?.trackingType === 'duration' ? ex.uid : null
+        exById.get(ex.exerciseId)?.trackingType === 'duration' ? { kind: 'exercise', uid: ex.uid } : null
       rest.start(ex.restSeconds)
     } catch {
       toast.error('Could not log set')
@@ -261,17 +288,166 @@ export default function StrengthSessionScreen() {
     else run()
   }
 
+  // --- Hangboard (A73) — hang rows log as LoggedHang, running the full
+  // countdown / pre-count / Abrahang / science-rest engine moved here from the
+  // (now route-only) climbing session screen. -----------------------------
+  const loggedForHang = (hs: HangboardSet) =>
+    loggedHangs.filter((h) => h.hangSetId === hs.id).sort((a, b) => a.setNumber - b.setNumber)
+  const completedForHang = (hs: HangboardSet) => loggedForHang(hs).length
+  const isCompleteHang = (h: WorkHang) => h.skipped || completedForHang(h) >= h.sets
+  const currentHang = hangWork.find((h) => !isCompleteHang(h))
+
+  function addSetToHang(hid: string) {
+    setHangWork((w) => w.map((h) => (h.id === hid ? { ...h, sets: h.sets + 1 } : h)))
+    markModified()
+  }
+  function editHang(hid: string, updates: Partial<HangboardSet>) {
+    setHangWork((w) => w.map((h) => (h.id === hid ? { ...h, ...updates } : h)))
+    markModified()
+  }
+  function skipHang(hid: string) {
+    setHangWork((w) => w.map((h) => (h.id === hid ? { ...h, skipped: true } : h)))
+    if (hid === currentHang?.id) {
+      rest.skip()
+      countdown.cancel()
+    }
+    markModified()
+  }
+  function reorderHangs(activeIds: string[]) {
+    setHangWork((w) => {
+      const done = w.filter((h) => isCompleteHang(h))
+      const byId = new Map(w.map((h) => [h.id, h]))
+      const reordered = activeIds.map((x) => byId.get(x)).filter((h): h is WorkHang => h != null)
+      return [...done, ...reordered]
+    })
+    markModified()
+  }
+  function doRemoveHang() {
+    if (!confirmRemoveHangId) return
+    setHangWork((w) => w.filter((h) => h.id !== confirmRemoveHangId))
+    markModified()
+    setConfirmRemoveHangId(null)
+  }
+  function removeHangSet(hid: string) {
+    const h = hangWork.find((x) => x.id === hid)
+    if (!h) return
+    if (h.sets <= 1) {
+      setConfirmRemoveLastHangId(hid)
+      return
+    }
+    setHangWork((w) => w.map((x) => (x.id === hid ? { ...x, sets: x.sets - 1 } : x)))
+    markModified()
+  }
+  function doRemoveLastHang() {
+    if (!confirmRemoveLastHangId) return
+    setHangWork((w) => w.filter((h) => h.id !== confirmRemoveLastHangId))
+    markModified()
+    setConfirmRemoveLastHangId(null)
+  }
+
+  async function logHang(hs: HangboardSet, opts?: { abrahangReps?: number }) {
+    timer.resume() // logging activity lifts any pause (F19)
+    try {
+      await addHang({
+        sessionId: id,
+        hangSetId: hs.id,
+        gripType: hs.gripType,
+        edgeDepthMm: hs.edgeDepthMm,
+        setNumber: completedForHang(hs) + 1,
+        targetDurationSeconds: hs.durationSeconds,
+        actualDurationSeconds: hs.durationSeconds,
+        weightKg: hs.weightKg,
+        hangType: hs.hangType ?? 'sub_max',
+        abrahangReps: opts?.abrahangReps,
+        skipped: false,
+        loggedAt: Date.now(),
+      })
+      // Hangboard PRs are keyed per grip type: heaviest added load and longest
+      // hang. Assisted (negative) hangs don't count toward a weight PR.
+      const now = Date.now()
+      if (hs.weightKg > 0) {
+        await checkAndSavePR({
+          exerciseName: hs.gripType,
+          prType: 'weight',
+          value: hs.weightKg,
+          unit: 'kg',
+          sessionId: id,
+          achievedAt: now,
+        })
+      }
+      if (hs.durationSeconds > 0) {
+        await checkAndSavePR({
+          exerciseName: hs.gripType,
+          prType: 'duration',
+          value: hs.durationSeconds,
+          unit: 's',
+          sessionId: id,
+          achievedAt: now,
+        })
+      }
+      restTimedRef.current = { kind: 'hang', uid: hs.id }
+      rest.start(hs.restSeconds)
+    } catch {
+      toast.error('Could not log hang')
+    }
+  }
+  function startHangCountdown(hs: HangboardSet) {
+    timer.resume() // starting a hang lifts any pause (F19)
+    rest.skip()
+    const run = () => countdown.start(hs.id, hs.durationSeconds, () => logHang(hs))
+    const pre = getPrecountSeconds()
+    if (pre > 0) precount.start(hs.id, pre, run)
+    else run()
+  }
+  // Abrahang (A37): precount → work / short intra-rest, alternating for N reps,
+  // then log one hang and start the full inter-set rest.
+  function startAbrahang(hs: HangboardSet) {
+    timer.resume()
+    rest.skip()
+    const reps = hs.abrahangReps ?? 6
+    const intra = hs.intraRestSeconds ?? 3
+    let rep = 0
+    const doWork = () => {
+      rep += 1
+      setAbrahangLabel('Hang')
+      countdown.start(hs.id, hs.durationSeconds, () => {
+        if (rep >= reps) {
+          setAbrahangLabel(null)
+          void logHang(hs, { abrahangReps: reps })
+        } else {
+          setAbrahangLabel('Rest')
+          countdown.start(hs.id, intra, doWork)
+        }
+      })
+    }
+    const pre = getPrecountSeconds()
+    if (pre > 0) precount.start(hs.id, pre, doWork)
+    else doWork()
+  }
+  function startHang(hs: HangboardSet) {
+    if ((hs.hangType ?? 'sub_max') === 'abrahang') startAbrahang(hs)
+    else startHangCountdown(hs)
+  }
+
   // Re-assigned every render so the rest-expiry effect starts the next timed set
-  // using the latest state. Returns true when it began a countdown.
+  // (exercise or hang) using the latest state. Returns true when it began one.
   autoAdvanceRef.current = () => {
     if (!getAutoAdvance()) return false
-    const uid = restTimedRef.current
+    const info = restTimedRef.current
     restTimedRef.current = null
-    if (!uid) return false
-    const ex = work.find((e) => e.uid === uid)
-    if (ex && ex.durationSeconds != null && !isComplete(ex)) {
-      startTimedSet(ex)
-      return true
+    if (!info) return false
+    if (info.kind === 'exercise') {
+      const ex = work.find((e) => e.uid === info.uid)
+      if (ex && ex.durationSeconds != null && !isComplete(ex)) {
+        startTimedSet(ex)
+        return true
+      }
+    } else {
+      const h = hangWork.find((x) => x.id === info.uid)
+      if (h && !isCompleteHang(h)) {
+        startHang(h)
+        return true
+      }
     }
     return false
   }
@@ -307,30 +483,59 @@ export default function StrengthSessionScreen() {
     setConfirmRemoveLastUid(null)
   }
 
-  // Append picked exercises to the end of the queue as fresh, incomplete work.
+  // Persist the hangboard plan onto the session so a resume (A34) restores rows
+  // that were added before any hang was logged.
+  function persistPlannedHangs(hs: WorkHang[]) {
+    void updateSession(id, {
+      plannedHangs: hs.map((h, i) => {
+        const { skipped: _skipped, ...set } = h
+        return { ...set, order: i }
+      }),
+    })
+  }
+
+  // Append picked exercises. Hangboard exercises (A73) become hang rows built from
+  // their protocol config; everything else joins the strength/cardio queue.
   function appendExercises(exs: Exercise[]) {
     if (!exs.length) return
-    // A66: a build-from-scratch strength session becomes 'mixed' the first time a
-    // cardio or climbing exercise joins it (rehab reps/holds render fine as-is).
+    const hangboardExs = exs.filter((e) => e.category === 'hangboard' && e.hangboard)
+    const regularExs = exs.filter((e) => !(e.category === 'hangboard' && e.hangboard))
+    // A66/A73: a build-from-scratch strength session becomes 'mixed' the first
+    // time a cardio, climbing or hangboard exercise joins it.
     if (
       session?.type === 'strength' &&
-      exs.some((e) => e.category === 'cardio' || e.category === 'climbing')
+      exs.some(
+        (e) => e.category === 'cardio' || e.category === 'climbing' || e.category === 'hangboard',
+      )
     ) {
       void updateSession(id, { type: 'mixed' })
     }
-    setWork((w) => [
-      ...w,
-      ...exs.map((ex) => ({
-        uid: generateId(),
-        exerciseId: ex.id,
-        exerciseName: ex.name,
-        targetSets: ex.trackingType === 'distance' ? 1 : 3,
-        targetReps: ex.trackingType === 'reps' ? 10 : undefined,
-        durationSeconds: ex.trackingType === 'duration' ? 30 : undefined,
-        restSeconds: 90,
+    if (regularExs.length) {
+      setWork((w) => [
+        ...w,
+        ...regularExs.map((ex) => ({
+          uid: generateId(),
+          exerciseId: ex.id,
+          exerciseName: ex.name,
+          targetSets: ex.trackingType === 'distance' ? 1 : 3,
+          targetReps: ex.trackingType === 'reps' ? 10 : undefined,
+          durationSeconds: ex.trackingType === 'duration' ? 30 : undefined,
+          restSeconds: 90,
+          skipped: false,
+        })),
+      ])
+    }
+    if (hangboardExs.length) {
+      const newHangs: WorkHang[] = hangboardExs.map((ex, i) => ({
+        id: generateId(),
+        order: hangWork.length + i,
+        ...ex.hangboard!,
         skipped: false,
-      })),
-    ])
+      }))
+      const next = [...hangWork, ...newHangs]
+      setHangWork(next)
+      persistPlannedHangs(next)
+    }
     markModified()
     setAddPickerOpen(false)
   }
@@ -438,6 +643,15 @@ export default function StrengthSessionScreen() {
                 defaultRestSeconds: e.restSeconds,
               }
             }),
+          // Preserve hangboard rows (A73) so a training template with hangs round-trips.
+          hangboardSets: hangWork.length
+            ? hangWork
+                .filter((h) => !h.skipped)
+                .map((h, i) => {
+                  const { skipped: _skipped, ...set } = h
+                  return { ...set, order: i }
+                })
+            : undefined,
           lastUsedAt: template?.lastUsedAt,
         })
       } catch {
@@ -527,7 +741,48 @@ export default function StrengthSessionScreen() {
           }}
         />
 
-        {inited && work.length === 0 ? (
+        {hangWork.length > 0 && (
+          <div className="mt-5 space-y-3">
+            <p className="text-sm font-medium text-muted-foreground">Hangboard</p>
+            <SortableList
+              items={hangWork}
+              getUid={(h) => h.id}
+              isComplete={isCompleteHang}
+              isDimmed={(h) => h.skipped}
+              currentUid={currentHang?.id}
+              skipLabel="Skip hang"
+              removeLabel="Remove hang"
+              onReorder={reorderHangs}
+              onSkip={skipHang}
+              onRemove={setConfirmRemoveHangId}
+              renderItem={(h, isCurrent) => (
+                <HangCard
+                  hangSet={h}
+                  loggedHangs={loggedForHang(h)}
+                  isCurrent={isCurrent}
+                  skipped={h.skipped}
+                  onAddSet={() => addSetToHang(h.id)}
+                  onRemoveSet={() => removeHangSet(h.id)}
+                  onEdit={(u) => editHang(h.id, u)}
+                  onStartCountdown={() => startHang(h)}
+                  countdown={
+                    isCurrent && precount.activeUid === h.id
+                      ? { remaining: precount.remaining, duration: precount.duration, precount: true }
+                      : isCurrent && countdown.activeUid === h.id
+                        ? {
+                            remaining: countdown.remaining,
+                            duration: countdown.duration,
+                            label: abrahangLabel ?? undefined,
+                          }
+                        : null
+                  }
+                />
+              )}
+            />
+          </div>
+        )}
+
+        {inited && work.length === 0 && hangWork.length === 0 ? (
           // A62 — a brand-new empty workout: the primary action is adding the
           // first exercise. Build the whole session from scratch here.
           <div className="mt-4 flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border p-8 text-center">
@@ -572,7 +827,7 @@ export default function StrengthSessionScreen() {
         onOpenChange={setAddPickerOpen}
         multiple
         grouped={buildYourOwn}
-        categories={buildYourOwn ? undefined : ['strength', 'rehab']}
+        categories={buildYourOwn ? undefined : ['strength', 'rehab', 'hangboard']}
         onSelect={appendExercises}
       />
 
@@ -631,6 +886,40 @@ export default function StrengthSessionScreen() {
           <AlertDialogFooter>
             <AlertDialogCancel>Keep it</AlertDialogCancel>
             <AlertDialogAction onClick={doRemoveLast}>Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={confirmRemoveHangId !== null}
+        onOpenChange={(o) => !o && setConfirmRemoveHangId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this hang from the workout?</AlertDialogTitle>
+            <AlertDialogDescription>Logged hangs will be kept.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep it</AlertDialogCancel>
+            <AlertDialogAction onClick={doRemoveHang}>Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={confirmRemoveLastHangId !== null}
+        onOpenChange={(o) => !o && setConfirmRemoveLastHangId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove the last set?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove the hang from the workout.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep it</AlertDialogCancel>
+            <AlertDialogAction onClick={doRemoveLastHang}>Remove</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

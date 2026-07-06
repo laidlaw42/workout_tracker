@@ -2,6 +2,7 @@ import { db } from './db'
 import type {
   Exercise,
   ExerciseCategory,
+  HangboardSet,
   HangType,
   IntervalBlock,
   TemplateExercise,
@@ -13,7 +14,7 @@ import type {
 // time: new built-ins are added on upgrade, user-deleted ones are not
 // resurrected, and user-created templates (uuid ids) are never touched.
 
-const BUILTIN_SET_VERSION = 6 // A54: expanded PPL/full-body templates, science-based rests
+const BUILTIN_SET_VERSION = 7 // A73: hangboard exercises + hangboard/workout templates re-typed as training
 
 // Built-in strength templates removed in A54 — deleted once from existing
 // libraries (keyed by the meta flag below) and absent from the seed arrays so
@@ -61,6 +62,9 @@ interface ExerciseSeed {
   // Explicit category (A36). Optional here — omit it and it's derived from
   // trackingType (distance → cardio, else strength). A42's rehab seeds set it.
   category?: ExerciseCategory
+  // Hangboard protocol config (A73): present on category 'hangboard' exercises;
+  // adding one to a training session seeds a HangboardSet from it.
+  hangboard?: Omit<HangboardSet, 'id' | 'order'>
 }
 
 // Category for a seeded exercise: explicit if given, else derived (A36).
@@ -166,6 +170,13 @@ const EXERCISES: ExerciseSeed[] = [
   { id: 'ex_one_arm_lock_off', name: 'One-arm lock-off', muscleGroups: ['back', 'biceps'], trackingType: 'duration', supportsAdditionalWeight: true, category: 'climbing' },
   { id: 'ex_typewriter_pull_up', name: 'Typewriter pull-up', muscleGroups: ['back', 'biceps'], trackingType: 'reps', supportsAdditionalWeight: true, category: 'climbing' },
   { id: 'ex_archer_pull_up', name: 'Archer pull-up', muscleGroups: ['back', 'biceps'], trackingType: 'reps', supportsAdditionalWeight: true, category: 'climbing' },
+  // Hangboard exercises (A73) — first-class training exercises. Each carries a
+  // default protocol (science-based rest: 300s max hangs, 180s repeaters); adding
+  // one to a training session seeds a HangboardSet the athlete can tune per set.
+  { id: 'ex_hb_max_hangs', name: 'Max hangs', muscleGroups: ['forearms'], trackingType: 'duration', category: 'hangboard', hangboard: { gripType: 'Half crimp', hangType: 'max_hang', edgeDepthMm: 20, durationSeconds: 10, weightKg: 0, sets: 5, restSeconds: 300 } },
+  { id: 'ex_hb_repeaters', name: 'Repeaters', muscleGroups: ['forearms'], trackingType: 'duration', category: 'hangboard', hangboard: { gripType: 'Half crimp', hangType: 'sub_max', edgeDepthMm: 20, durationSeconds: 7, weightKg: 0, sets: 6, restSeconds: 180 } },
+  { id: 'ex_hb_abrahangs', name: 'Abrahangs', muscleGroups: ['forearms'], trackingType: 'duration', category: 'hangboard', hangboard: { gripType: 'Half crimp', hangType: 'abrahang', edgeDepthMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: 180, abrahangReps: 6, intraRestSeconds: 3 } },
+  { id: 'ex_hb_min_edge', name: 'Minimum-edge hang', muscleGroups: ['forearms'], trackingType: 'duration', category: 'hangboard', hangboard: { gripType: 'Half crimp', hangType: 'max_hang', edgeDepthMm: 8, durationSeconds: 10, weightKg: 0, sets: 5, restSeconds: 300 } },
 ]
 
 const EXERCISE_NAME = new Map(EXERCISES.map((e) => [e.id, e.name]))
@@ -489,10 +500,11 @@ function buildTemplate(
     return {
       id: seed.id,
       name: seed.name,
-      type: 'climbing',
+      // A73: hangboarding + climbing strength are training, not climbing. A
+      // template mixing exercises and hangs is a 'mixed' training template.
+      type: 'mixed',
       tags: seed.tags,
       createdAt: now,
-      climbingKind: 'workout',
       exercises: seed.rows.map<TemplateExercise>((r, order) => buildTemplateExercise(r, order)),
       hangboardSets: seed.hangs.map((h, order) => ({
         id: `${seed.id}_h${order}`, // stable across refreshes
@@ -511,11 +523,13 @@ function buildTemplate(
     return {
       id: seed.id,
       name: seed.name,
-      type: 'climbing',
+      // A73: a pure-hangboard template is a training template. It has no exercise
+      // rows, only hangboardSets, and is 'mixed' so it renders on the training
+      // session screen alongside any other training content.
+      type: 'mixed',
       tags: seed.tags,
       createdAt: now,
       exercises: [],
-      climbingKind: 'hangboard',
       hangboardSets: seed.hangs.map((h, order) => ({
         id: `${seed.id}_h${order}`, // stable across refreshes
         gripType: h.grip,
