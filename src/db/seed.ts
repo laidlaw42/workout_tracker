@@ -13,7 +13,12 @@ import type {
 // time: new built-ins are added on upgrade, user-deleted ones are not
 // resurrected, and user-created templates (uuid ids) are never touched.
 
-const BUILTIN_SET_VERSION = 5 // A37: hang types on built-in hangboard templates
+const BUILTIN_SET_VERSION = 6 // A54: expanded PPL/full-body templates, science-based rests
+
+// Built-in strength templates removed in A54 — deleted once from existing
+// libraries (keyed by the meta flag below) and absent from the seed arrays so
+// they are never re-added.
+const REMOVED_TEMPLATE_IDS = ['tpl_push_b', 'tpl_pull_b', 'tpl_legs_b', 'tpl_full_body_b']
 
 // Evidence-based rest defaults. Heavy compound lifts at low reps need long rests
 // for full neuromuscular recovery and to preserve subsequent-set volume; longer
@@ -35,8 +40,12 @@ const ISOLATION_60 = new Set([
   'ex_face_pull',
   'ex_tricep_pushdown',
   'ex_bicep_curl',
+  'ex_calf_raise', // isolation, 15+ reps (A54 — science-based 60s)
 ])
 
+// Derived, science-based default rest for an exercise. A row may override it with
+// an explicit `rest` (A54) when the protocol calls for a different value than the
+// exercise's usual bucket — e.g. a heavy Deadlift triple wanting a full 300s.
 function restForExercise(exId: string, reps: number): number {
   if (COMPOUND_180.has(exId) && reps <= 6) return 180 // heavy compound, 4–6 reps
   if (ISOLATION_60.has(exId)) return 60 // isolation, 15+ reps
@@ -104,20 +113,85 @@ const EXERCISES: ExerciseSeed[] = [
   { id: 'ex_shoulder_cars', name: 'Shoulder CARs', muscleGroups: ['shoulders'], trackingType: 'reps', category: 'rehab' },
   { id: 'ex_hip_90_90', name: 'Hip 90/90', muscleGroups: ['hips'], trackingType: 'reps', category: 'rehab' },
   { id: 'ex_dead_hang', name: 'Dead hang (passive)', muscleGroups: ['forearms', 'shoulders'], trackingType: 'duration', category: 'rehab' },
+  // Strength accessories added when the PPL/full-body templates were expanded (A54).
+  { id: 'ex_arnold_press', name: 'Arnold press', muscleGroups: ['shoulders', 'triceps'], trackingType: 'reps' },
+  { id: 'ex_tricep_overhead_extension', name: 'Tricep overhead extension', muscleGroups: ['triceps'], trackingType: 'reps' },
+  { id: 'ex_single_arm_db_row', name: 'Single-arm dumbbell row', muscleGroups: ['back', 'biceps'], trackingType: 'reps' },
+  { id: 'ex_cable_rear_delt_fly', name: 'Cable rear delt fly', muscleGroups: ['shoulders', 'back'], trackingType: 'reps' },
+  { id: 'ex_hammer_curl', name: 'Hammer curl', muscleGroups: ['biceps', 'forearms'], trackingType: 'reps' },
+  { id: 'ex_bulgarian_split_squat', name: 'Bulgarian split squat', muscleGroups: ['quads', 'glutes'], trackingType: 'reps' },
+  { id: 'ex_walking_lunge', name: 'Walking lunge', muscleGroups: ['quads', 'glutes'], trackingType: 'reps' },
+  { id: 'ex_glute_bridge', name: 'Glute bridge', muscleGroups: ['glutes'], trackingType: 'reps' },
+  { id: 'ex_db_row', name: 'Dumbbell row', muscleGroups: ['back', 'biceps'], trackingType: 'reps' },
+  { id: 'ex_push_up', name: 'Push-up', muscleGroups: ['chest', 'triceps'], trackingType: 'reps' },
+  { id: 'ex_kettlebell_swing', name: 'Kettlebell swing', muscleGroups: ['glutes', 'hamstrings', 'back'], trackingType: 'reps' },
+  // Additional rehab / prehab (A55). Exact/near-duplicates of existing rows are
+  // intentionally omitted: Reverse wrist curl, Shoulder CARs and Dead hang
+  // (passive) already exist; "Banded shoulder external rotation" is covered by
+  // Theraband external rotation; Hip 90/90 stretch, Pronation and supination and
+  // Rice bucket (grip) match Hip 90/90, Pronation/supination and Rice bucket.
+  { id: 'ex_banded_internal_rotation', name: 'Banded shoulder internal rotation', muscleGroups: ['shoulders'], trackingType: 'reps', category: 'rehab' },
+  { id: 'ex_wrist_flexor_stretch', name: 'Wrist flexor stretch', muscleGroups: ['forearms'], trackingType: 'duration', category: 'rehab' },
+  { id: 'ex_wrist_extensor_stretch', name: 'Wrist extensor stretch', muscleGroups: ['forearms'], trackingType: 'duration', category: 'rehab' },
+  { id: 'ex_wrist_roller_flexion', name: 'Wrist roller (flexion)', muscleGroups: ['forearms'], trackingType: 'reps', category: 'rehab' },
+  { id: 'ex_wrist_roller_extension', name: 'Wrist roller (extension)', muscleGroups: ['forearms'], trackingType: 'reps', category: 'rehab' },
+  { id: 'ex_doorway_chest_stretch', name: 'Doorway chest stretch', muscleGroups: ['chest'], trackingType: 'duration', category: 'rehab' },
+  { id: 'ex_thoracic_ext_foam_roller', name: 'Thoracic extension over foam roller', muscleGroups: ['back'], trackingType: 'duration', category: 'rehab' },
+  { id: 'ex_scapular_wall_slide', name: 'Scapular wall slide', muscleGroups: ['shoulders', 'back'], trackingType: 'reps', category: 'rehab' },
+  { id: 'ex_pallof_press', name: 'Pallof press', muscleGroups: ['core'], trackingType: 'reps', category: 'rehab' },
+  { id: 'ex_copenhagen_plank', name: 'Copenhagen plank', muscleGroups: ['core'], trackingType: 'duration', category: 'rehab' },
+  { id: 'ex_single_leg_rdl_rehab', name: 'Single-leg Romanian deadlift (rehab weight)', muscleGroups: ['hamstrings', 'glutes'], trackingType: 'reps', category: 'rehab' },
+  { id: 'ex_tibialis_raise', name: 'Tibialis raise', muscleGroups: ['calves'], trackingType: 'reps', category: 'rehab' },
+  { id: 'ex_calf_eccentric', name: 'Calf eccentric (Alfredson protocol)', muscleGroups: ['calves'], trackingType: 'reps', category: 'rehab' },
+  // Climbing-specific strength & conditioning (A56), sourced from Lattice Training
+  // and climbing-conditioning literature. Isometric holds track duration; dynamic
+  // movements track reps; external-loadable movements set supportsAdditionalWeight.
+  { id: 'ex_campus_move', name: 'Campus board move', muscleGroups: ['forearms', 'back'], trackingType: 'reps', supportsAdditionalWeight: true, category: 'climbing' },
+  { id: 'ex_system_board_move', name: 'System board move', muscleGroups: ['forearms', 'back'], trackingType: 'reps', category: 'climbing' },
+  { id: 'ex_antagonist_press_flat', name: 'Antagonist press (flat)', muscleGroups: ['chest', 'triceps'], trackingType: 'reps', category: 'climbing' },
+  { id: 'ex_antagonist_press_incline', name: 'Antagonist press (incline)', muscleGroups: ['chest', 'shoulders'], trackingType: 'reps', category: 'climbing' },
+  { id: 'ex_shoulder_press_antagonist', name: 'Shoulder press (climbing antagonist)', muscleGroups: ['shoulders'], trackingType: 'reps', category: 'climbing' },
+  { id: 'ex_wrist_curl', name: 'Wrist curl', muscleGroups: ['forearms'], trackingType: 'reps', category: 'climbing' },
+  { id: 'ex_reverse_wrist_curl_climbing', name: 'Reverse wrist curl (climbing)', muscleGroups: ['forearms'], trackingType: 'reps', category: 'climbing' },
+  { id: 'ex_finger_extension_band', name: 'Finger extension (rubber band)', muscleGroups: ['forearms'], trackingType: 'reps', category: 'climbing' },
+  { id: 'ex_rotator_cuff_external_rotation', name: 'Rotator cuff external rotation', muscleGroups: ['shoulders'], trackingType: 'reps', category: 'climbing' },
+  { id: 'ex_scapular_pull_up', name: 'Scapular pull-up', muscleGroups: ['back', 'shoulders'], trackingType: 'reps', supportsAdditionalWeight: true, category: 'climbing' },
+  { id: 'ex_hollow_body_hold', name: 'Hollow body hold', muscleGroups: ['core'], trackingType: 'duration', category: 'climbing' },
+  { id: 'ex_front_lever_progression', name: 'Front lever progression', muscleGroups: ['core', 'back'], trackingType: 'duration', category: 'climbing' },
+  { id: 'ex_back_lever_progression', name: 'Back lever progression', muscleGroups: ['core', 'back'], trackingType: 'duration', category: 'climbing' },
+  { id: 'ex_l_sit', name: 'L-sit', muscleGroups: ['core'], trackingType: 'duration', category: 'climbing' },
+  { id: 'ex_plank_reach', name: 'Plank with reach', muscleGroups: ['core'], trackingType: 'duration', category: 'climbing' },
+  { id: 'ex_single_arm_hang_assisted', name: 'Single-arm hang (assisted)', muscleGroups: ['forearms', 'back'], trackingType: 'duration', category: 'climbing' },
+  { id: 'ex_two_arm_lock_off', name: 'Two-arm lock-off', muscleGroups: ['back', 'biceps'], trackingType: 'duration', supportsAdditionalWeight: true, category: 'climbing' },
+  { id: 'ex_one_arm_lock_off', name: 'One-arm lock-off', muscleGroups: ['back', 'biceps'], trackingType: 'duration', supportsAdditionalWeight: true, category: 'climbing' },
+  { id: 'ex_typewriter_pull_up', name: 'Typewriter pull-up', muscleGroups: ['back', 'biceps'], trackingType: 'reps', supportsAdditionalWeight: true, category: 'climbing' },
+  { id: 'ex_archer_pull_up', name: 'Archer pull-up', muscleGroups: ['back', 'biceps'], trackingType: 'reps', supportsAdditionalWeight: true, category: 'climbing' },
 ]
 
 const EXERCISE_NAME = new Map(EXERCISES.map((e) => [e.id, e.name]))
 
-// A strength row: [exerciseId, sets, reps, restSeconds] — or duration variant.
-type Row = [string, number, number, number] | [string, number, number, number, number]
+// A strength row. `rest` is optional: when omitted the science-based
+// restForExercise() default applies; when present it overrides for that row
+// (A54). Set `duration` (seconds) instead of `reps` for a timed exercise.
+interface StrengthRow {
+  ex: string
+  sets: number
+  reps?: number
+  duration?: number
+  rest?: number
+}
 
 interface StrengthSeed {
   id: string
   name: string
   tags: string[]
-  rows: Row[]
+  rows: StrengthRow[]
 }
 
+// Push B / Pull B / Legs B / Full Body B were removed and the remaining four
+// templates expanded (A54). Existing exercises keep their science-based rests
+// (restForExercise); added exercises carry an explicit `rest` only where the
+// protocol differs from that default.
 const STRENGTH: StrengthSeed[] = [
   // Push / Pull / Legs — session A
   {
@@ -125,12 +199,15 @@ const STRENGTH: StrengthSeed[] = [
     name: 'Push A',
     tags: ['push', 'ppl'],
     rows: [
-      ['ex_bench_press', 4, 6, 150],
-      ['ex_overhead_press', 3, 8, 120],
-      ['ex_incline_db_press', 3, 10, 90],
-      ['ex_lateral_raise', 3, 15, 60],
-      ['ex_chest_dip', 3, 10, 90],
-      ['ex_tricep_pushdown', 3, 12, 60],
+      { ex: 'ex_bench_press', sets: 4, reps: 6 }, // 180
+      { ex: 'ex_overhead_press', sets: 3, reps: 8 }, // 90
+      { ex: 'ex_incline_db_press', sets: 3, reps: 10 }, // 90
+      { ex: 'ex_lateral_raise', sets: 4, reps: 15 }, // 60 — bumped 3→4 sets (A54)
+      { ex: 'ex_chest_dip', sets: 3, reps: 10 }, // 90
+      { ex: 'ex_tricep_pushdown', sets: 3, reps: 12 }, // 60
+      { ex: 'ex_cable_fly', sets: 3, reps: 15, rest: 60 }, // A54
+      { ex: 'ex_arnold_press', sets: 3, reps: 12 }, // 90 (A54)
+      { ex: 'ex_tricep_overhead_extension', sets: 3, reps: 12 }, // 90 (A54)
     ],
   },
   {
@@ -138,11 +215,15 @@ const STRENGTH: StrengthSeed[] = [
     name: 'Pull A',
     tags: ['pull', 'ppl'],
     rows: [
-      ['ex_deadlift', 3, 5, 180],
-      ['ex_pull_up', 3, 8, 120],
-      ['ex_barbell_row', 3, 8, 120],
-      ['ex_face_pull', 3, 15, 60],
-      ['ex_bicep_curl', 3, 12, 60],
+      { ex: 'ex_deadlift', sets: 3, reps: 5 }, // 180
+      { ex: 'ex_pull_up', sets: 3, reps: 8 }, // 90
+      { ex: 'ex_barbell_row', sets: 3, reps: 8 }, // 90
+      { ex: 'ex_face_pull', sets: 3, reps: 15 }, // 60
+      { ex: 'ex_bicep_curl', sets: 3, reps: 12 }, // 60
+      { ex: 'ex_single_arm_db_row', sets: 3, reps: 10 }, // 90 (A54)
+      { ex: 'ex_cable_rear_delt_fly', sets: 3, reps: 15, rest: 60 }, // A54
+      { ex: 'ex_hammer_curl', sets: 3, reps: 12, rest: 60 }, // A54
+      { ex: 'ex_chin_up', sets: 3, reps: 6, rest: 180 }, // A54
     ],
   },
   {
@@ -150,50 +231,14 @@ const STRENGTH: StrengthSeed[] = [
     name: 'Legs A',
     tags: ['legs', 'ppl'],
     rows: [
-      ['ex_squat', 4, 6, 180],
-      ['ex_romanian_deadlift', 3, 8, 120],
-      ['ex_leg_press', 3, 12, 90],
-      ['ex_leg_curl', 3, 12, 60],
-      ['ex_calf_raise', 4, 15, 45],
-    ],
-  },
-  // Push / Pull / Legs — session B
-  {
-    id: 'tpl_push_b',
-    name: 'Push B',
-    tags: ['push', 'ppl'],
-    rows: [
-      ['ex_overhead_press', 4, 6, 150],
-      ['ex_incline_db_press', 4, 8, 120],
-      ['ex_db_shoulder_press', 3, 10, 90],
-      ['ex_cable_fly', 3, 12, 60],
-      ['ex_lateral_raise', 3, 15, 45],
-      ['ex_tricep_pushdown', 3, 15, 60],
-    ],
-  },
-  {
-    id: 'tpl_pull_b',
-    name: 'Pull B',
-    tags: ['pull', 'ppl'],
-    rows: [
-      ['ex_barbell_row', 4, 6, 150],
-      ['ex_lat_pulldown', 3, 10, 90],
-      ['ex_seated_row', 3, 10, 90],
-      ['ex_face_pull', 3, 15, 60],
-      ['ex_bicep_curl', 3, 12, 60],
-      ['ex_hanging_leg_raise', 3, 12, 60],
-    ],
-  },
-  {
-    id: 'tpl_legs_b',
-    name: 'Legs B',
-    tags: ['legs', 'ppl'],
-    rows: [
-      ['ex_front_squat', 4, 6, 180],
-      ['ex_hip_thrust', 3, 8, 120],
-      ['ex_leg_press', 3, 12, 90],
-      ['ex_leg_curl', 3, 15, 60],
-      ['ex_calf_raise', 4, 15, 45],
+      { ex: 'ex_squat', sets: 4, reps: 6 }, // 180
+      { ex: 'ex_romanian_deadlift', sets: 3, reps: 8 }, // 90
+      { ex: 'ex_leg_press', sets: 3, reps: 12 }, // 90
+      { ex: 'ex_leg_curl', sets: 3, reps: 12 }, // 90
+      { ex: 'ex_calf_raise', sets: 4, reps: 15 }, // 60 (isolation, A54)
+      { ex: 'ex_bulgarian_split_squat', sets: 3, reps: 10, rest: 120 }, // A54
+      { ex: 'ex_walking_lunge', sets: 3, reps: 12 }, // 90 (A54)
+      { ex: 'ex_glute_bridge', sets: 3, reps: 15, rest: 60 }, // A54
     ],
   },
   // Upper / Lower
@@ -202,13 +247,13 @@ const STRENGTH: StrengthSeed[] = [
     name: 'Upper A',
     tags: ['upper'],
     rows: [
-      ['ex_bench_press', 4, 6, 150],
-      ['ex_barbell_row', 4, 6, 150],
-      ['ex_overhead_press', 3, 8, 120],
-      ['ex_lat_pulldown', 3, 10, 90],
-      ['ex_lateral_raise', 3, 15, 45],
-      ['ex_bicep_curl', 3, 12, 60],
-      ['ex_tricep_pushdown', 3, 12, 60],
+      { ex: 'ex_bench_press', sets: 4, reps: 6 }, // 180
+      { ex: 'ex_barbell_row', sets: 4, reps: 6 }, // 180
+      { ex: 'ex_overhead_press', sets: 3, reps: 8 }, // 90
+      { ex: 'ex_lat_pulldown', sets: 3, reps: 10 }, // 90
+      { ex: 'ex_lateral_raise', sets: 3, reps: 15 }, // 60
+      { ex: 'ex_bicep_curl', sets: 3, reps: 12 }, // 60
+      { ex: 'ex_tricep_pushdown', sets: 3, reps: 12 }, // 60
     ],
   },
   {
@@ -216,12 +261,12 @@ const STRENGTH: StrengthSeed[] = [
     name: 'Lower A',
     tags: ['lower'],
     rows: [
-      ['ex_squat', 4, 6, 180],
-      ['ex_romanian_deadlift', 3, 8, 120],
-      ['ex_leg_press', 3, 12, 90],
-      ['ex_leg_curl', 3, 12, 60],
-      ['ex_calf_raise', 4, 15, 45],
-      ['ex_plank', 3, 0, 60, 45],
+      { ex: 'ex_squat', sets: 4, reps: 6 }, // 180
+      { ex: 'ex_romanian_deadlift', sets: 3, reps: 8 }, // 90
+      { ex: 'ex_leg_press', sets: 3, reps: 12 }, // 90
+      { ex: 'ex_leg_curl', sets: 3, reps: 12 }, // 90
+      { ex: 'ex_calf_raise', sets: 4, reps: 15 }, // 60 (isolation, A54)
+      { ex: 'ex_plank', sets: 3, duration: 45 }, // 90
     ],
   },
   // Full body — beginner, compound-focused
@@ -230,19 +275,13 @@ const STRENGTH: StrengthSeed[] = [
     name: 'Full Body A',
     tags: ['full body', 'beginner'],
     rows: [
-      ['ex_squat', 3, 5, 180],
-      ['ex_bench_press', 3, 5, 180],
-      ['ex_barbell_row', 3, 5, 150],
-    ],
-  },
-  {
-    id: 'tpl_full_body_b',
-    name: 'Full Body B',
-    tags: ['full body', 'beginner'],
-    rows: [
-      ['ex_squat', 3, 5, 180],
-      ['ex_overhead_press', 3, 5, 150],
-      ['ex_deadlift', 1, 5, 180],
+      { ex: 'ex_squat', sets: 3, reps: 5 }, // 180
+      { ex: 'ex_bench_press', sets: 3, reps: 5 }, // 180
+      { ex: 'ex_barbell_row', sets: 3, reps: 5 }, // 180
+      { ex: 'ex_deadlift', sets: 3, reps: 5, rest: 300 }, // A54
+      { ex: 'ex_db_row', sets: 3, reps: 10 }, // 90 (A54)
+      { ex: 'ex_push_up', sets: 3, reps: 15, rest: 60 }, // A54
+      { ex: 'ex_kettlebell_swing', sets: 3, reps: 15 }, // 90 (A54)
     ],
   },
 ]
@@ -348,12 +387,126 @@ const HANGBOARD: HangboardSeed[] = [
       { grip: 'Open hand', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_REPEATER_REST, abrahangReps: 6, intraRestSeconds: 3 },
     ],
   },
+  {
+    // Sub-max Repeaters (A53) — a full sub-maximal repeater protocol across the
+    // six common grip positions. Each grip runs the classic 7s-on / 3s-off
+    // repeater popularised as sub-maximal finger endurance work by Eva
+    // López-Rivera ("Effects of isometric training…", 2019) and the Anderson
+    // brothers' "The Rock Climber's Training Manual". The 7-on/3-off × 6 rep
+    // sequencing is driven by the app's abrahang runner (hangType 'abrahang');
+    // 'sub_max' plays a single sustained hang and would not reproduce the
+    // repeater cadence, so abrahang is the faithful model of a sub-max repeater.
+    // restSeconds is the 180s inter-set rest; the data model has no separate
+    // inter-exercise (grip-change) rest field, so the ~300s between grips is left
+    // to the athlete.
+    id: 'tpl_hangboard_submax_repeaters',
+    name: 'Sub-max Repeaters',
+    tags: ['hangboard', 'endurance'],
+    hangType: 'abrahang',
+    hangs: [
+      { grip: 'Half crimp', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_REPEATER_REST, abrahangReps: 6, intraRestSeconds: 3 },
+      { grip: 'Open hand', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_REPEATER_REST, abrahangReps: 6, intraRestSeconds: 3 },
+      { grip: 'Three-finger drag', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_REPEATER_REST, abrahangReps: 6, intraRestSeconds: 3 },
+      { grip: 'Pinch', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_REPEATER_REST, abrahangReps: 6, intraRestSeconds: 3 },
+      { grip: 'Wide pinch', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_REPEATER_REST, abrahangReps: 6, intraRestSeconds: 3 },
+      { grip: 'Sloper', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_REPEATER_REST, abrahangReps: 6, intraRestSeconds: 3 },
+    ],
+  },
 ]
 
+// A57 — a climbing "workout" template that mixes strength exercises with
+// hangboard sets in one session. Rendered by ClimbingSessionScreen as an
+// Exercises section above the Hangboard section (the block ordering in the
+// comments is the intended athlete flow; the screen groups all exercises then
+// all hangs). Reuses StrengthRow for the exercise rows.
+interface ClimbingWorkoutHang {
+  grip: string
+  hangType: HangType
+  edgeMm: number
+  durationSeconds: number
+  weightKg: number
+  sets: number
+  restSeconds: number
+}
+
+interface ClimbingWorkoutSeed {
+  id: string
+  name: string
+  tags: string[]
+  climbingWorkout: true // discriminator (distinguishes from StrengthSeed's rows)
+  rows: StrengthRow[]
+  hangs: ClimbingWorkoutHang[]
+}
+
+const CLIMBING_WORKOUTS: ClimbingWorkoutSeed[] = [
+  {
+    id: 'tpl_climbing_strength_fingers',
+    name: 'Strength and Fingers',
+    tags: ['climbing', 'strength', 'hangboard'],
+    climbingWorkout: true,
+    // Athlete flow: warm-up hang block → strength block → max-hang block →
+    // antagonist finish. Exercises (strength block + antagonist finish) render in
+    // the Exercises section; the two hang blocks render in the Hangboard section.
+    rows: [
+      { ex: 'ex_scapular_pull_up', sets: 3, reps: 10, rest: 90 },
+      { ex: 'ex_two_arm_lock_off', sets: 3, duration: 8, rest: 120 },
+      { ex: 'ex_antagonist_press_flat', sets: 3, reps: 12, rest: 90 },
+      { ex: 'ex_hollow_body_hold', sets: 3, duration: 30, rest: 60 },
+      { ex: 'ex_reverse_wrist_curl_climbing', sets: 3, reps: 15, rest: 60 },
+      { ex: 'ex_finger_extension_band', sets: 3, reps: 15, rest: 60 },
+    ],
+    hangs: [
+      // Warm-up block — sub-max open hand.
+      { grip: 'Open hand', hangType: 'sub_max', edgeMm: 20, durationSeconds: 10, weightKg: 0, sets: 3, restSeconds: 120 },
+      // Max-hang block — half crimp on a smaller edge.
+      { grip: 'Half crimp', hangType: 'max_hang', edgeMm: 10, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_MAX_REST },
+    ],
+  },
+]
+
+// A StrengthRow → TemplateExercise. `rest` overrides the science-based default;
+// `duration` (seconds) marks a timed exercise (no reps). Shared by strength
+// templates and the exercise block of a climbing workout (A57).
+function buildTemplateExercise(r: StrengthRow, order: number): TemplateExercise {
+  return {
+    exerciseId: r.ex,
+    exerciseName: EXERCISE_NAME.get(r.ex) ?? r.ex,
+    order,
+    defaultSets: r.sets,
+    defaultReps: r.duration != null ? undefined : r.reps,
+    defaultDuration: r.duration,
+    defaultRestSeconds: r.rest ?? restForExercise(r.ex, r.reps ?? 0),
+  }
+}
+
 function buildTemplate(
-  seed: StrengthSeed | CardioSeed | HangboardSeed,
+  seed: StrengthSeed | CardioSeed | HangboardSeed | ClimbingWorkoutSeed,
   now: number,
 ): WorkoutTemplate {
+  // Checked first: a climbing workout also has `hangs`, so it must be
+  // distinguished before the hangboard branch.
+  if ('climbingWorkout' in seed) {
+    return {
+      id: seed.id,
+      name: seed.name,
+      type: 'climbing',
+      tags: seed.tags,
+      createdAt: now,
+      climbingKind: 'workout',
+      exercises: seed.rows.map<TemplateExercise>((r, order) => buildTemplateExercise(r, order)),
+      hangboardSets: seed.hangs.map((h, order) => ({
+        id: `${seed.id}_h${order}`, // stable across refreshes
+        gripType: h.grip,
+        hangType: h.hangType,
+        edgeDepthMm: h.edgeMm,
+        durationSeconds: h.durationSeconds,
+        weightKg: h.weightKg,
+        sets: h.sets,
+        restSeconds: h.restSeconds,
+        order,
+      })),
+    }
+  }
   if ('hangs' in seed) {
     return {
       id: seed.id,
@@ -385,18 +538,7 @@ function buildTemplate(
       type: 'strength',
       tags: seed.tags,
       createdAt: now,
-      exercises: seed.rows.map<TemplateExercise>((row, order) => {
-        const [exId, sets, reps, , duration] = row
-        return {
-          exerciseId: exId,
-          exerciseName: EXERCISE_NAME.get(exId) ?? exId,
-          order,
-          defaultSets: sets,
-          defaultReps: duration != null ? undefined : reps,
-          defaultDuration: duration,
-          defaultRestSeconds: restForExercise(exId, reps),
-        }
-      }),
+      exercises: seed.rows.map<TemplateExercise>((r, order) => buildTemplateExercise(r, order)),
     }
   }
   return {
@@ -412,10 +554,11 @@ function buildTemplate(
   }
 }
 
-const ALL_TEMPLATE_SEEDS: (StrengthSeed | CardioSeed | HangboardSeed)[] = [
+const ALL_TEMPLATE_SEEDS: (StrengthSeed | CardioSeed | HangboardSeed | ClimbingWorkoutSeed)[] = [
   ...STRENGTH,
   ...CARDIO,
   ...HANGBOARD,
+  ...CLIMBING_WORKOUTS,
 ]
 const LEGACY_TEMPLATE_NAMES = new Set(['Push A', 'Pull A', 'Legs A', 'Easy run', 'Interval ride'])
 const BUILTIN_EXERCISE_NAMES = new Set(EXERCISES.map((e) => e.name))
@@ -440,6 +583,12 @@ export async function seedIfNeeded(): Promise<void> {
         .filter((e) => !e.id.startsWith('ex_') && BUILTIN_EXERCISE_NAMES.has(e.name))
         .delete()
       await db.meta.put({ key: 'legacyMigrated', value: true })
+    }
+
+    // One-time removal of the retired B-session strength templates (A54).
+    if (!(await getMeta<boolean>('removedBTemplates'))) {
+      await db.templates.bulkDelete(REMOVED_TEMPLATE_IDS)
+      await db.meta.put({ key: 'removedBTemplates', value: true })
     }
 
     // Seed each built-in exercise once (tracked by id), so a user-deleted

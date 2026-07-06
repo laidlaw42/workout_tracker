@@ -110,7 +110,8 @@ export default function LibraryScreen() {
       const id = await upsertTemplate(draft)
       setNewOpen(false)
       setNewName('')
-      navigate(`/library/${id}/edit`)
+      // ?new=1 marks new-template mode so backing out prompts to discard (A58).
+      navigate(`/library/${id}/edit?new=1`)
     } catch {
       toast.error('Could not create template')
     }

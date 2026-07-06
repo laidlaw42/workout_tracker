@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { GripVertical, Plus, Trash2 } from 'lucide-react'
 import {
@@ -18,7 +18,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useLiveQuery } from '@/hooks/useDb'
-import { getTemplate, upsertTemplate } from '@/db/helpers'
+import { deleteTemplate, getTemplate, upsertTemplate } from '@/db/helpers'
 import { generateId } from '@/lib/id'
 import { ExercisePicker } from '@/components/ExercisePicker'
 import { IntervalsEditor } from '@/components/IntervalsEditor'
@@ -59,6 +59,11 @@ const ACTIVITIES: { value: CardioActivityType; label: string }[] = [
 export default function TemplateEditScreen() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
+  // New-template mode (A58): LibraryScreen appends ?new=1 when it creates a draft
+  // and opens the editor. Backing out of a brand-new template prompts to discard
+  // and removes the empty draft, rather than leaving a "New workout" behind.
+  const [searchParams] = useSearchParams()
+  const isNew = searchParams.get('new') === '1'
   const template = useLiveQuery(() => getTemplate(id).then((t) => t ?? null), [id])
 
   const [name, setName] = useState('')
@@ -174,8 +179,26 @@ export default function TemplateEditScreen() {
   }
 
   function cancel() {
-    if (dirty) setConfirmCancel(true)
+    // New template: always confirm (the draft is discarded on confirm). Existing
+    // template: only confirm when there are unsaved edits (item 5 behaviour).
+    if (isNew || dirty) setConfirmCancel(true)
     else navigate(`/library/${id}`)
+  }
+
+  async function discard() {
+    setConfirmCancel(false)
+    if (isNew) {
+      // The draft was persisted when creation started; remove it so an abandoned
+      // new workout doesn't linger in the library, then return to the list.
+      try {
+        await deleteTemplate(id)
+      } catch {
+        /* fall through — navigate away regardless */
+      }
+      navigate('/library')
+    } else {
+      navigate(`/library/${id}`)
+    }
   }
 
   const isCardio = template?.type === 'cardio'
@@ -343,12 +366,14 @@ export default function TemplateEditScreen() {
       <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Discard changes?</AlertDialogTitle>
-            <AlertDialogDescription>Your edits will be lost.</AlertDialogDescription>
+            <AlertDialogTitle>{isNew ? 'Discard this workout?' : 'Discard changes?'}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {isNew ? 'Your changes will not be saved.' : 'Your edits will be lost.'}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep editing</AlertDialogCancel>
-            <AlertDialogAction onClick={() => navigate(`/library/${id}`)}>Discard</AlertDialogAction>
+            <AlertDialogAction onClick={discard}>Discard</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
