@@ -85,10 +85,6 @@ const MIXED: Badge = { Icon: Layers, label: 'Mixed', classes: TONE.mixed }
 const HANGBOARD = (classes: string): Badge => ({ Icon: Hand, label: 'Hangboard', classes })
 const CLIMB_WORKOUT = (classes: string): Badge => ({ Icon: Activity, label: 'Workout', classes })
 
-// Exported badge constants for library captions (A73).
-export const HANGBOARD_BADGE: Badge = HANGBOARD(TONE.climbing)
-export const CLIMB_WORKOUT_BADGE: Badge = CLIMB_WORKOUT(TONE.climbing)
-
 function cardioBadge(activity: CardioActivityType = 'other'): Badge {
   const c = CARDIO[activity]
   return { Icon: c.Icon, label: c.label, classes: TONE.cardio }

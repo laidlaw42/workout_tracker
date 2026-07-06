@@ -68,6 +68,10 @@ export function SessionLocationPills({ venue, value, onChange }: Props) {
   const showNewPill = saved.length > 0 || venue !== 'crag'
   const showSelectedExtra = !adding && selected !== '' && !inSaved(selected)
   const showRow = saved.length > 0 || showNewPill || showSelectedExtra
+  // Never strand the user with no way to enter a name: when there's no pill row
+  // at all (e.g. a crag with no saved names after clearing a one-off), keep the
+  // input open so the location field can't vanish.
+  const inputOpen = adding || !showRow
 
   return (
     <div className="space-y-2">
@@ -123,7 +127,7 @@ export function SessionLocationPills({ venue, value, onChange }: Props) {
         </div>
       )}
 
-      {adding && (
+      {inputOpen && (
         <div className="space-y-2">
           <Input
             value={draft}

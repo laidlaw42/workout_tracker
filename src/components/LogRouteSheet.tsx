@@ -250,10 +250,14 @@ export function LogRouteSheet({
   }
 
   // A83 — selecting a saved area pre-fills height/character from its defaults (if
-  // configured); the user can still override. Unset defaults leave fields as-is.
+  // configured); the user can still override. Pre-fill only when logging a NEW
+  // route and only when actually switching areas, so it never clobbers a route's
+  // logged values (edit mode) or an override typed after picking the same area.
   function selectArea(name: string) {
+    const changed = name !== gymArea
     setAreaOther(false)
     setGymArea(name)
+    if (editing || !changed) return
     const cfg = getGymArea(gymName ?? '', name)
     if (cfg?.defaultHeightMetres != null) setHeight(String(cfg.defaultHeightMetres))
     if (cfg?.defaultCharacter != null) setClimbCharacter(cfg.defaultCharacter)

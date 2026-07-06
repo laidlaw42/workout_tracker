@@ -672,8 +672,10 @@ export default function ClimbingSessionScreen() {
 
       <div className="space-y-5 p-4">
         {/* A78 — pick the gym/board/crag inline; optional, above the climb-type
-            buttons. Undefined-venue (legacy template/repeat) keeps text fields. */}
-        {showRoutes && venue !== undefined && (
+            buttons. Gated on `inited` so the name is hydrated before the pills
+            mount (no "New …" input flash on resume/default). Undefined-venue
+            (legacy template/repeat) keeps text fields. */}
+        {showRoutes && venue !== undefined && inited && (
           <SessionLocationPills venue={venue} value={locName} onChange={setLocation} />
         )}
         {showRoutes && venue === undefined && (

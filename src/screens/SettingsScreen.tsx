@@ -986,7 +986,13 @@ function AreaRow({
           inputMode="decimal"
           value={height}
           placeholder="optional"
-          onChange={(e) => setHeight(e.target.value.replace(/[^0-9.]/g, ''))}
+          onChange={(e) => {
+            // Strip non-numeric chars and keep only the first decimal point so a
+            // fat-fingered "1.2.3" can't parse to NaN and silently drop the value.
+            const raw = e.target.value.replace(/[^0-9.]/g, '')
+            const i = raw.indexOf('.')
+            setHeight(i === -1 ? raw : raw.slice(0, i + 1) + raw.slice(i + 1).replace(/\./g, ''))
+          }}
           onBlur={() => {
             const n = height.trim() === '' ? undefined : Number(height)
             onSetDefaults({ defaultHeightMetres: n != null && !Number.isNaN(n) ? n : undefined })
