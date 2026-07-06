@@ -1,14 +1,32 @@
+import {
+  ArrowUpToLine,
+  Flag,
+  Inbox,
+  Minus,
+  Pentagon,
+  TrendingDown,
+  TrendingUp,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react'
 import type { ClimbCharacter, ClimbingStyle, ClimbingTick } from '@/types'
 
 // Physical character of a climb (A45) — replaces the old Slab/Vertical/Overhang
-// wall-angle toggle with a 6-option superset.
-export const CLIMB_CHARACTERS: { value: ClimbCharacter; label: string }[] = [
-  { value: 'slab', label: 'Slab' },
-  { value: 'vertical', label: 'Vertical' },
-  { value: 'overhang', label: 'Overhang' },
-  { value: 'roof', label: 'Roof' },
-  { value: 'cave', label: 'Cave' },
-  { value: 'crack', label: 'Crack' },
+// wall-angle toggle with a 6-option superset. Each carries a Lucide icon (A63)
+// evoking the wall shape; `iconClassName` applies any rotation (e.g. a Minus
+// stood on end for a vertical wall).
+export const CLIMB_CHARACTERS: {
+  value: ClimbCharacter
+  label: string
+  icon: LucideIcon
+  iconClassName?: string
+}[] = [
+  { value: 'slab', label: 'Slab', icon: TrendingDown }, // leaning away
+  { value: 'vertical', label: 'Vertical', icon: Minus, iconClassName: 'rotate-90' }, // upright line
+  { value: 'overhang', label: 'Overhang', icon: TrendingUp }, // leaning toward
+  { value: 'roof', label: 'Roof', icon: Minus }, // horizontal ceiling
+  { value: 'cave', label: 'Cave', icon: Inbox }, // arched enclosure
+  { value: 'crack', label: 'Crack', icon: Zap }, // jagged line
 ]
 
 export const CLIMB_CHARACTER_LABEL: Record<ClimbCharacter, string> = Object.fromEntries(
@@ -66,14 +84,15 @@ export const STYLE_LABELS: Record<ClimbingStyle, string> = {
   lead: 'Lead',
 }
 
-// Unicode symbols for the three climb types (F36), used in place of text labels
-// on the climb-type buttons (A24) and wherever a route's style is shown
-// (RouteCard, SessionDetail, History). Rendered large with a small text sublabel
-// so they stay accessible. Kept alongside STYLE_LABELS so the two never drift.
-export const CLIMB_STYLE_SYMBOLS: Record<ClimbingStyle, string> = {
-  bouldering: '⬟',
-  top_rope: '⤒',
-  lead: '⚑',
+// Lucide icons for the three climb types (F40, replacing the F36 Unicode
+// symbols), used on the climb-type buttons (A24) and wherever a route's style is
+// shown (RouteCard, SessionDetail, History). Matches the icon style of the
+// Strength/Cardio/Gym/Crag buttons. Kept alongside STYLE_LABELS so the two never
+// drift. Pentagon ≈ a boulder/hold; ArrowUpToLine ≈ a top anchor; Flag ≈ leading.
+export const CLIMB_STYLE_ICONS: Record<ClimbingStyle, LucideIcon> = {
+  bouldering: Pentagon,
+  top_rope: ArrowUpToLine,
+  lead: Flag,
 }
 
 // --- Hangboard --------------------------------------------------------------

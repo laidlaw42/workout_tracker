@@ -36,7 +36,7 @@ import {
   getTemplate,
   updateSession,
 } from '@/db/helpers'
-import { CLIMB_STYLE_SYMBOLS, STYLE_LABELS, isCleanTick, vGradeIndex } from '@/lib/climbing'
+import { CLIMB_STYLE_ICONS, STYLE_LABELS, isCleanTick, vGradeIndex } from '@/lib/climbing'
 import { normalizeVenue } from '@/lib/badges'
 import { SessionHeader } from '@/components/SessionHeader'
 import { RouteCard } from '@/components/RouteCard'
@@ -876,25 +876,27 @@ export default function ClimbingSessionScreen() {
               <div className="space-y-3">
                 {isBoard ? (
                   <Button size="lg" className="w-full" onClick={() => openNew('bouldering')}>
-                    <span aria-hidden className="mr-1 text-2xl leading-none">
-                      {CLIMB_STYLE_SYMBOLS.bouldering}
-                    </span>
+                    {(() => {
+                      const Icon = CLIMB_STYLE_ICONS.bouldering
+                      return <Icon className="size-5" />
+                    })()}
                     Boulder
                   </Button>
                 ) : (
                   <div className="grid grid-cols-3 gap-2">
-                    {styles.map((s) => (
-                      <Button
-                        key={s}
-                        onClick={() => openNew(s)}
-                        className="flex h-auto flex-col gap-0.5 py-2"
-                      >
-                        <span aria-hidden className="text-2xl leading-none">
-                          {CLIMB_STYLE_SYMBOLS[s]}
-                        </span>
-                        <span className="text-xs font-medium">{STYLE_BTN_LABELS[s]}</span>
-                      </Button>
-                    ))}
+                    {styles.map((s) => {
+                      const Icon = CLIMB_STYLE_ICONS[s]
+                      return (
+                        <Button
+                          key={s}
+                          onClick={() => openNew(s)}
+                          className="flex h-auto flex-col gap-1 py-2.5"
+                        >
+                          <Icon className="size-5" />
+                          <span className="text-xs font-medium">{STYLE_BTN_LABELS[s]}</span>
+                        </Button>
+                      )
+                    })}
                   </div>
                 )}
 
@@ -930,6 +932,7 @@ export default function ClimbingSessionScreen() {
         sessionId={id}
         editing={editing}
         venue={venue ?? 'crag'}
+        cragSession={venue === 'crag'}
         style={newStyle}
         gymName={gymName}
         initialGradeSystem={gradeSystem}

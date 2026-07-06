@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Check } from 'lucide-react'
+import { Check, ChevronDown } from 'lucide-react'
 import { addRoute, updateRoute } from '@/db/helpers'
 import {
   CLIMB_CHARACTERS,
@@ -44,6 +44,9 @@ interface Props {
   sessionId: string
   editing: ClimbingRoute | null
   venue: Venue
+  /** Whether this is genuinely a Crag session (not a venue-less climbing session
+   *  coerced to 'crag'); gates the A64 Sport/Trad toggle. */
+  cragSession?: boolean
   /** Style to log — the sheet opens pre-set to it (Home is always bouldering). */
   style: ClimbingStyle
   /** Gym name, for reading that gym's configured grade range (A22). */
@@ -61,6 +64,7 @@ export function LogRouteSheet({
   sessionId,
   editing,
   venue,
+  cragSession = false,
   style: styleProp,
   gymName,
   initialGradeSystem,
@@ -89,6 +93,9 @@ export function LogRouteSheet({
   const [attempts, setAttempts] = useState('')
   const [height, setHeight] = useState('')
   const [notes, setNotes] = useState('')
+  // Crag lead/top-rope route type (A64) and the collapsible "Felt like" state (A65).
+  const [routeType, setRouteType] = useState<'sport' | 'trad' | undefined>(undefined)
+  const [feltOpen, setFeltOpen] = useState(false)
   // Gym-grade ranges are read fresh (for this gym) each time the sheet opens.
   const [gymRanges, setGymRanges] = useState(() => getGymGradeRanges(gymName ?? ''))
   // Custom gym colours (A43), re-read each time the sheet opens.
@@ -119,6 +126,9 @@ export function LogRouteSheet({
       setAttempts(editing.attempts != null ? String(editing.attempts) : '')
       setHeight(editing.heightMetres != null ? String(editing.heightMetres) : '')
       setNotes(editing.notes ?? '')
+      setRouteType(editing.routeType)
+      // A65 — open "Felt like" when a value already exists, so it's visible (B3).
+      setFeltOpen(editing.feltLikeGrade != null)
     } else {
       // New route: pre-set the chosen style and open in the session's last-used
       // grade system (F20).
@@ -137,11 +147,16 @@ export function LogRouteSheet({
       setAttempts('')
       setHeight('')
       setNotes('')
+      setRouteType(undefined)
+      setFeltOpen(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editing, styleProp, gymName])
 
   const isBoulder = style === 'bouldering'
+  // Sport/Trad applies only to genuine Crag roped climbs (A64); hidden for
+  // venue-less climbing sessions coerced to 'crag', bouldering, gym and board.
+  const showRouteType = cragSession && (style === 'lead' || style === 'top_rope')
   const validTicks = TICK_TYPES[style]
   const tickStyle = useTickDisplayStyle()
   // Onsight / flash imply a single attempt, so the field is locked to 1 (A23).
@@ -235,6 +250,7 @@ export function LogRouteSheet({
       wallAngleDegrees: showDegrees ? degClamped : undefined, // Home −45..90 / Gym 0..90
       routeName: routeName.trim() || undefined,
       colour: isGym ? colour.trim() || undefined : undefined, // colour is Gym-only (A23)
+      routeType: showRouteType ? routeType : undefined, // A64 — Crag roped only
       heightMetres: height.trim() === '' ? undefined : Number(height), // A44
       attempts: attemptsLocked ? 1 : attempts.trim() ? Number(attempts) : undefined,
       notes: notes.trim() || undefined,
@@ -264,6 +280,21 @@ export function LogRouteSheet({
         </SheetHeader>
 
         <div className="flex-1 space-y-5 overflow-y-auto p-4">
+          {/* 0 — Route type (A64) — Crag lead / top rope only; metadata only. */}
+          {showRouteType && (
+            <div className="space-y-2">
+              <Label>Route type</Label>
+              <SegmentedControl<'sport' | 'trad'>
+                options={[
+                  { value: 'sport', label: 'Sport' },
+                  { value: 'trad', label: 'Trad' },
+                ]}
+                value={(routeType ?? '') as 'sport' | 'trad'}
+                onChange={setRouteType}
+              />
+            </div>
+          )}
+
           {/* 1 — Grade (with the Standard / Gym toggle for gyms) */}
           {isGym && (
             <div className="space-y-2">
@@ -289,15 +320,34 @@ export function LogRouteSheet({
             />
           </div>
 
-          {/* 2 — Felt like */}
+          {/* 2 — Felt like (A65) — collapsed by default; the sheet body scrolls,
+              so expanding grows it rather than pushing content off-screen. */}
           <div className="space-y-2">
-            <Label>Felt like</Label>
-            <GradeChips
-              mode={gradeMode}
-              values={chipValues}
-              selected={feltLike}
-              onSelect={(v) => setFeltLike((cur) => (cur === v ? null : v))}
-            />
+            <button
+              type="button"
+              aria-expanded={feltOpen}
+              onClick={() => setFeltOpen((o) => !o)}
+              className="flex w-full items-center justify-between rounded-md py-1 text-left"
+            >
+              <Label className="pointer-events-none">
+                Felt like{feltLike ? ` — ${feltLike}` : ''}
+              </Label>
+              <ChevronDown
+                aria-hidden
+                className={cn(
+                  'size-4 shrink-0 text-muted-foreground transition-transform',
+                  feltOpen && 'rotate-180',
+                )}
+              />
+            </button>
+            {feltOpen && (
+              <GradeChips
+                mode={gradeMode}
+                values={chipValues}
+                selected={feltLike}
+                onSelect={(v) => setFeltLike((cur) => (cur === v ? null : v))}
+              />
+            )}
           </div>
 
           {/* 3 — Colour (Gym only) — sits beneath Felt like. Inline 44px swatch
@@ -378,21 +428,25 @@ export function LogRouteSheet({
           <div className="space-y-2">
             <Label>Character</Label>
             <div className="grid grid-cols-3 gap-2">
-              {CLIMB_CHARACTERS.map((c) => (
-                <button
-                  key={c.value}
-                  type="button"
-                  onClick={() => setClimbCharacter((cur) => (cur === c.value ? undefined : c.value))}
-                  className={cn(
-                    'min-h-10 rounded-lg border text-sm font-medium transition-colors',
-                    climbCharacter === c.value
-                      ? 'border-primary bg-primary/10 text-foreground'
-                      : 'border-border text-muted-foreground',
-                  )}
-                >
-                  {c.label}
-                </button>
-              ))}
+              {CLIMB_CHARACTERS.map((c) => {
+                const Icon = c.icon // A63 — wall-shape icon above the label
+                return (
+                  <button
+                    key={c.value}
+                    type="button"
+                    onClick={() => setClimbCharacter((cur) => (cur === c.value ? undefined : c.value))}
+                    className={cn(
+                      'flex min-h-14 flex-col items-center justify-center gap-1 rounded-lg border text-sm font-medium transition-colors',
+                      climbCharacter === c.value
+                        ? 'border-primary bg-primary/10 text-foreground'
+                        : 'border-border text-muted-foreground',
+                    )}
+                  >
+                    <Icon aria-hidden className={cn('size-4', c.iconClassName)} />
+                    {c.label}
+                  </button>
+                )
+              })}
             </div>
             {showDegrees && (
               <>

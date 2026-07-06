@@ -1,7 +1,7 @@
 import { Pencil, Trash2 } from 'lucide-react'
 import {
   CLIMB_CHARACTER_LABEL,
-  CLIMB_STYLE_SYMBOLS,
+  CLIMB_STYLE_ICONS,
   STYLE_LABELS,
   tickBadgeClass,
   tickLabel,
@@ -27,6 +27,7 @@ interface Props {
 
 export function RouteCard({ route, onClick, onDelete }: Props) {
   const tickSymbol = useTickSymbol(route.tick)
+  const StyleIcon = CLIMB_STYLE_ICONS[route.style] // F40 — Lucide climb-type icon
 
   const grade =
     route.vGrade ??
@@ -84,16 +85,18 @@ export function RouteCard({ route, onClick, onDelete }: Props) {
         {grade}
       </div>
       <div className="min-w-0 flex-1 space-y-1">
-        {/* Row 1 — climb-type symbol · route name · tick · character (F37). */}
+        {/* Row 1 — climb-type icon · route type · route name · tick · character (F37/F40). */}
         <div className="flex flex-wrap items-center gap-1.5">
-          <span
+          <StyleIcon
             role="img"
             aria-label={STYLE_LABELS[route.style]}
-            title={STYLE_LABELS[route.style]}
-            className="text-lg leading-none"
-          >
-            {CLIMB_STYLE_SYMBOLS[route.style]}
-          </span>
+            className="size-4 shrink-0 text-muted-foreground"
+          />
+          {route.routeType && (
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground capitalize">
+              {route.routeType}
+            </span>
+          )}
           {route.routeName && (
             <span className="min-w-0 truncate text-sm font-medium">{route.routeName}</span>
           )}

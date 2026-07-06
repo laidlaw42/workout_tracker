@@ -27,7 +27,7 @@ import { RouteCard } from '@/components/RouteCard'
 import { TagInput } from '@/components/TagInput'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
 import { badgeForSession, deriveSessionKind, normalizeVenue } from '@/lib/badges'
-import { CLIMB_STYLE_SYMBOLS } from '@/lib/climbing'
+import { CLIMB_STYLE_ICONS } from '@/lib/climbing'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -345,6 +345,7 @@ export default function SessionDetailScreen() {
         sessionId={id}
         editing={editingRoute}
         venue={venue ?? 'crag'}
+        cragSession={venue === 'crag'}
         style={newRouteStyle}
         gymName={session.gym}
         onSaved={() => setEditingRoute(null)}
@@ -764,26 +765,28 @@ function ClimbingDetail({
           {editing &&
             (venue === 'board' ? (
               <Button variant="outline" className="w-full" onClick={() => onNewRoute('bouldering')}>
-                <span aria-hidden className="mr-1 text-2xl leading-none">
-                  {CLIMB_STYLE_SYMBOLS.bouldering}
-                </span>
+                {(() => {
+                  const Icon = CLIMB_STYLE_ICONS.bouldering
+                  return <Icon className="size-5" />
+                })()}
                 Boulder
               </Button>
             ) : (
               <div className="grid grid-cols-3 gap-2">
-                {(['bouldering', 'top_rope', 'lead'] as ClimbingStyle[]).map((s) => (
-                  <Button
-                    key={s}
-                    variant="outline"
-                    onClick={() => onNewRoute(s)}
-                    className="flex h-auto flex-col gap-0.5 py-2"
-                  >
-                    <span aria-hidden className="text-2xl leading-none">
-                      {CLIMB_STYLE_SYMBOLS[s]}
-                    </span>
-                    <span className="text-xs font-medium">{DETAIL_STYLE_LABELS[s]}</span>
-                  </Button>
-                ))}
+                {(['bouldering', 'top_rope', 'lead'] as ClimbingStyle[]).map((s) => {
+                  const Icon = CLIMB_STYLE_ICONS[s]
+                  return (
+                    <Button
+                      key={s}
+                      variant="outline"
+                      onClick={() => onNewRoute(s)}
+                      className="flex h-auto flex-col gap-1 py-2.5"
+                    >
+                      <Icon className="size-5" />
+                      <span className="text-xs font-medium">{DETAIL_STYLE_LABELS[s]}</span>
+                    </Button>
+                  )
+                })}
               </div>
             ))}
         </div>

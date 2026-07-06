@@ -229,6 +229,7 @@ export interface ClimbingRoute {
   heightMetres?: number // route height in metres (A44)
   routeName?: string
   colour?: string // gym tape colour
+  routeType?: 'sport' | 'trad' // Crag lead/top-rope metadata only (A64)
   tick: ClimbingTick
   attempts?: number
   falls?: number
