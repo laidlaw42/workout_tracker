@@ -1,4 +1,3 @@
-import { useRef } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { DisciplineBadge } from './DisciplineBadge'
 import { badgeForTemplate } from '@/lib/badges'
@@ -45,41 +44,17 @@ function summarise(t: WorkoutTemplate): string {
 interface Props {
   template: WorkoutTemplate
   onOpen: () => void
-  onDelete: () => void
 }
 
-// Tap opens the template; press-and-hold (500ms) requests delete.
-export function TemplateCard({ template, onOpen, onDelete }: Props) {
-  const longPressed = useRef(false)
-  const timer = useRef<number | undefined>(undefined)
-
-  const start = () => {
-    longPressed.current = false
-    timer.current = window.setTimeout(() => {
-      longPressed.current = true
-      onDelete()
-    }, 500)
-  }
-  const cancel = () => window.clearTimeout(timer.current)
-
+// A77 — tap opens the template. Deletion moved into the edit screen, so there is
+// no longer a press-and-hold-to-delete gesture here (it caused accidental
+// deletions from a misplaced long-press).
+export function TemplateCard({ template, onOpen }: Props) {
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onPointerDown={start}
-      onPointerUp={cancel}
-      onPointerLeave={cancel}
-      onContextMenu={(e) => e.preventDefault()}
-      onClick={() => {
-        if (!longPressed.current) onOpen()
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onOpen()
-        }
-      }}
-      className="flex cursor-pointer items-center gap-3 rounded-xl border border-border bg-card p-3 text-card-foreground transition-colors select-none active:bg-accent"
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-3 text-left text-card-foreground transition-colors active:bg-accent"
     >
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex items-center gap-2">
@@ -92,6 +67,6 @@ export function TemplateCard({ template, onOpen, onDelete }: Props) {
         </div>
       </div>
       <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-    </div>
+    </button>
   )
 }

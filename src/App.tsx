@@ -5,6 +5,7 @@ import { Toaster } from '@/components/ui/sonner'
 import HomeScreen from '@/screens/HomeScreen'
 import LibraryScreen from '@/screens/LibraryScreen'
 import TemplateDetailScreen from '@/screens/TemplateDetailScreen'
+import TemplateCreateScreen from '@/screens/TemplateCreateScreen'
 import TemplateEditScreen from '@/screens/TemplateEditScreen'
 import StrengthSessionScreen from '@/screens/StrengthSessionScreen'
 import CardioSessionScreen from '@/screens/CardioSessionScreen'
@@ -40,6 +41,8 @@ export default function App() {
           <Route path="/home" element={<HomeScreen />} />
           <Route path="/planner" element={<PlannerScreen />} />
           <Route path="/library" element={<LibraryScreen />} />
+          {/* A81 — static /library/new must precede the :id route. */}
+          <Route path="/library/new" element={<TemplateCreateScreen />} />
           <Route path="/library/:id" element={<TemplateDetailScreen />} />
           <Route path="/library/:id/edit" element={<TemplateEditScreen />} />
           <Route path="/session/strength/:id" element={<StrengthSessionScreen />} />

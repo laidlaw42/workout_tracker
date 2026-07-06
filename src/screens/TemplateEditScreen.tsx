@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { GripVertical, Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import {
   DndContext,
   PointerSensor,
@@ -10,19 +10,14 @@ import {
   useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core'
-import {
-  SortableContext,
-  arrayMove,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { useLiveQuery } from '@/hooks/useDb'
 import { deleteTemplate, getTemplate, upsertTemplate } from '@/db/helpers'
 import { generateId } from '@/lib/id'
 import { ExercisePicker } from '@/components/ExercisePicker'
 import { IntervalsEditor } from '@/components/IntervalsEditor'
 import { HangboardSetsEditor } from '@/components/HangboardSetsEditor'
+import { TemplateExerciseRow, type TemplateRow } from '@/components/TemplateExerciseRow'
 import { PageHeader } from '@/components/PageHeader'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { TagInput } from '@/components/TagInput'
@@ -39,15 +34,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import type {
-  CardioActivityType,
-  Exercise,
-  HangboardSet,
-  IntervalBlock,
-  TemplateExercise,
-} from '@/types'
+import type { CardioActivityType, Exercise, HangboardSet, IntervalBlock } from '@/types'
 
-type Row = TemplateExercise & { uid: string }
+type Row = TemplateRow
 
 const ACTIVITIES: { value: CardioActivityType; label: string }[] = [
   { value: 'run', label: 'Run' },
@@ -59,11 +48,8 @@ const ACTIVITIES: { value: CardioActivityType; label: string }[] = [
 export default function TemplateEditScreen() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
-  // New-template mode (A58): LibraryScreen appends ?new=1 when it creates a draft
-  // and opens the editor. Backing out of a brand-new template prompts to discard
-  // and removes the empty draft, rather than leaving a "New workout" behind.
-  const [searchParams] = useSearchParams()
-  const isNew = searchParams.get('new') === '1'
+  // A81 — new workouts are built in the dedicated creation view (TemplateCreate);
+  // this screen only edits existing templates now.
   const template = useLiveQuery(() => getTemplate(id).then((t) => t ?? null), [id])
 
   const [name, setName] = useState('')
@@ -78,6 +64,7 @@ export default function TemplateEditScreen() {
   const [dirty, setDirty] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   // Initialise the editable draft once, when the template first loads.
   useEffect(() => {
@@ -202,25 +189,25 @@ export default function TemplateEditScreen() {
   }
 
   function cancel() {
-    // New template: always confirm (the draft is discarded on confirm). Existing
-    // template: only confirm when there are unsaved edits (item 5 behaviour).
-    if (isNew || dirty) setConfirmCancel(true)
+    // Only confirm when there are unsaved edits (A58 item 5 behaviour).
+    if (dirty) setConfirmCancel(true)
     else navigate(`/library/${id}`)
   }
 
-  async function discard() {
+  function discard() {
     setConfirmCancel(false)
-    if (isNew) {
-      // The draft was persisted when creation started; remove it so an abandoned
-      // new workout doesn't linger in the library, then return to the list.
-      try {
-        await deleteTemplate(id)
-      } catch {
-        /* fall through — navigate away regardless */
-      }
+    navigate(`/library/${id}`)
+  }
+
+  async function doDelete() {
+    // A77 — deletion lives here now. Removing the template never touches logged
+    // sessions (they keep their own copy of the workout).
+    try {
+      await deleteTemplate(id)
+      toast.success('Workout deleted')
       navigate('/library')
-    } else {
-      navigate(`/library/${id}`)
+    } catch {
+      toast.error('Could not delete workout')
     }
   }
 
@@ -278,7 +265,7 @@ export default function TemplateEditScreen() {
               >
                 <div className="space-y-2">
                   {rows.map((row) => (
-                    <SortableRow
+                    <TemplateExerciseRow
                       key={row.uid}
                       row={row}
                       onChange={(patch) => patchRow(row.uid, patch)}
@@ -379,6 +366,17 @@ export default function TemplateEditScreen() {
             />
           </div>
         )}
+
+        {/* A77 — deletion lives at the bottom of the edit screen, reached only
+            after deliberately entering edit mode. */}
+        <Button
+          variant="ghost"
+          className="w-full text-destructive"
+          onClick={() => setConfirmDelete(true)}
+          disabled={!inited}
+        >
+          <Trash2 className="size-4" /> Delete workout
+        </Button>
       </div>
 
       <ExercisePicker
@@ -402,10 +400,8 @@ export default function TemplateEditScreen() {
       <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{isNew ? 'Discard this workout?' : 'Discard changes?'}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {isNew ? 'Your changes will not be saved.' : 'Your edits will be lost.'}
-            </AlertDialogDescription>
+            <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+            <AlertDialogDescription>Your edits will be lost.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep editing</AlertDialogCancel>
@@ -413,87 +409,22 @@ export default function TemplateEditScreen() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this workout?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your session history will not be affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={doDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
 
-interface RowProps {
-  row: Row
-  onChange: (patch: Partial<Row>) => void
-  onRemove: () => void
-}
-
-function SortableRow({ row, onChange, onRemove }: RowProps) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: row.uid,
-  })
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`space-y-2 rounded-xl border border-border bg-card p-3 ${isDragging ? 'opacity-60' : ''}`}
-    >
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          className="flex size-8 shrink-0 touch-none items-center justify-center rounded-md text-muted-foreground"
-          aria-label="Drag to reorder"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="size-5" />
-        </button>
-        <span className="flex-1 truncate font-medium">{row.exerciseName}</span>
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label="Remove exercise"
-          className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors active:bg-accent"
-        >
-          <Trash2 className="size-4" />
-        </button>
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        <NumField
-          label="Sets"
-          value={row.defaultSets}
-          onChange={(v) => onChange({ defaultSets: v ?? 0 })}
-        />
-        <NumField
-          label="Reps"
-          value={row.defaultReps}
-          onChange={(v) => onChange({ defaultReps: v })}
-        />
-        <NumField
-          label="Rest (s)"
-          value={row.defaultRestSeconds}
-          onChange={(v) => onChange({ defaultRestSeconds: v ?? 0 })}
-        />
-      </div>
-    </div>
-  )
-}
-
-interface NumFieldProps {
-  label: string
-  value: number | undefined
-  onChange: (value: number | undefined) => void
-}
-
-function NumField({ label, value, onChange }: NumFieldProps) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <Input
-        inputMode="numeric"
-        className="h-9"
-        value={value ?? ''}
-        onChange={(e) => {
-          const digits = e.target.value.replace(/[^0-9]/g, '')
-          onChange(digits === '' ? undefined : Number(digits))
-        }}
-      />
-    </label>
-  )
-}

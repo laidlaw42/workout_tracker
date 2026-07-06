@@ -20,6 +20,7 @@ import type {
   CardioActivityType,
   ClimbingRoute,
   ClimbingStyle,
+  ExerciseCategory,
   WorkoutSession,
   WorkoutTemplate,
 } from '@/types'
@@ -91,6 +92,25 @@ export const CLIMB_WORKOUT_BADGE: Badge = CLIMB_WORKOUT(TONE.climbing)
 function cardioBadge(activity: CardioActivityType = 'other'): Badge {
   const c = CARDIO[activity]
   return { Icon: c.Icon, label: c.label, classes: TONE.cardio }
+}
+
+// Badge for an exercise's category (A76) — shown on library/picker rows so a
+// discipline reads at a glance. Colours match the app: strength red, cardio
+// coral, climbing/hangboard green (distinguished by icon — Mountain vs Hand),
+// rehab sky.
+export function badgeForCategory(category: ExerciseCategory): Badge {
+  switch (category) {
+    case 'strength':
+      return STRENGTH
+    case 'cardio':
+      return cardioBadge()
+    case 'climbing':
+      return { Icon: Mountain, label: 'Climbing', classes: TONE.climbing }
+    case 'rehab':
+      return REHAB_BADGE
+    case 'hangboard':
+      return HANGBOARD(TONE.climbing)
+  }
 }
 
 export function badgeForTemplate(t: WorkoutTemplate): Badge {

@@ -13,6 +13,8 @@ import {
 import { ExerciseFormSheet } from '@/components/ExerciseFormSheet'
 import { EmptyState } from '@/components/EmptyState'
 import { SegmentedControl } from '@/components/SegmentedControl'
+import { DisciplineBadge } from '@/components/DisciplineBadge'
+import { badgeForCategory } from '@/lib/badges'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -34,13 +36,14 @@ const TRACKING_LABEL: Record<TrackingType, string> = {
 // exercise categories). Filtering is a straight match on `ex.category`.
 type CatFilter = 'all' | ExerciseCategory
 
+// A79 — fixed order: All, Strength, Cardio, Hangboard, Climbing, Rehab.
 const CATEGORY_OPTIONS: { value: CatFilter; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'strength', label: 'Strength' },
   { value: 'cardio', label: 'Cardio' },
+  { value: 'hangboard', label: 'Hangboard' },
   { value: 'climbing', label: 'Climbing' },
   { value: 'rehab', label: 'Rehab' },
-  { value: 'hangboard', label: 'Hangboard' },
 ]
 
 export function ExerciseLibrary() {
@@ -180,7 +183,11 @@ export function ExerciseLibrary() {
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="truncate font-medium">{ex.name}</span>
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                    <DisciplineBadge
+                      badge={badgeForCategory(ex.category)}
+                      className="shrink-0"
+                    />
+                    <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                       {TRACKING_LABEL[ex.trackingType]}
                     </span>
                   </div>

@@ -1,17 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { toast } from 'sonner'
 import { Dumbbell, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useTagColours } from '@/hooks/useTagColours'
-import {
-  deleteTemplate,
-  getDefaultTags,
-  getHangboardTemplates,
-  getRehabTemplates,
-  getTemplatesByType,
-  upsertTemplate,
-} from '@/db/helpers'
+import { getHangboardTemplates, getRehabTemplates, getTemplatesByType } from '@/db/helpers'
 import { CLIMB_WORKOUT_BADGE, HANGBOARD_BADGE, REHAB_BADGE } from '@/lib/badges'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
@@ -20,40 +12,22 @@ import { ExerciseLibrary } from '@/components/ExerciseLibrary'
 import { EmptyState } from '@/components/EmptyState'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import type { DisciplineType, WorkoutTemplate } from '@/types'
+import type { DisciplineType } from '@/types'
 
 // Content-based filters (A73/A74): rehab and hangboard aren't template `type`s —
 // they filter by the categories of the exercises / hang rows a template contains.
 type Filter = 'all' | DisciplineType | 'rehab' | 'hangboard'
-type NewKind = 'strength' | 'cardio'
 
+// A79 — fixed category order everywhere: All, Strength, Cardio, Hangboard,
+// Climbing, Rehab. Never reordered by content/alphabet.
 const OPTIONS: { value: Filter; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'strength', label: 'Strength' },
   { value: 'cardio', label: 'Cardio' },
+  { value: 'hangboard', label: 'Hangboard' },
   { value: 'climbing', label: 'Climbing' },
   { value: 'rehab', label: 'Rehab' },
-  { value: 'hangboard', label: 'Hangboard' },
 ]
 
 export default function LibraryScreen() {
@@ -71,10 +45,6 @@ export default function LibraryScreen() {
   )
   const [view, setView] = useState<'workouts' | 'exercises'>('workouts')
   const [activeTag, setActiveTag] = useState<string | null>(null)
-  const [toDelete, setToDelete] = useState<WorkoutTemplate | null>(null)
-  const [newOpen, setNewOpen] = useState(false)
-  const [newName, setNewName] = useState('')
-  const [newType, setNewType] = useState<NewKind>('strength')
 
   const templates = useLiveQuery(
     () =>
@@ -95,61 +65,9 @@ export default function LibraryScreen() {
   const filteredTemplates =
     activeTag && templates ? templates.filter((t) => t.tags.includes(activeTag)) : templates
 
-  async function createTemplate() {
-    const name = newName.trim() || 'New workout'
-    // Pre-apply the user's default tags (A35); they can edit them on the next screen.
-    const tags = await getDefaultTags()
-    const draft =
-      newType === 'cardio'
-        ? { name, type: 'cardio' as const, tags, exercises: [], cardioActivity: 'run' as const }
-        : { name, type: 'strength' as const, tags, exercises: [] }
-    try {
-      const id = await upsertTemplate(draft)
-      setNewOpen(false)
-      setNewName('')
-      // ?new=1 marks new-template mode so backing out prompts to discard (A58).
-      navigate(`/library/${id}/edit?new=1`)
-    } catch {
-      toast.error('Could not create template')
-    }
-  }
-
-  // A73: new templates are strength or cardio. Hangboard/climbing-strength are
-  // built by logging a training session (with hangboard exercises) and saving it
-  // as a template.
-  const newTypeOptions: { value: NewKind; label: string }[] = [
-    { value: 'strength', label: 'Strength' },
-    { value: 'cardio', label: 'Cardio' },
-  ]
-
-  function openNew() {
-    setNewName('')
-    setNewType('strength')
-    setNewOpen(true)
-  }
-
-  async function confirmDelete() {
-    if (!toDelete) return
-    try {
-      await deleteTemplate(toDelete.id)
-      toast.success(`Deleted "${toDelete.name}"`)
-    } catch {
-      toast.error('Could not delete template')
-    } finally {
-      setToDelete(null)
-    }
-  }
-
   return (
     <div className="space-y-4 p-4 pt-[calc(env(safe-area-inset-top)+1rem)]">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Library</h1>
-        {view === 'workouts' && (
-          <Button size="sm" onClick={openNew}>
-            <Plus className="size-4" /> New
-          </Button>
-        )}
-      </div>
+      <h1 className="text-2xl font-bold">Library</h1>
 
       <SegmentedControl
         options={[
@@ -164,6 +82,12 @@ export default function LibraryScreen() {
         <ExerciseLibrary />
       ) : (
         <>
+          {/* A80 — same add affordance as the Exercises tab's "Add exercise".
+              A81 — goes straight to the in-memory creation view (no dialog). */}
+          <Button variant="outline" className="w-full" onClick={() => navigate('/library/new')}>
+            <Plus className="size-4" /> New workout
+          </Button>
+
           <SegmentedControl
             options={OPTIONS}
             value={filter}
@@ -232,7 +156,7 @@ export default function LibraryScreen() {
                     ? 'Start Gym, Crag or Board sessions from the Home screen.'
                     : filter === 'hangboard'
                       ? 'Log a session with hangboard exercises, then save it as a template.'
-                      : 'Tap New to create a workout routine.'
+                      : 'Tap “New workout” to create one.'
               }
             />
           ) : (
@@ -242,61 +166,12 @@ export default function LibraryScreen() {
                   key={t.id}
                   template={t}
                   onOpen={() => navigate(`/library/${t.id}`)}
-                  onDelete={() => setToDelete(t)}
                 />
               ))}
             </div>
           )}
-
-          <p className="px-1 text-center text-xs text-muted-foreground">
-            Tip: press and hold a workout to delete it.
-          </p>
         </>
       )}
-
-      <Dialog open={newOpen} onOpenChange={setNewOpen}>
-        <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>
-          <DialogHeader>
-            <DialogTitle>New workout</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="new-name">Name</Label>
-              <Input
-                id="new-name"
-                value={newName}
-                placeholder="e.g. Upper B"
-                onChange={(e) => setNewName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Type</Label>
-              <SegmentedControl options={newTypeOptions} value={newType} onChange={setNewType} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setNewOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={createTemplate}>Create</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={toDelete !== null} onOpenChange={(o) => !o && setToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete “{toDelete?.name}”?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This removes the template. Logged workouts from it are kept.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }

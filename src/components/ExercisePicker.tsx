@@ -4,6 +4,8 @@ import { Check, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { getAllExercises, upsertExercise } from '@/db/helpers'
 import { SegmentedControl } from '@/components/SegmentedControl'
+import { DisciplineBadge } from '@/components/DisciplineBadge'
+import { badgeForCategory } from '@/lib/badges'
 import { DEFAULT_HANG, HangConfigFields } from '@/components/HangConfigFields'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -48,8 +50,10 @@ const CREATE_CATEGORIES: { value: ExerciseCategory; label: string }[] = [
   { value: 'hangboard', label: 'Hangboard' },
 ]
 
-// Grouping order + labels for the universal picker (A66, A73).
-const GROUP_ORDER: ExerciseCategory[] = ['strength', 'hangboard', 'climbing', 'rehab', 'cardio']
+// Grouping order + labels for the universal picker (A66, A73). A79 fixes the
+// order everywhere: Strength, Cardio, Hangboard, Climbing, Rehab (All prepended
+// for the tab row).
+const GROUP_ORDER: ExerciseCategory[] = ['strength', 'cardio', 'hangboard', 'climbing', 'rehab']
 const CATEGORY_LABEL: Record<ExerciseCategory, string> = {
   strength: 'Strength',
   hangboard: 'Hangboard',
@@ -181,7 +185,10 @@ export function ExercisePicker({
           </span>
         )}
         <span className="min-w-0 flex-1">
-          <span className="block font-medium">{e.name}</span>
+          <span className="flex items-center gap-2">
+            <span className="truncate font-medium">{e.name}</span>
+            <DisciplineBadge badge={badgeForCategory(e.category)} className="shrink-0" />
+          </span>
           {e.muscleGroups.length > 0 && (
             <span className="block text-xs text-muted-foreground">{e.muscleGroups.join(', ')}</span>
           )}

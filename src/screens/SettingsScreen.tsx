@@ -793,6 +793,7 @@ function GymEditSheet({
   const [ranges, setRanges] = useState<GymGradeRanges>(() => getGymGradeRanges(''))
   const [areas, setAreas] = useState<string[]>([]) // A69
   const [newArea, setNewArea] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   useEffect(() => {
     if (gym == null) return
@@ -800,6 +801,7 @@ function GymEditSheet({
     setRanges(getGymGradeRanges(gym))
     setAreas(getGymAreas(gym))
     setNewArea('')
+    setConfirmDelete(false)
   }, [gym])
 
   // Areas persist immediately (keyed by the original gym name); a rename on Save
@@ -831,6 +833,7 @@ function GymEditSheet({
   function remove() {
     if (gym == null) return
     deleteGym(gym)
+    setConfirmDelete(false)
     onChanged()
     onClose()
   }
@@ -886,7 +889,11 @@ function GymEditSheet({
             ))}
           </div>
 
-          <Button variant="outline" className="w-full justify-start text-destructive" onClick={remove}>
+          <Button
+            variant="outline"
+            className="w-full justify-start text-destructive"
+            onClick={() => setConfirmDelete(true)}
+          >
             <Trash2 className="size-4" /> Delete gym
           </Button>
         </div>
@@ -896,6 +903,24 @@ function GymEditSheet({
           </Button>
         </div>
       </SheetContent>
+
+      {/* F42 — deleting a saved gym only clears its saved-list entry and local
+          config; sessions/routes recorded there keep their gym name. */}
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete “{gym}”?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes {gym} from your saved list. Your climb history at this location will not
+              be affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={remove}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Sheet>
   )
 }
