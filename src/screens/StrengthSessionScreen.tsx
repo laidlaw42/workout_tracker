@@ -818,7 +818,6 @@ export default function StrengthSessionScreen() {
       <ExercisePicker
         open={pickerOpen}
         onOpenChange={setPickerOpen}
-        grouped={buildYourOwn}
         categories={buildYourOwn ? undefined : ['strength', 'rehab']}
         onSelect={(exs) => exs[0] && swapCurrent(exs[0])}
       />
@@ -826,7 +825,6 @@ export default function StrengthSessionScreen() {
         open={addPickerOpen}
         onOpenChange={setAddPickerOpen}
         multiple
-        grouped={buildYourOwn}
         categories={buildYourOwn ? undefined : ['strength', 'rehab', 'hangboard']}
         onSelect={appendExercises}
       />

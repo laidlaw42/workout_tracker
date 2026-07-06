@@ -1,5 +1,6 @@
 // Small UI preferences kept in localStorage.
 import { CLIMB_STYLE_TAGS, climbStyleLabel } from './climbing'
+import type { ClimbCharacter } from '@/types'
 
 // Generic on/off pref defaulting to ON (only an explicit '0' disables it).
 function getBool(key: string): boolean {
@@ -286,93 +287,109 @@ export function setGymGradeRanges(gym: string, ranges: GymGradeRanges): void {
   writeAllGymGradeRanges(all)
 }
 
-// Per-gym grade-system preference (F20): remembers whether a gym was last logged
-// in standard or gym grades, keyed by gym name, so a new session at that gym
-// opens in the same mode. Absent → standard.
-export type GradeSystem = 'standard' | 'gym'
+// --- Gym areas / sections (A69, A83) ---------------------------------------
+// Per-gym named areas (e.g. "Cave", "Slab wall"), keyed by gym name. Each area
+// may carry a default height (m) and wall character (A83), pre-filled in the log
+// sheet when the area is selected. Legacy entries were bare name strings.
 
-function getAllGymGradePrefs(): Record<string, GradeSystem> {
-  try {
-    const p = JSON.parse(localStorage.getItem('gym_grade_preference') ?? '{}')
-    return p && typeof p === 'object' ? (p as Record<string, GradeSystem>) : {}
-  } catch {
-    return {}
+export interface GymArea {
+  name: string
+  defaultHeightMetres?: number
+  defaultCharacter?: ClimbCharacter
+}
+
+function toGymArea(a: unknown): GymArea | null {
+  if (typeof a === 'string') return a.trim() ? { name: a } : null
+  if (a && typeof a === 'object') {
+    const o = a as Partial<GymArea>
+    if (typeof o.name === 'string' && o.name.trim()) {
+      return {
+        name: o.name,
+        defaultHeightMetres:
+          typeof o.defaultHeightMetres === 'number' ? o.defaultHeightMetres : undefined,
+        defaultCharacter: o.defaultCharacter,
+      }
+    }
   }
-}
-function writeAllGymGradePrefs(all: Record<string, GradeSystem>): void {
-  try {
-    localStorage.setItem('gym_grade_preference', JSON.stringify(all))
-  } catch {
-    /* ignore */
-  }
-}
-export function getGymGradePreference(gym: string): GradeSystem | undefined {
-  const v = getAllGymGradePrefs()[gym]
-  return v === 'gym' || v === 'standard' ? v : undefined
-}
-export function setGymGradePreference(gym: string, mode: GradeSystem): void {
-  if (!gym) return
-  const all = getAllGymGradePrefs()
-  all[gym] = mode
-  writeAllGymGradePrefs(all)
+  return null
 }
 
-// --- Gym areas / sections (A69) --------------------------------------------
-// Per-gym named areas (e.g. "Cave", "Slab wall"), keyed by gym name.
-
-function getAllGymAreas(): Record<string, string[]> {
+function getAllGymAreas(): Record<string, GymArea[]> {
   try {
     const p = JSON.parse(localStorage.getItem('gym_areas') ?? '{}')
-    return p && typeof p === 'object' ? (p as Record<string, string[]>) : {}
+    if (!p || typeof p !== 'object') return {}
+    const out: Record<string, GymArea[]> = {}
+    for (const [gym, list] of Object.entries(p)) {
+      if (Array.isArray(list)) out[gym] = list.map(toGymArea).filter((x): x is GymArea => x != null)
+    }
+    return out
   } catch {
     return {}
   }
 }
-function writeAllGymAreas(all: Record<string, string[]>): void {
+function writeAllGymAreas(all: Record<string, GymArea[]>): void {
   try {
     localStorage.setItem('gym_areas', JSON.stringify(all))
   } catch {
     /* ignore */
   }
 }
-export function getGymAreas(gym: string): string[] {
-  const a = getAllGymAreas()[gym]
-  return Array.isArray(a) ? a.filter((x): x is string => typeof x === 'string') : []
+// Full area objects for a gym (Settings editor + log-sheet defaults).
+export function getGymAreaList(gym: string): GymArea[] {
+  return getAllGymAreas()[gym] ?? []
 }
-function setGymAreas(gym: string, areas: string[]): void {
+// Area names only — backward-compatible for the log-sheet pills + area filter.
+export function getGymAreas(gym: string): string[] {
+  return getGymAreaList(gym).map((a) => a.name)
+}
+// One area's config by name (A83 — its defaults pre-fill the log sheet).
+export function getGymArea(gym: string, name: string): GymArea | undefined {
+  return getGymAreaList(gym).find((a) => a.name.toLowerCase() === name.toLowerCase())
+}
+function setGymAreaList(gym: string, areas: GymArea[]): void {
   const all = getAllGymAreas()
-  const clean = areas.map((s) => s.trim()).filter(Boolean)
+  const clean = areas.filter((a) => a.name.trim())
   if (clean.length) all[gym] = clean
   else delete all[gym]
   writeAllGymAreas(all)
 }
-export function addGymArea(gym: string, name: string): string[] {
+export function addGymArea(gym: string, name: string): GymArea[] {
   const n = name.trim()
-  if (!n) return getGymAreas(gym)
-  const cur = getGymAreas(gym)
-  if (cur.some((x) => x.toLowerCase() === n.toLowerCase())) return cur
-  const next = [...cur, n]
-  setGymAreas(gym, next)
+  if (!n) return getGymAreaList(gym)
+  const cur = getGymAreaList(gym)
+  if (cur.some((x) => x.name.toLowerCase() === n.toLowerCase())) return cur
+  const next = [...cur, { name: n }]
+  setGymAreaList(gym, next)
   return next
 }
-export function removeGymArea(gym: string, name: string): string[] {
-  const next = getGymAreas(gym).filter((x) => x !== name)
-  setGymAreas(gym, next)
+export function removeGymArea(gym: string, name: string): GymArea[] {
+  const next = getGymAreaList(gym).filter((x) => x.name !== name)
+  setGymAreaList(gym, next)
   return next
 }
-export function renameGymArea(gym: string, oldName: string, newName: string): string[] {
+export function renameGymArea(gym: string, oldName: string, newName: string): GymArea[] {
   const n = newName.trim()
-  if (!n) return getGymAreas(gym)
+  if (!n) return getGymAreaList(gym)
   const seen = new Set<string>()
-  const next = getGymAreas(gym)
-    .map((x) => (x === oldName ? n : x))
+  const next = getGymAreaList(gym)
+    .map((x) => (x.name === oldName ? { ...x, name: n } : x))
     .filter((x) => {
-      const k = x.toLowerCase()
+      const k = x.name.toLowerCase()
       if (seen.has(k)) return false
       seen.add(k)
       return true
     })
-  setGymAreas(gym, next)
+  setGymAreaList(gym, next)
+  return next
+}
+// Set an area's default height / character (A83). Pass undefined to clear one.
+export function updateGymAreaDefaults(
+  gym: string,
+  name: string,
+  patch: { defaultHeightMetres?: number; defaultCharacter?: ClimbCharacter },
+): GymArea[] {
+  const next = getGymAreaList(gym).map((a) => (a.name === name ? { ...a, ...patch } : a))
+  setGymAreaList(gym, next)
   return next
 }
 
@@ -427,11 +444,6 @@ export function deleteGym(name: string): string[] {
     delete all[name]
     writeAllGymGradeRanges(all)
   }
-  const prefs = getAllGymGradePrefs()
-  if (name in prefs) {
-    delete prefs[name]
-    writeAllGymGradePrefs(prefs)
-  }
   // A deleted gym can't stay the default (A51).
   if (getDefaultLocation('gym').toLowerCase() === name.toLowerCase()) clearDefaultLocation('gym')
   return removeSavedLocation('gym', name)
@@ -446,12 +458,6 @@ export function renameGym(oldName: string, newName: string): string[] {
     if (!(n in all)) all[n] = all[oldName]
     delete all[oldName]
     writeAllGymGradeRanges(all)
-  }
-  const prefs = getAllGymGradePrefs()
-  if (prefs[oldName]) {
-    if (!(n in prefs)) prefs[n] = prefs[oldName]
-    delete prefs[oldName]
-    writeAllGymGradePrefs(prefs)
   }
   const areas = getAllGymAreas()
   if (areas[oldName]) {

@@ -417,7 +417,6 @@ export default function SessionDetailScreen() {
         open={pickerOpen}
         onOpenChange={setPickerOpen}
         multiple
-        grouped={session.type === 'mixed'}
         categories={
           session.type === 'mixed'
             ? undefined

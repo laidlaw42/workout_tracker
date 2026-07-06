@@ -292,7 +292,6 @@ export default function TemplateCreateScreen() {
         open={pickerOpen}
         onOpenChange={setPickerOpen}
         multiple
-        grouped
         onSelect={addExercises}
       />
 

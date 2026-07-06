@@ -3,10 +3,13 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Dumbbell, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useTagColours } from '@/hooks/useTagColours'
-import { getHangboardTemplates, getRehabTemplates, getTemplatesByType } from '@/db/helpers'
-import { CLIMB_WORKOUT_BADGE, HANGBOARD_BADGE, REHAB_BADGE } from '@/lib/badges'
+import {
+  getClimbingTemplates,
+  getHangboardTemplates,
+  getRehabTemplates,
+  getTemplatesByType,
+} from '@/db/helpers'
 import { SegmentedControl } from '@/components/SegmentedControl'
-import { DisciplineBadge } from '@/components/DisciplineBadge'
 import { TemplateCard } from '@/components/TemplateCard'
 import { ExerciseLibrary } from '@/components/ExerciseLibrary'
 import { EmptyState } from '@/components/EmptyState'
@@ -15,12 +18,13 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { DisciplineType } from '@/types'
 
-// Content-based filters (A73/A74): rehab and hangboard aren't template `type`s —
-// they filter by the categories of the exercises / hang rows a template contains.
+// Content-based filters (A73/A74/A86): rehab, hangboard and climbing aren't
+// template `type`s — they filter by the categories of the exercises / hang rows a
+// template contains. Mixed (A86) is the `type: 'mixed'` view.
 type Filter = 'all' | DisciplineType | 'rehab' | 'hangboard'
 
-// A79 — fixed category order everywhere: All, Strength, Cardio, Hangboard,
-// Climbing, Rehab. Never reordered by content/alphabet.
+// A79/A86 — fixed workout-tab order: All, Strength, Cardio, Hangboard, Climbing,
+// Rehab, Mixed. Never reordered by content/alphabet.
 const OPTIONS: { value: Filter; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'strength', label: 'Strength' },
@@ -28,6 +32,7 @@ const OPTIONS: { value: Filter; label: string }[] = [
   { value: 'hangboard', label: 'Hangboard' },
   { value: 'climbing', label: 'Climbing' },
   { value: 'rehab', label: 'Rehab' },
+  { value: 'mixed', label: 'Mixed' },
 ]
 
 export default function LibraryScreen() {
@@ -39,7 +44,8 @@ export default function LibraryScreen() {
       initial === 'cardio' ||
       initial === 'climbing' ||
       initial === 'rehab' ||
-      initial === 'hangboard'
+      initial === 'hangboard' ||
+      initial === 'mixed'
       ? initial
       : 'all',
   )
@@ -52,7 +58,9 @@ export default function LibraryScreen() {
         ? getRehabTemplates()
         : filter === 'hangboard'
           ? getHangboardTemplates()
-          : getTemplatesByType(filter === 'all' ? undefined : filter),
+          : filter === 'climbing'
+            ? getClimbingTemplates()
+            : getTemplatesByType(filter === 'all' ? undefined : filter),
     [filter],
   )
   const tagColour = useTagColours()
@@ -97,27 +105,6 @@ export default function LibraryScreen() {
             }}
           />
 
-          {filter === 'climbing' && (
-            <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
-              <DisciplineBadge badge={CLIMB_WORKOUT_BADGE} />
-              <span>Start Gym, Crag or Board sessions from the Home screen.</span>
-            </div>
-          )}
-
-          {filter === 'rehab' && (
-            <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
-              <DisciplineBadge badge={REHAB_BADGE} />
-              <span>Workouts that include rehab exercises.</span>
-            </div>
-          )}
-
-          {filter === 'hangboard' && (
-            <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground">
-              <DisciplineBadge badge={HANGBOARD_BADGE} />
-              <span>Training workouts with hangboard exercises.</span>
-            </div>
-          )}
-
           {allTags.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {allTags.map((tag) => (
@@ -152,11 +139,15 @@ export default function LibraryScreen() {
               subtitle={
                 activeTag
                   ? `No workouts tagged #${activeTag}.`
-                  : filter === 'climbing'
-                    ? 'Start Gym, Crag or Board sessions from the Home screen.'
-                    : filter === 'hangboard'
-                      ? 'Log a session with hangboard exercises, then save it as a template.'
-                      : 'Tap “New workout” to create one.'
+                  : filter === 'hangboard'
+                    ? 'No hangboard templates yet.'
+                    : filter === 'climbing'
+                      ? 'No climbing workouts yet.'
+                      : filter === 'rehab'
+                        ? 'No rehab workouts yet.'
+                        : filter === 'mixed'
+                          ? 'No mixed workouts yet.'
+                          : 'Tap “New workout” to create one.'
               }
             />
           ) : (

@@ -14,6 +14,7 @@ import {
 import { contrastText, gradeToColor, vGradeToColor } from '@/lib/gradeColors'
 import {
   getCustomClimbStyles,
+  getGymArea,
   getGymAreas,
   getGymGradeRanges,
   type GradeRange,
@@ -56,12 +57,9 @@ interface Props {
   cragSession?: boolean
   /** Style to log — the sheet opens pre-set to it (Home is always bouldering). */
   style: ClimbingStyle
-  /** Gym name, for reading that gym's configured grade range (A22). */
+  /** Gym name, for reading that gym's configured grade range (A22) and area
+   *  defaults (A83). */
   gymName?: string
-  /** Grade system to open a new gym route in — the session's last-used mode (F20). */
-  initialGradeSystem?: 'standard' | 'gym'
-  /** Called when the user switches grade system, so the session can remember it (F20). */
-  onGradeSystemChange?: (mode: 'standard' | 'gym') => void
   onSaved: () => void
 }
 
@@ -74,8 +72,6 @@ export function LogRouteSheet({
   cragSession = false,
   style: styleProp,
   gymName,
-  initialGradeSystem,
-  onGradeSystemChange,
   onSaved,
 }: Props) {
   const isBoard = venue === 'board'
@@ -114,9 +110,6 @@ export function LogRouteSheet({
   const [customStyles, setCustomStyles] = useState<string[]>(() => getCustomClimbStyles())
 
   // Initialise each time the sheet opens (fresh for new, populated for edit).
-  // `initialGradeSystem` is read here but intentionally NOT a dependency: it
-  // seeds the mode on open only. Were it a dep, the parent mirroring a mid-sheet
-  // toggle back down would re-run this reset and wipe the in-progress entry.
   useEffect(() => {
     if (!open) return
     setGymRanges(getGymGradeRanges(gymName ?? ''))
@@ -148,10 +141,10 @@ export function LogRouteSheet({
       // A65 — open "Felt like" when a value already exists, so it's visible (B3).
       setFeltOpen(editing.feltLikeGrade != null)
     } else {
-      // New route: pre-set the chosen style and open in the session's last-used
-      // grade system (F20).
+      // New route: pre-set the chosen style. A84 — gym sessions always open in
+      // gym grades (the toggle stays available); everything else is standard.
       setStyle(styleProp)
-      setGradeSystem(initialGradeSystem ?? 'standard')
+      setGradeSystem(isGym ? 'gym' : 'standard')
       setVGrade(null)
       setEwbanks(null)
       setGymGrade(null)
@@ -254,7 +247,16 @@ export function LogRouteSheet({
     setEwbanks(null)
     setGymGrade(null)
     setFeltLike(null)
-    onGradeSystemChange?.(next) // remember the session's grade mode (F20)
+  }
+
+  // A83 — selecting a saved area pre-fills height/character from its defaults (if
+  // configured); the user can still override. Unset defaults leave fields as-is.
+  function selectArea(name: string) {
+    setAreaOther(false)
+    setGymArea(name)
+    const cfg = getGymArea(gymName ?? '', name)
+    if (cfg?.defaultHeightMetres != null) setHeight(String(cfg.defaultHeightMetres))
+    if (cfg?.defaultCharacter != null) setClimbCharacter(cfg.defaultCharacter)
   }
 
   const canSave = tick !== null && primarySelected !== null
@@ -311,6 +313,49 @@ export function LogRouteSheet({
         </SheetHeader>
 
         <div className="flex-1 space-y-5 overflow-y-auto p-4">
+          {/* Area (A69) — Gym only, and the first field (A84) so picking it can
+              pre-fill height/character defaults (A83) before anything else.
+              Single-select pills (+ None / freetext Other) rather than a Radix
+              Select, to avoid the nested popover/Sheet issues that drove F28. */}
+          {isGym && (
+            <div className="space-y-1.5">
+              <Label>Area{gymArea ? ` — ${gymArea}` : ''}</Label>
+              <div className="flex flex-wrap gap-2">
+                <SelectPill
+                  label="None"
+                  active={!areaOther && !gymArea}
+                  onClick={() => {
+                    setAreaOther(false)
+                    setGymArea('')
+                  }}
+                />
+                {areas.map((a) => (
+                  <SelectPill
+                    key={a}
+                    label={a}
+                    active={!areaOther && gymArea === a}
+                    onClick={() => selectArea(a)}
+                  />
+                ))}
+                <SelectPill
+                  label="Other"
+                  active={areaOther}
+                  onClick={() => {
+                    setAreaOther(true)
+                    setGymArea('')
+                  }}
+                />
+              </div>
+              {areaOther && (
+                <Input
+                  value={gymArea}
+                  placeholder="Area name"
+                  onChange={(e) => setGymArea(e.target.value)}
+                />
+              )}
+            </div>
+          )}
+
           {/* 0 — Route type (A64) — Crag lead / top rope only; metadata only. */}
           {showRouteType && (
             <div className="space-y-2">
@@ -380,51 +425,6 @@ export function LogRouteSheet({
               />
             )}
           </div>
-
-          {/* Area (A69) — Gym only, above the colour selector. Rendered as
-              single-select pills (+ None / freetext Other) rather than a Radix
-              Select, to avoid the nested popover/Sheet issues that drove F28. */}
-          {isGym && (
-            <div className="space-y-1.5">
-              <Label>Area{gymArea ? ` — ${gymArea}` : ''}</Label>
-              <div className="flex flex-wrap gap-2">
-                <SelectPill
-                  label="None"
-                  active={!areaOther && !gymArea}
-                  onClick={() => {
-                    setAreaOther(false)
-                    setGymArea('')
-                  }}
-                />
-                {areas.map((a) => (
-                  <SelectPill
-                    key={a}
-                    label={a}
-                    active={!areaOther && gymArea === a}
-                    onClick={() => {
-                      setAreaOther(false)
-                      setGymArea(a)
-                    }}
-                  />
-                ))}
-                <SelectPill
-                  label="Other"
-                  active={areaOther}
-                  onClick={() => {
-                    setAreaOther(true)
-                    setGymArea('')
-                  }}
-                />
-              </div>
-              {areaOther && (
-                <Input
-                  value={gymArea}
-                  placeholder="Area name"
-                  onChange={(e) => setGymArea(e.target.value)}
-                />
-              )}
-            </div>
-          )}
 
           {/* 3 — Colour (Gym only) — sits beneath Felt like. Inline 44px swatch
               grid rather than a Radix Select popover: avoids nested popover/Sheet

@@ -25,12 +25,9 @@ interface Props {
   onOpenChange: (open: boolean) => void
   /** Multi-select with checkboxes + confirm; otherwise tap-to-add one. */
   multiple?: boolean
-  /** Restrict the list (and default new exercises) to these categories (A36).
-   *  Omit to show every exercise. */
+  /** Restrict the list, the category tabs, and default new exercises to these
+   *  categories (A36). Omit to show every category. */
   categories?: ExerciseCategory[]
-  /** Universal mode (A66): show every category grouped under sticky headers with
-   *  a category filter tab row (All default). Overrides `categories` filtering. */
-  grouped?: boolean
   onSelect: (exercises: Exercise[]) => void
 }
 
@@ -62,17 +59,12 @@ const CATEGORY_LABEL: Record<ExerciseCategory, string> = {
   cardio: 'Cardio',
 }
 type CatFilter = 'all' | ExerciseCategory
-const GROUP_TABS: { value: CatFilter; label: string }[] = [
-  { value: 'all', label: 'All' },
-  ...GROUP_ORDER.map((c) => ({ value: c as CatFilter, label: CATEGORY_LABEL[c] })),
-]
 
 export function ExercisePicker({
   open,
   onOpenChange,
   multiple = false,
   categories,
-  grouped = false,
   onSelect,
 }: Props) {
   const exercises = useLiveQuery(() => getAllExercises(), [])
@@ -87,8 +79,17 @@ export function ExercisePicker({
   const [hangCfg, setHangCfg] = useState<HangConfig>(DEFAULT_HANG)
   const [catFilter, setCatFilter] = useState<CatFilter>('all') // universal mode (A66)
 
-  // The create-form category selector only offers what this picker can add; when
-  // unrestricted (grouped mode) it offers every category, hangboard included.
+  // A87 — the category filter tabs are ALWAYS shown, in every context the picker
+  // opens (new workout, template edit, active session). The `categories` prop just
+  // restricts which categories appear (in the tabs, the list, and the create form).
+  const availableCategories = categories ?? GROUP_ORDER
+  const tabCats = GROUP_ORDER.filter((c) => availableCategories.includes(c))
+  const tabs: { value: CatFilter; label: string }[] = [
+    { value: 'all', label: 'All' },
+    ...tabCats.map((c) => ({ value: c as CatFilter, label: CATEGORY_LABEL[c] })),
+  ]
+
+  // The create-form category selector only offers what this picker can add.
   const createCategories = categories
     ? CREATE_CATEGORIES.filter((c) => categories.includes(c.value))
     : CREATE_CATEGORIES
@@ -159,9 +160,7 @@ export function ExercisePicker({
   const filtered = (exercises ?? []).filter(
     (e) =>
       e.name.toLowerCase().includes(query.trim().toLowerCase()) &&
-      (grouped
-        ? catFilter === 'all' || e.category === catFilter
-        : !categories || categories.includes(e.category)),
+      (catFilter === 'all' ? availableCategories.includes(e.category) : e.category === catFilter),
   )
 
   // A row (checkbox in multi-select) for one exercise.
@@ -269,30 +268,28 @@ export function ExercisePicker({
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search exercises…"
               />
-              {grouped && (
-                <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1">
-                  {GROUP_TABS.map((t) => (
-                    <button
-                      key={t.value}
-                      type="button"
-                      onClick={() => setCatFilter(t.value)}
-                      className={cn(
-                        'shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors',
-                        catFilter === t.value
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted text-muted-foreground active:bg-accent',
-                      )}
-                    >
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1">
+                {tabs.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => setCatFilter(t.value)}
+                    className={cn(
+                      'shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors',
+                      catFilter === t.value
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground active:bg-accent',
+                    )}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto p-2">
-              {grouped && catFilter === 'all' ? (
+              {catFilter === 'all' ? (
                 // Grouped by category with a sticky header per group (A66).
-                GROUP_ORDER.map((cat) => {
+                tabCats.map((cat) => {
                   const items = filtered.filter((e) => e.category === cat)
                   if (items.length === 0) return null
                   return (

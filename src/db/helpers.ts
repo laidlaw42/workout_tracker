@@ -280,6 +280,23 @@ export async function getRehabTemplates(): Promise<WorkoutTemplate[]> {
   })
 }
 
+// Templates that contain at least one climbing-category exercise (A86) — the
+// library's Climbing tab (climbing-strength workouts; route sessions have no
+// templates). Content-based, since climbing is no longer a template discipline.
+export async function getClimbingTemplates(): Promise<WorkoutTemplate[]> {
+  return run('getClimbingTemplates', async () => {
+    const climbIds = new Set(
+      (await db.exercises.where('category').equals('climbing').toArray()).map((e) => e.id),
+    )
+    const list = (await db.templates.toArray()).filter((t) =>
+      t.exercises.some((e) => climbIds.has(e.exerciseId)),
+    )
+    return list.sort(
+      (a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || a.name.localeCompare(b.name),
+    )
+  })
+}
+
 // Templates that contain hangboard rows (A73) — the training-library Hangboard tab.
 export async function getHangboardTemplates(): Promise<WorkoutTemplate[]> {
   return run('getHangboardTemplates', async () => {

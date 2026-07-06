@@ -9,14 +9,7 @@ import { useCountdownTimer } from '@/hooks/useCountdownTimer'
 import { useCountdownBeeps } from '@/hooks/useCountdownBeeps'
 import { usePrecountBeeps } from '@/hooks/usePrecountBeeps'
 import { useWakeLock } from '@/hooks/useWakeLock'
-import {
-  getAutoAdvance,
-  getGymGradePreference,
-  getKeepAwake,
-  getPrecountSeconds,
-  getGymAreas,
-  setGymGradePreference,
-} from '@/lib/prefs'
+import { getAutoAdvance, getKeepAwake, getPrecountSeconds, getGymAreas } from '@/lib/prefs'
 import {
   addHang,
   addSet,
@@ -100,11 +93,6 @@ export default function ClimbingSessionScreen() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editing, setEditing] = useState<ClimbingRoute | null>(null)
   const [newStyle, setNewStyle] = useState<ClimbingStyle>('bouldering')
-  // Active grade system for gym routes — seeded from this gym's saved preference,
-  // kept across route logs, and re-applied on remount/resume (F20).
-  const [gradeSystem, setGradeSystem] = useState<'standard' | 'gym'>('standard')
-  // Once the user picks a mode, stop auto-applying the gym's remembered default.
-  const gradeManualRef = useRef(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [confirmDeleteRouteId, setConfirmDeleteRouteId] = useState<string | null>(null)
   // Current abrahang phase label ('Hang' | 'Rest'), shown on the countdown (A37).
@@ -199,23 +187,6 @@ export default function ClimbingSessionScreen() {
       setInited(true)
     }
   }, [session, inited])
-
-  // Default a gym session to whichever grade system this gym was last logged in
-  // (F20). Keyed on the resolved gym name so it also applies once a gym typed
-  // after mount is saved — but never overrides a mode the user picked manually.
-  useEffect(() => {
-    if (gradeManualRef.current) return
-    setGradeSystem(session?.gym ? (getGymGradePreference(session.gym) ?? 'standard') : 'standard')
-  }, [session?.gym])
-
-  // Persist the user's chosen mode as this gym's default (F20). Runs on the
-  // chosen mode and once the gym name is known, so a mode picked before the gym
-  // was named still back-fills the preference.
-  useEffect(() => {
-    if (gradeManualRef.current && venue === 'gym' && gymName) {
-      setGymGradePreference(gymName, gradeSystem)
-    }
-  }, [gymName, gradeSystem, venue])
 
   useEffect(() => {
     if (session && session.type !== 'climbing') navigate('/home', { replace: true })
@@ -673,11 +644,6 @@ export default function ClimbingSessionScreen() {
     setEditing(route)
     setSheetOpen(true)
   }
-  // Remember the session's grade system and persist it as this gym's default (F20).
-  function handleGradeSystemChange(next: 'standard' | 'gym') {
-    gradeManualRef.current = true
-    setGradeSystem(next)
-  }
 
   if (session === null) {
     return (
@@ -903,8 +869,6 @@ export default function ClimbingSessionScreen() {
         cragSession={venue === 'crag'}
         style={newStyle}
         gymName={gymName}
-        initialGradeSystem={gradeSystem}
-        onGradeSystemChange={handleGradeSystemChange}
         onSaved={() => {
           clock.resume() // logging a route lifts any pause (F19)
           setEditing(null)

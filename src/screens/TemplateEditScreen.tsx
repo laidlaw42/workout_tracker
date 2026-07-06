@@ -391,10 +391,9 @@ export default function TemplateEditScreen() {
         open={pickerOpen}
         onOpenChange={setPickerOpen}
         multiple
-        // A mixed (training) template can hold any discipline, so it uses the
-        // grouped picker with a category tab row (Hangboard included, F43),
-        // matching the session's build-your-own flow.
-        grouped={template?.type === 'mixed'}
+        // A87 — the picker always shows category tabs; `categories` restricts them
+        // to what this template accepts (mixed accepts any discipline, incl. F43
+        // hangboard).
         categories={
           template?.type === 'climbing'
             ? ['climbing', 'rehab']

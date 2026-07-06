@@ -24,7 +24,7 @@ import {
   getConfettiEnabled,
   getCustomClimbStyles,
   getDefaultLocation,
-  getGymAreas,
+  getGymAreaList,
   getGymGradeRanges,
   getKeepAwake,
   getPrecountSeconds,
@@ -39,6 +39,7 @@ import {
   removeGymArea,
   renameGym,
   renameGymArea,
+  updateGymAreaDefaults,
   setAutoAdvance,
   setConfettiEnabled,
   setDefaultLocation,
@@ -53,10 +54,13 @@ import {
   DEFAULT_WEIGHT_STEP,
   type DefaultLocationType,
   type GradeRange,
+  type GymArea,
   type GymGradeRanges,
   type GymStyle,
 } from '@/lib/prefs'
+import { CLIMB_CHARACTERS } from '@/lib/climbing'
 import { SegmentedControl } from '@/components/SegmentedControl'
+import { SelectPill } from '@/components/SelectPill'
 import { HoldButton } from '@/components/HoldButton'
 import { TagManager } from '@/components/TagManager'
 import { cn } from '@/lib/utils'
@@ -791,7 +795,7 @@ function GymEditSheet({
 }) {
   const [name, setName] = useState('')
   const [ranges, setRanges] = useState<GymGradeRanges>(() => getGymGradeRanges(''))
-  const [areas, setAreas] = useState<string[]>([]) // A69
+  const [areas, setAreas] = useState<GymArea[]>([]) // A69 / A83 (name + defaults)
   const [newArea, setNewArea] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -799,7 +803,7 @@ function GymEditSheet({
     if (gym == null) return
     setName(gym)
     setRanges(getGymGradeRanges(gym))
-    setAreas(getGymAreas(gym))
+    setAreas(getGymAreaList(gym))
     setNewArea('')
     setConfirmDelete(false)
   }, [gym])
@@ -881,10 +885,13 @@ function GymEditSheet({
             </div>
             {areas.map((a) => (
               <AreaRow
-                key={a}
+                key={a.name}
                 area={a}
-                onRename={(next) => gym != null && setAreas(renameGymArea(gym, a, next))}
-                onDelete={() => gym != null && setAreas(removeGymArea(gym, a))}
+                onRename={(next) => gym != null && setAreas(renameGymArea(gym, a.name, next))}
+                onDelete={() => gym != null && setAreas(removeGymArea(gym, a.name))}
+                onSetDefaults={(patch) =>
+                  gym != null && setAreas(updateGymAreaDefaults(gym, a.name, patch))
+                }
               />
             ))}
           </div>
@@ -926,40 +933,84 @@ function GymEditSheet({
 }
 
 // One editable gym-area row (A69): inline rename on blur, plus delete.
+// One gym area (A69) with its optional default height + wall character (A83).
 function AreaRow({
   area,
   onRename,
   onDelete,
+  onSetDefaults,
 }: {
-  area: string
+  area: GymArea
   onRename: (next: string) => void
   onDelete: () => void
+  onSetDefaults: (patch: Partial<Pick<GymArea, 'defaultHeightMetres' | 'defaultCharacter'>>) => void
 }) {
-  const [draft, setDraft] = useState(area)
-  useEffect(() => setDraft(area), [area])
+  const [draft, setDraft] = useState(area.name)
+  const [height, setHeight] = useState(
+    area.defaultHeightMetres != null ? String(area.defaultHeightMetres) : '',
+  )
+  useEffect(() => {
+    setDraft(area.name)
+    setHeight(area.defaultHeightMetres != null ? String(area.defaultHeightMetres) : '')
+  }, [area.name, area.defaultHeightMetres])
+
   return (
-    <div className="flex items-center gap-2">
-      <Input
-        value={draft}
-        aria-label={`Area ${area}`}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => {
-          const n = draft.trim()
-          if (n && n !== area) onRename(n)
-          else setDraft(area)
-        }}
-      />
-      <button
-        type="button"
-        aria-label={`Delete area ${area}`}
-        // Keep the input from blurring first (which would rename, leaving this
-        // delete to no-op on the stale name).
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={onDelete}
-        className="flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground active:bg-accent"
-      >
-        <Trash2 className="size-4" />
-      </button>
+    <div className="space-y-2 rounded-xl border border-border bg-card p-3">
+      <div className="flex items-center gap-2">
+        <Input
+          value={draft}
+          aria-label={`Area ${area.name}`}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => {
+            const n = draft.trim()
+            if (n && n !== area.name) onRename(n)
+            else setDraft(area.name)
+          }}
+        />
+        <button
+          type="button"
+          aria-label={`Delete area ${area.name}`}
+          // Keep the input from blurring first (which would rename, leaving this
+          // delete to no-op on the stale name).
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onDelete}
+          className="flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground active:bg-accent"
+        >
+          <Trash2 className="size-4" />
+        </button>
+      </div>
+
+      <label className="flex flex-col gap-1">
+        <span className="text-xs text-muted-foreground">Default height (m)</span>
+        <Input
+          inputMode="decimal"
+          value={height}
+          placeholder="optional"
+          onChange={(e) => setHeight(e.target.value.replace(/[^0-9.]/g, ''))}
+          onBlur={() => {
+            const n = height.trim() === '' ? undefined : Number(height)
+            onSetDefaults({ defaultHeightMetres: n != null && !Number.isNaN(n) ? n : undefined })
+          }}
+        />
+      </label>
+
+      <div className="space-y-1">
+        <span className="text-xs text-muted-foreground">Default angle</span>
+        <div className="flex flex-wrap gap-2">
+          {CLIMB_CHARACTERS.map((c) => (
+            <SelectPill
+              key={c.value}
+              label={c.label}
+              active={area.defaultCharacter === c.value}
+              onClick={() =>
+                onSetDefaults({
+                  defaultCharacter: area.defaultCharacter === c.value ? undefined : c.value,
+                })
+              }
+            />
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
