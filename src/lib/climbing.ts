@@ -1,9 +1,9 @@
 import {
-  ArrowUpToLine,
+  Anchor,
   Flag,
   Inbox,
   Minus,
-  Pentagon,
+  Mountain,
   TrendingDown,
   TrendingUp,
   Zap,
@@ -106,14 +106,15 @@ export const STYLE_LABELS: Record<ClimbingStyle, string> = {
   lead: 'Lead',
 }
 
-// Lucide icons for the three climb types (F40, replacing the F36 Unicode
-// symbols), used on the climb-type buttons (A24) and wherever a route's style is
-// shown (RouteCard, SessionDetail, History). Matches the icon style of the
-// Strength/Cardio/Gym/Crag buttons. Kept alongside STYLE_LABELS so the two never
-// drift. Pentagon ≈ a boulder/hold; ArrowUpToLine ≈ a top anchor; Flag ≈ leading.
+// Lucide icons for the three climb types, used on the climb-type buttons (A24) and
+// wherever a route's style is shown (RouteCard, SessionDetail, History). F47 swaps
+// the earlier geometric icons (a plain pentagon / up-arrow that read as bare
+// unicode symbols) for recognizable ones: Mountain ≈ a boulder, Anchor ≈ the fixed
+// top-rope anchor, Flag ≈ leading to the top. Kept beside STYLE_LABELS so they
+// never drift.
 export const CLIMB_STYLE_ICONS: Record<ClimbingStyle, LucideIcon> = {
-  bouldering: Pentagon,
-  top_rope: ArrowUpToLine,
+  bouldering: Mountain,
+  top_rope: Anchor,
   lead: Flag,
 }
 
