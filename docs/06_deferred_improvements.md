@@ -10,7 +10,7 @@ warranted yet).
 
 ---
 
-## T3 — Extract Dexie migration transforms to pure functions  ⬜
+## T3 — Extract Dexie migration transforms to pure functions  ✅
 
 **What.** The v6/v7/v8 upgrade callbacks in `src/db/db.ts` are inline closures,
 and the v8 "legacy template `type` → `categories`" logic is duplicated by
@@ -71,7 +71,7 @@ pause/resume) on **both** screens, merge only when green.
 
 ---
 
-## EX1 — tracking-type registry  🟡 (safe parts only)
+## EX1 — tracking-type registry  ✅ (safe parts done)
 
 **What.** Adding a tracking type beyond reps/duration/distance touches
 `TrackingType`, the exercise form, `ExerciseCard` input dispatch,
@@ -85,6 +85,10 @@ replace the scattered `TRACKING`/`TRACKING_LABEL` maps. The **rendering**
 dispatch (which input row) is intentionally left as-is — a registry that injects
 input components into the core logging UI is high-risk for a type that does not
 exist yet.
+
+**Done.** `src/lib/trackingTypes.ts` exports `TRACKING_TYPES` (ordered list) and
+a derived `TRACKING_LABEL` record; `ExerciseFormSheet`, `ExercisePicker` and
+`ExerciseLibrary` now consume it instead of their own copies.
 
 **Risk.** Registry-of-labels: low. Rendering registry: 📌 not warranted now.
 
