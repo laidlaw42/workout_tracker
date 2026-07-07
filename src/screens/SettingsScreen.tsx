@@ -28,6 +28,7 @@ import {
   addCustomClimbStyle,
   addGymArea,
   clearDefaultLocation,
+  deleteBoard,
   deleteGym,
   getAutoAdvance,
   getConfettiEnabled,
@@ -114,6 +115,8 @@ export default function SettingsScreen() {
   const [gyms, setGyms] = useState(() => getSavedLocations('gym'))
   const [newGym, setNewGym] = useState('')
   const [editGym, setEditGym] = useState<string | null>(null)
+  const [boards, setBoards] = useState(() => getSavedLocations('board'))
+  const [newBoard, setNewBoard] = useState('')
   const [name, setName] = useState(getUserName())
   const [bwInput, setBwInput] = useState(() => {
     const bw = getBodyweight()
@@ -206,6 +209,17 @@ export default function SettingsScreen() {
     rememberLocation('gym', newGym)
     setGyms(getSavedLocations('gym'))
     setNewGym('')
+  }
+
+  function handleAddBoard() {
+    const n = newBoard.trim()
+    if (!n) return
+    rememberLocation('board', n)
+    setBoards(getSavedLocations('board'))
+    setNewBoard('')
+  }
+  function handleDeleteBoard(name: string) {
+    setBoards(deleteBoard(name))
   }
 
   function handleAddColour() {
@@ -536,6 +550,48 @@ export default function SettingsScreen() {
             <DefaultLocationRow type="gym" label="Default gym" />
             <DefaultLocationRow type="board" label="Default board" />
           </div>
+        </section>
+
+        <section className="space-y-2">
+          <h2 className="text-sm font-medium text-muted-foreground">Boards</h2>
+          <div className="flex gap-2">
+            <Input
+              value={newBoard}
+              placeholder="Add a board"
+              onChange={(e) => setNewBoard(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleAddBoard()
+              }}
+            />
+            <Button onClick={handleAddBoard} disabled={!newBoard.trim()}>
+              Add board
+            </Button>
+          </div>
+          {boards.length > 0 ? (
+            <div className="space-y-2">
+              {boards.map((b) => (
+                <div
+                  key={b}
+                  className="flex items-center justify-between gap-2 rounded-xl border border-border bg-card px-3 py-2"
+                >
+                  <span className="min-w-0 truncate text-sm">{b}</span>
+                  <button
+                    type="button"
+                    aria-label={`Delete board ${b}`}
+                    onClick={() => handleDeleteBoard(b)}
+                    className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground active:bg-accent"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="px-1 text-xs text-muted-foreground">
+              Boards you train on are saved here for quick selection. Removing one won’t affect
+              logged sessions.
+            </p>
+          )}
         </section>
 
         <ClimbStylesManager />

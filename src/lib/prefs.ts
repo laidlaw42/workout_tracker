@@ -472,3 +472,11 @@ export function renameGym(oldName: string, newName: string): string[] {
   if (getDefaultLocation('gym').toLowerCase() === oldName.toLowerCase()) setDefaultLocation('gym', n)
   return renameSavedLocation('gym', oldName, n)
 }
+
+// Remove a saved board. Boards carry no per-location config (unlike gyms), so this
+// just drops the name and clears the default if it pointed here. Session history is
+// unaffected — logged sessions keep their own board name (F42).
+export function deleteBoard(name: string): string[] {
+  if (getDefaultLocation('board').toLowerCase() === name.toLowerCase()) clearDefaultLocation('board')
+  return removeSavedLocation('board', name)
+}
