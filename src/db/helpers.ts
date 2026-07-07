@@ -719,12 +719,15 @@ async function deriveTemplateCategories(
   return cats.size > 0 ? [...cats] : ['strength']
 }
 
-// Deletes a session and everything logged under it.
+// Deletes a session and everything logged under it. Also un-links any planned
+// workout that recorded this session as its completion, so the plan reverts to
+// "still planned" instead of pointing at a now-deleted session (which would show
+// as done on the calendar yet open nothing).
 export async function deleteSession(id: string): Promise<void> {
   return run('deleteSession', async () => {
     await db.transaction(
       'rw',
-      [db.sessions, db.sets, db.cardio, db.routes, db.hangs, db.prs],
+      [db.sessions, db.sets, db.cardio, db.routes, db.hangs, db.prs, db.plannedWorkouts],
       async () => {
         await db.sessions.delete(id)
         await db.sets.where('sessionId').equals(id).delete()
@@ -732,6 +735,10 @@ export async function deleteSession(id: string): Promise<void> {
         await db.routes.filter((r) => r.sessionId === id).delete()
         await db.hangs.where('sessionId').equals(id).delete()
         await db.prs.where('sessionId').equals(id).delete()
+        await db.plannedWorkouts
+          .where('completedSessionId')
+          .equals(id)
+          .modify({ completedSessionId: undefined })
       },
     )
   })
@@ -1243,18 +1250,48 @@ export async function importAllData(json: string): Promise<void> {
   })
 }
 
-// Re-derives weight PRs (from new sets) and grade PRs (from new routes) after a
-// merge, so the prs table stays consistent with the freshly-added records.
-async function redetectPRs(newSets: LoggedSet[], newRoutes: ClimbingRoute[]): Promise<void> {
+// Activity → PR label, mirroring CardioSessionScreen's ACTIVITY_LABELS so a
+// merged cardio PR keys identically to a live-logged one.
+const CARDIO_PR_LABEL: Record<CardioActivityType, string> = {
+  run: 'Run',
+  ride: 'Ride',
+  row: 'Row',
+  other: 'Cardio',
+}
+
+// Re-derives PRs from records added by a merge, so the prs table stays consistent
+// with the freshly-inserted data. Mirrors the live session logic across every PR
+// type the app actually produces: strength weight (bodyweight-loadable moves
+// compare their added load), climbing grade, hangboard weight + duration, and
+// cardio distance + pace. ('reps' PRs are never produced anywhere in the app, so
+// they are intentionally not re-derived.)
+async function redetectPRs(
+  newSets: LoggedSet[],
+  newRoutes: ClimbingRoute[],
+  newHangs: LoggedHang[],
+  newCardio: LoggedCardio[],
+): Promise<void> {
+  // Exercises whose load lives in additionalWeightKg (pull-up, dip, …).
+  const loadable = new Set(
+    (await db.exercises.toArray()).filter((e) => e.supportsAdditionalWeight).map((e) => e.id),
+  )
   for (const s of newSets) {
-    if (s.skipped || s.weightKg == null) continue
+    if (s.skipped) continue
     const repsMet = s.targetReps == null || (s.actualReps ?? 0) >= s.targetReps
     if (!repsMet) continue
+    // Bodyweight-loadable moves compare the added load alone; everything else the
+    // entered weight — matching the live logging path.
+    const value = loadable.has(s.exerciseId)
+      ? s.additionalWeightKg != null && s.additionalWeightKg > 0
+        ? s.additionalWeightKg
+        : undefined
+      : (s.weightKg ?? undefined)
+    if (value == null) continue
     await checkAndSavePR({
       exerciseId: s.exerciseId,
       exerciseName: s.exerciseName,
       prType: 'weight',
-      value: s.weightKg,
+      value,
       unit: 'kg',
       sessionId: s.sessionId,
       achievedAt: s.loggedAt,
@@ -1284,11 +1321,59 @@ async function redetectPRs(newSets: LoggedSet[], newRoutes: ClimbingRoute[]): Pr
       })
     }
   }
+  // Hangboard PRs are keyed per grip: heaviest added load and longest hang.
+  for (const h of newHangs) {
+    if (h.skipped) continue
+    if (h.weightKg > 0) {
+      await checkAndSavePR({
+        exerciseName: h.gripType,
+        prType: 'weight',
+        value: h.weightKg,
+        unit: 'kg',
+        sessionId: h.sessionId,
+        achievedAt: h.loggedAt,
+      })
+    }
+    if (h.targetDurationSeconds > 0) {
+      await checkAndSavePR({
+        exerciseName: h.gripType,
+        prType: 'duration',
+        value: h.targetDurationSeconds,
+        unit: 's',
+        sessionId: h.sessionId,
+        achievedAt: h.loggedAt,
+      })
+    }
+  }
+  for (const c of newCardio) {
+    const label = CARDIO_PR_LABEL[c.activityType]
+    if (c.distanceKm != null && c.distanceKm > 0) {
+      await checkAndSavePR({
+        exerciseName: label,
+        prType: 'distance',
+        value: c.distanceKm,
+        unit: 'km',
+        sessionId: c.sessionId,
+        achievedAt: c.loggedAt,
+      })
+    }
+    if (c.avgPaceSecondsPerKm != null && c.avgPaceSecondsPerKm > 0) {
+      await checkAndSavePR({
+        exerciseName: label,
+        prType: 'pace',
+        value: c.avgPaceSecondsPerKm,
+        unit: 's/km',
+        sessionId: c.sessionId,
+        achievedAt: c.loggedAt,
+      })
+    }
+  }
 }
 
 // Merges a backup into the existing DB: records whose id already exists are
 // skipped (existing data wins); new ids are inserted. PR detection is re-run
-// across newly inserted sets and routes so the prs table stays consistent.
+// across newly inserted sets, routes, hangs and cardio so the prs table stays
+// consistent.
 export async function mergeData(json: string): Promise<{ inserted: number; skipped: number }> {
   return run('mergeData', async () => {
     const parsed = JSON.parse(json) as Partial<ExportBundle>
@@ -1301,6 +1386,8 @@ export async function mergeData(json: string): Promise<{ inserted: number; skipp
     let skipped = 0
     const newSets: LoggedSet[] = []
     const newRoutes: ClimbingRoute[] = []
+    const newHangs: LoggedHang[] = []
+    const newCardio: LoggedCardio[] = []
 
     await db.transaction(
       'rw',
@@ -1347,9 +1434,9 @@ export async function mergeData(json: string): Promise<{ inserted: number; skipp
         await mergeInto(db.templates, d.templates?.map(withCategories(mergeExCat)))
         await mergeInto(db.sessions, d.sessions?.map(withBoardVenue))
         await mergeInto(db.sets, d.sets, (s) => newSets.push(s))
-        await mergeInto(db.cardio, d.cardio)
+        await mergeInto(db.cardio, d.cardio, (c) => newCardio.push(c))
         await mergeInto(db.routes, d.routes, (r) => newRoutes.push(r))
-        await mergeInto(db.hangs, d.hangs)
+        await mergeInto(db.hangs, d.hangs, (h) => newHangs.push(h))
         await mergeInto(db.prs, d.prs)
         await mergeInto(db.plannedWorkouts, d.plannedWorkouts)
 
@@ -1366,7 +1453,7 @@ export async function mergeData(json: string): Promise<{ inserted: number; skipp
       },
     )
 
-    await redetectPRs(newSets, newRoutes)
+    await redetectPRs(newSets, newRoutes, newHangs, newCardio)
     return { inserted, skipped }
   })
 }
