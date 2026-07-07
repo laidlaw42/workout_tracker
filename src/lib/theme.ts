@@ -72,7 +72,10 @@ const DEFAULT_THEME = 'dark'
 const KEY = 'theme'
 
 function isDark(id: string): boolean {
-  return THEMES.find((t) => t.id === id)?.dark ?? true
+  // Known light themes are the only non-dark case; an unknown id falls back to
+  // dark (the default theme), matching getTheme(). Reads DARK_THEME_IDS so that
+  // export stays live and single-sourced with the index.html pre-paint list.
+  return DARK_THEME_IDS.includes(id) || !THEMES.some((t) => t.id === id)
 }
 
 export function getTheme(): string {
