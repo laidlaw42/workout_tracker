@@ -46,7 +46,7 @@ section still functions.
 
 ---
 
-## CA1 (full) — extract `useTimedSetEngine`  ⬜  (fork)
+## CA1 (full) — extract `useTimedSetEngine`  ✅  (done on a branch, merged)
 
 **What.** StrengthSessionScreen and ClimbingSessionScreen still duplicate the
 timed-set engine: `work`/`hangWork` seeding, `handleLog`/`logHang`,
@@ -68,6 +68,15 @@ glue (mixed conversion, save-template, routes/venue) stays in the screens.
 via manual preview flows. **Do on a branch**, re-run every timer path
 (precount→hold→log→rest→advance, abrahang, resume-on-reload, skip mid-count,
 pause/resume) on **both** screens, merge only when green.
+
+**Done.** `src/hooks/useTimedSetEngine.ts` (397 lines) now owns the three timers,
+the log/start/auto-advance/resume orchestration and `abrahangLabel`; both screens
+pass their current state and render with what it returns. ~660 lines of
+duplicated engine code removed. Verified in the preview on both screens
+(precount→hold→log→rest→auto-advance, Abrahang, resume-on-reload, manual
+rest-skip, pause/resume, route logging) — clean. Two safe reconciliations noted
+in the commit (logSet always sends distanceKm+swappedFrom and gates auto-advance
+on trackingType; per-screen `ready` gate).
 
 ---
 
