@@ -11,6 +11,7 @@ import {
   type DefaultsDraft,
 } from '@/components/ExerciseDefaultsFields'
 import { TagInput } from '@/components/TagInput'
+import { TRACKING_TYPES } from '@/lib/trackingTypes'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -42,12 +43,6 @@ interface Props {
   defaultTags?: string[]
   onSaved?: (id: string) => void
 }
-
-const TRACKING: { value: TrackingType; label: string }[] = [
-  { value: 'reps', label: 'Reps' },
-  { value: 'duration', label: 'Duration' },
-  { value: 'distance', label: 'Distance' },
-]
 
 // A93 — alphabetical category order (value selector; default stays 'strength').
 const CATEGORIES: { value: ExerciseCategory; label: string }[] = [
@@ -194,7 +189,7 @@ export function ExerciseFormSheet({
             <>
               <div className="space-y-2">
                 <Label>Tracking</Label>
-                <SegmentedControl options={TRACKING} value={tracking} onChange={setTracking} />
+                <SegmentedControl options={TRACKING_TYPES} value={tracking} onChange={setTracking} />
               </div>
               {/* A98 — default parameters, keyed to the tracking type. Pre-fill a
                   new template/session row; blank falls back to the standard defaults. */}

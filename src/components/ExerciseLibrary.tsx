@@ -24,13 +24,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
-import type { Exercise, ExerciseCategory, TrackingType } from '@/types'
-
-const TRACKING_LABEL: Record<TrackingType, string> = {
-  reps: 'Reps',
-  duration: 'Duration',
-  distance: 'Distance',
-}
+import { TRACKING_LABEL } from '@/lib/trackingTypes'
+import type { Exercise, ExerciseCategory } from '@/types'
 
 // A74 — category filter tabs mirror the workout-template row (All + the five
 // exercise categories). Filtering is a straight match on `ex.category`.

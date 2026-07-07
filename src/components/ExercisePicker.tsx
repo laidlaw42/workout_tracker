@@ -24,6 +24,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
+import { TRACKING_TYPES } from '@/lib/trackingTypes'
 import type { Exercise, ExerciseCategory, HangConfig, TrackingType } from '@/types'
 
 interface Props {
@@ -37,11 +38,6 @@ interface Props {
   onSelect: (exercises: Exercise[]) => void
 }
 
-const TRACKING: { value: TrackingType; label: string }[] = [
-  { value: 'reps', label: 'Reps' },
-  { value: 'duration', label: 'Duration' },
-  { value: 'distance', label: 'Distance' },
-]
 
 // Categories offered by the "Create new exercise" form (A93 alphabetical).
 // Hangboard (A73/F43) is included so a hang exercise can be created inline.
@@ -271,7 +267,7 @@ export function ExercisePicker({
               <>
                 <div className="space-y-2">
                   <Label>Tracking</Label>
-                  <SegmentedControl options={TRACKING} value={tracking} onChange={setTracking} />
+                  <SegmentedControl options={TRACKING_TYPES} value={tracking} onChange={setTracking} />
                 </div>
                 {/* A98 — default parameters on the quick-create form, mirroring the
                     full exercise editor so a newly-created exercise can carry defaults. */}
