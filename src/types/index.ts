@@ -49,6 +49,22 @@ export type PRType = 'weight' | 'reps' | 'pace' | 'distance' | 'grade' | 'durati
 // Exercise library
 // ---------------------------------------------------------------------------
 
+// A98 — optional per-exercise default parameters. When set, they pre-fill the
+// TemplateExercise / working-set fields as the exercise is added to a template or
+// session, so standard parameters don't have to be re-entered each time. Which
+// fields are meaningful follows the exercise's trackingType (reps → reps/weight;
+// duration → durationSeconds; distance → distanceKm); all are optional and the
+// add flow falls back to the hardcoded defaults (3 sets · 10 reps · 90s rest)
+// for any that are unset. Hangboard exercises use `hangboard` (HangConfig) instead.
+export interface ExerciseDefaults {
+  sets?: number
+  reps?: number
+  weightKg?: number
+  durationSeconds?: number
+  distanceKm?: number
+  restSeconds?: number
+}
+
 export interface Exercise {
   id: string
   name: string
@@ -63,6 +79,8 @@ export interface Exercise {
   // Hangboard exercises (A73, category 'hangboard') carry a default protocol
   // config; adding one to a training session seeds a HangboardSet from it.
   hangboard?: HangConfig
+  // Default parameters used to pre-fill a new template/session row (A98).
+  defaults?: ExerciseDefaults
   createdAt: number
 }
 
@@ -78,6 +96,7 @@ export interface TemplateExercise {
   defaultReps?: number // undefined for duration/distance exercises
   defaultDuration?: number // seconds
   defaultWeight?: number // kg
+  defaultDistanceKm?: number // target distance for a distance-tracked row (A98)
   defaultRestSeconds: number
   notes?: string
 }

@@ -16,6 +16,7 @@ export interface WorkExercise {
   targetReps?: number
   durationSeconds?: number // timed exercise (e.g. plank) — logs by holding, not reps
   weight?: number // planned weight (kg) for remaining sets — pre-fills the set row (A31)
+  distanceKm?: number // planned target distance (km) for a cardio row — pre-fills it (A98)
   restSeconds: number
   swappedFrom?: string
   skipped: boolean
@@ -163,13 +164,19 @@ export function ExerciseCard({
             !complete &&
             (distanceMode ? (
               // Cardio exercise in a mixed session (A66): duration + distance.
-              <CardioSetRow key={currentSetNumber} onLog={onLog} onRemove={onRemoveSet} />
+              <CardioSetRow
+                key={currentSetNumber}
+                defaultDistanceKm={exercise.distanceKm}
+                onLog={onLog}
+                onRemove={onRemoveSet}
+              />
             ) : timed ? (
               countdown ? (
                 <SetCountdown
                   remaining={countdown.remaining}
                   duration={countdown.duration}
                   label={countdown.precount ? 'Get ready' : 'Hold'}
+                  phase={countdown.precount ? 'precount' : 'hold'}
                 />
               ) : (
                 <div className="flex items-center gap-2">
@@ -506,14 +513,16 @@ function SetField({ label, children }: { label: string; children: React.ReactNod
 // optional distance (km) instead of weight/reps. Logs one bout as a LoggedSet
 // with durationSeconds + distanceKm.
 function CardioSetRow({
+  defaultDistanceKm,
   onLog,
   onRemove,
 }: {
+  defaultDistanceKm?: number
   onLog: (data: LoggedSetInput) => void
   onRemove?: () => void
 }) {
   const [minutes, setMinutes] = useState('')
-  const [km, setKm] = useState('')
+  const [km, setKm] = useState(defaultDistanceKm != null ? String(defaultDistanceKm) : '')
   const clean = (raw: string) => raw.replace(/[^0-9.]/g, '')
 
   function log() {

@@ -6,6 +6,7 @@ import { paletteColourForOrder } from '@/lib/tagColors'
 import { STYLE_LABELS, isCleanTick, vGradeIndex } from '@/lib/climbing'
 import { deriveSessionKind, normalizeVenue, type SessionKind } from '@/lib/badges'
 import { deriveSessionType, templateCategories } from '@/lib/templateCategories'
+import { templateExerciseFromExercise } from '@/lib/exerciseDefaults'
 import type {
   CardioActivityType,
   ClimbingRoute,
@@ -810,16 +811,8 @@ export async function startSessionFromTemplate(
 // (cardio) exercises aren't set-based, so callers should not offer this for them.
 export async function startSessionFromExercise(exercise: Exercise): Promise<string> {
   return run('startSessionFromExercise', async () => {
-    const timed = exercise.trackingType === 'duration'
-    const planned: TemplateExercise = {
-      exerciseId: exercise.id,
-      exerciseName: exercise.name,
-      order: 0,
-      defaultSets: 3,
-      defaultReps: timed ? undefined : 10,
-      defaultDuration: timed ? 30 : undefined,
-      defaultRestSeconds: 90,
-    }
+    // A98 — seed the single planned row from the exercise's saved defaults.
+    const planned: TemplateExercise = templateExerciseFromExercise(exercise, 0)
     const id = generateId()
     await db.sessions.put({
       id,

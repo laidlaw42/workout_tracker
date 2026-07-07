@@ -32,7 +32,13 @@ export function RestTimer({ remaining, duration, paused = false, onSkip }: Props
         <p
           className={cn(
             'mt-1 font-mono text-7xl font-bold leading-none tabular-nums',
-            done ? 'text-green-500' : paused ? 'text-amber-400' : 'text-primary',
+            // A97 — rest counts down in red; a completed rest flips to green and a
+            // paused one to amber.
+            done
+              ? 'text-green-500'
+              : paused
+                ? 'text-amber-400'
+                : 'text-red-500 dark:text-red-400',
           )}
         >
           {formatElapsed(remaining)}
@@ -41,7 +47,11 @@ export function RestTimer({ remaining, duration, paused = false, onSkip }: Props
           <div
             className={cn(
               'h-full rounded-full',
-              done ? 'bg-green-500' : paused ? 'bg-amber-400' : 'bg-primary',
+              done
+                ? 'bg-green-500'
+                : paused
+                  ? 'bg-amber-400'
+                  : 'bg-red-500 dark:bg-red-400',
             )}
             style={{
               width: `${Math.max(0, Math.min(1, progress)) * 100}%`,

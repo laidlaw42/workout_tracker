@@ -35,6 +35,7 @@ import {
   vGradeIndex,
 } from '@/lib/climbing'
 import { normalizeVenue } from '@/lib/badges'
+import { resolveExerciseDefaults } from '@/lib/exerciseDefaults'
 import {
   clearActivePhase,
   loadActivePhase,
@@ -229,6 +230,8 @@ export default function ClimbingSessionScreen() {
           targetSets: e.defaultSets,
           targetReps: e.defaultReps,
           durationSeconds: e.defaultDuration,
+          weight: e.defaultWeight, // A98 — template default weight pre-fills the row
+          distanceKm: e.defaultDistanceKm,
           restSeconds: e.defaultRestSeconds,
           skipped: false,
         })),
@@ -372,18 +375,24 @@ export default function ClimbingSessionScreen() {
   function appendExercises(exs: Exercise[]) {
     if (!exs.length) return
     const stamp = Date.now()
+    // A98 — seed each row from the exercise's saved defaults (fallback 3 × 10 · 90s).
     setWork((w) => [
       ...w,
-      ...exs.map((ex, i) => ({
-        uid: `${ex.id}-add-${stamp}-${i}`,
-        exerciseId: ex.id,
-        exerciseName: ex.name,
-        targetSets: 3,
-        targetReps: ex.trackingType === 'duration' ? undefined : 10,
-        durationSeconds: ex.trackingType === 'duration' ? 30 : undefined,
-        restSeconds: 90,
-        skipped: false,
-      })),
+      ...exs.map((ex, i) => {
+        const r = resolveExerciseDefaults(ex)
+        return {
+          uid: `${ex.id}-add-${stamp}-${i}`,
+          exerciseId: ex.id,
+          exerciseName: ex.name,
+          targetSets: r.sets,
+          targetReps: r.reps,
+          durationSeconds: r.durationSeconds,
+          weight: r.weightKg,
+          distanceKm: r.distanceKm,
+          restSeconds: r.restSeconds,
+          skipped: false,
+        }
+      }),
     ])
     setAddPickerOpen(false)
   }

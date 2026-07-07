@@ -14,6 +14,7 @@ import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-ki
 import { useLiveQuery } from '@/hooks/useDb'
 import { getAllExercises, getDefaultTags, upsertTemplate } from '@/db/helpers'
 import { generateId } from '@/lib/id'
+import { templateExerciseFromExercise } from '@/lib/exerciseDefaults'
 import { ExercisePicker } from '@/components/ExercisePicker'
 import { HangboardSetsEditor } from '@/components/HangboardSetsEditor'
 import { IntervalsEditor } from '@/components/IntervalsEditor'
@@ -135,17 +136,12 @@ export default function TemplateCreateScreen() {
     const hangboardExs = exs.filter((e) => e.category === 'hangboard' && e.hangboard)
     const regularExs = exs.filter((e) => !(e.category === 'hangboard' && e.hangboard))
     if (regularExs.length) {
+      // A98 — seed each row from the exercise's saved defaults (fallback 3 × 10 · 90s).
       setRows((rs) => [
         ...rs,
         ...regularExs.map((ex, i) => ({
           uid: generateId(),
-          exerciseId: ex.id,
-          exerciseName: ex.name,
-          order: rs.length + i,
-          defaultSets: 3,
-          defaultReps: ex.trackingType === 'duration' ? undefined : 10,
-          defaultDuration: ex.trackingType === 'duration' ? 30 : undefined,
-          defaultRestSeconds: 90,
+          ...templateExerciseFromExercise(ex, rs.length + i),
         })),
       ])
     }
@@ -175,6 +171,7 @@ export default function TemplateCreateScreen() {
               defaultReps: r.defaultReps,
               defaultDuration: r.defaultDuration,
               defaultWeight: r.defaultWeight,
+              defaultDistanceKm: r.defaultDistanceKm,
               defaultRestSeconds: r.defaultRestSeconds,
               notes: r.notes,
             }))

@@ -27,6 +27,7 @@ import {
 import { Dumbbell, Plus } from 'lucide-react'
 import { generateId } from '@/lib/id'
 import { templateCategories } from '@/lib/templateCategories'
+import { resolveExerciseDefaults } from '@/lib/exerciseDefaults'
 import {
   clearActivePhase,
   loadActivePhase,
@@ -141,6 +142,8 @@ export default function StrengthSessionScreen() {
         targetSets: e.defaultSets,
         targetReps: e.defaultReps,
         durationSeconds: e.defaultDuration,
+        weight: e.defaultWeight, // A98 — template's default weight pre-fills the set row
+        distanceKm: e.defaultDistanceKm,
         restSeconds: e.defaultRestSeconds,
         skipped: false,
       }))
@@ -605,18 +608,25 @@ export default function StrengthSessionScreen() {
       void updateSession(id, { type: 'mixed' })
     }
     if (regularExs.length) {
+      // A98 — seed each row from the exercise's saved defaults (falling back to
+      // the standard 3 sets · 10 reps / 30s · 90s rest when none are set).
       setWork((w) => [
         ...w,
-        ...regularExs.map((ex) => ({
-          uid: generateId(),
-          exerciseId: ex.id,
-          exerciseName: ex.name,
-          targetSets: ex.trackingType === 'distance' ? 1 : 3,
-          targetReps: ex.trackingType === 'reps' ? 10 : undefined,
-          durationSeconds: ex.trackingType === 'duration' ? 30 : undefined,
-          restSeconds: 90,
-          skipped: false,
-        })),
+        ...regularExs.map((ex) => {
+          const r = resolveExerciseDefaults(ex)
+          return {
+            uid: generateId(),
+            exerciseId: ex.id,
+            exerciseName: ex.name,
+            targetSets: r.sets,
+            targetReps: r.reps,
+            durationSeconds: r.durationSeconds,
+            weight: r.weightKg,
+            distanceKm: r.distanceKm,
+            restSeconds: r.restSeconds,
+            skipped: false,
+          }
+        }),
       ])
     }
     if (hangboardExs.length) {

@@ -107,6 +107,13 @@ export function HangCard({
                 remaining={countdown.remaining}
                 duration={countdown.duration}
                 label={countdown.precount ? 'Get ready' : (countdown.label ?? 'Hang')}
+                phase={
+                  countdown.precount
+                    ? 'precount'
+                    : countdown.label === 'Rest' // Abrahang intra-set rest
+                      ? 'rest'
+                      : 'hold'
+                }
               />
             ) : (
               <div className="flex items-center gap-2">

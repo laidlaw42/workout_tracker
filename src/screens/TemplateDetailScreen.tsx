@@ -1,16 +1,21 @@
+import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
+import { ChevronDown } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useTagColours } from '@/hooks/useTagColours'
 import { getTemplate, startSessionFromTemplate } from '@/db/helpers'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
 import { badgesForTemplate } from '@/lib/badges'
 import { templateCategories } from '@/lib/templateCategories'
+import { estimateTemplate, formatEstimateRange, formatRowEstimate } from '@/lib/estimateDuration'
+import { getPrecountSeconds } from '@/lib/prefs'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatElapsed, formatWorkoutLength } from '@/lib/formatDuration'
 import { weightLabel } from '@/lib/climbing'
+import { cn } from '@/lib/utils'
 import type { HangboardSet, HangType, TemplateExercise, WorkoutTemplate } from '@/types'
 
 function setsLabel(ex: TemplateExercise): string {
@@ -45,6 +50,57 @@ const ACTIVITY_LABELS: Record<string, string> = {
   ride: 'Ride',
   row: 'Row',
   other: 'Cardio',
+}
+
+// A101 — estimated session duration with a collapsible per-exercise breakdown.
+// Reactive: the template comes from a live query, and the pre-count preference is
+// read on each render, so edits update the estimate.
+function EstimateSection({ template }: { template: WorkoutTemplate }) {
+  const [open, setOpen] = useState(false)
+  const precount = getPrecountSeconds()
+  const estimate = useMemo(() => estimateTemplate(template, precount), [template, precount])
+
+  return (
+    <div className="space-y-2 rounded-xl border border-border bg-card p-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="text-sm font-medium text-muted-foreground">Estimated duration (approximate)</p>
+        <p className="shrink-0 text-lg font-bold tabular-nums">
+          {formatEstimateRange(estimate.totalSeconds)}
+        </p>
+      </div>
+      {estimate.hasVaries && (
+        <p className="text-xs text-muted-foreground">Distance work isn’t timed and is excluded.</p>
+      )}
+      {estimate.rows.length > 0 && (
+        <>
+          <button
+            type="button"
+            aria-expanded={open}
+            onClick={() => setOpen((o) => !o)}
+            className="flex w-full items-center justify-between py-1 text-left text-sm text-muted-foreground"
+          >
+            <span>Per-exercise breakdown</span>
+            <ChevronDown
+              aria-hidden
+              className={cn('size-4 shrink-0 transition-transform', open && 'rotate-180')}
+            />
+          </button>
+          {open && (
+            <ul className="space-y-1">
+              {estimate.rows.map((r, i) => (
+                <li key={`${r.name}-${i}`} className="flex justify-between gap-3 text-sm">
+                  <span className="truncate">{r.name}</span>
+                  <span className="shrink-0 text-muted-foreground tabular-nums">
+                    {formatRowEstimate(r.seconds)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+    </div>
+  )
 }
 
 export default function TemplateDetailScreen() {
@@ -175,6 +231,13 @@ export default function TemplateDetailScreen() {
               </div>
             ))}
           </div>
+        )}
+
+        {/* A101 — estimated session duration for templates with a work structure
+            (exercises / hangboard sets). Pure-cardio templates show their target
+            directly above, so this is skipped for them. */}
+        {(template.exercises.length > 0 || (template.hangboardSets?.length ?? 0) > 0) && (
+          <EstimateSection template={template} />
         )}
       </div>
 
