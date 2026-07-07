@@ -920,7 +920,7 @@ function GymEditSheet({
           <SheetTitle>Edit gym</SheetTitle>
           <SheetDescription className="sr-only">Gym name and grade ranges</SheetDescription>
         </SheetHeader>
-        <div className="flex-1 space-y-4 overflow-y-auto p-4">
+        <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
           <div className="space-y-1.5">
             <Label htmlFor="gym-name">Name</Label>
             <Input id="gym-name" value={name} onChange={(e) => setName(e.target.value)} />

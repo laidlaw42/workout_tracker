@@ -217,7 +217,7 @@ export function ExercisePicker({
         </SheetHeader>
 
         {creating ? (
-          <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
+          <div className="flex flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4">
             <div className="space-y-2">
               <Label>Category</Label>
               <SegmentedControl options={createCategories} value={category} onChange={setCategory} />
@@ -286,7 +286,7 @@ export function ExercisePicker({
                 ))}
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-2">
+            <div className="flex-1 overflow-y-auto overscroll-contain p-2">
               {catFilter === 'all' ? (
                 // Grouped by category with a sticky header per group (A66).
                 tabCats.map((cat) => {

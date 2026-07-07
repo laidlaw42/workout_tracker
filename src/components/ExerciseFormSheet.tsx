@@ -145,7 +145,7 @@ export function ExerciseFormSheet({
           <SheetDescription className="sr-only">Exercise details</SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 space-y-4 overflow-y-auto p-4">
+        <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
           <div className="space-y-2">
             <Label>Category</Label>
             <SegmentedControl options={CATEGORIES} value={category} onChange={setCategory} />

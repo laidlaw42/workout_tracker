@@ -317,7 +317,7 @@ export function LogRouteSheet({
           <SheetDescription className="sr-only">Route details</SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 space-y-5 overflow-y-auto p-4">
+        <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain p-4">
           {/* Area (A69) — Gym only, and the first field (A84) so picking it can
               pre-fill height/character defaults (A83) before anything else.
               Single-select pills (+ None / freetext Other) rather than a Radix

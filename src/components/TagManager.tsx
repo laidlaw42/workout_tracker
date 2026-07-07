@@ -147,7 +147,7 @@ function TagEditSheet({ tag, onClose }: { tag: TagMeta | null; onClose: () => vo
           <SheetTitle>Edit tag</SheetTitle>
           <SheetDescription className="sr-only">Tag name and colour</SheetDescription>
         </SheetHeader>
-        <div className="flex-1 space-y-4 overflow-y-auto p-4">
+        <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
           <div className="space-y-1.5">
             <Label htmlFor="tag-name">Name</Label>
             <Input id="tag-name" value={name} onChange={(e) => setName(e.target.value)} />

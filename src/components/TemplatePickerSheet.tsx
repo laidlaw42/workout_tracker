@@ -24,7 +24,7 @@ export function TemplatePickerSheet({ open, onOpenChange, onSelect }: Props) {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="bottom"
-        className="max-h-[85dvh] overflow-y-auto"
+        className="max-h-[85dvh] overflow-y-auto overscroll-contain"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <SheetHeader>
