@@ -1,15 +1,8 @@
 import { useEffect, useState } from 'react'
-import { toast } from 'sonner'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { seedIfNeeded } from '@/db/seed'
 import { migrateHomeVenueToBoard, migrateWallAngles, syncAllTagMeta } from '@/db/helpers'
-import {
-  completeConnectFromRedirect,
-  initScheduledBackups,
-  preloadGis,
-  providerLabel,
-} from '@/lib/backup'
 
 function LoadingScreen() {
   return (
@@ -35,26 +28,6 @@ export function Root() {
       )
       .catch((err) => console.error('Seeding failed', err))
       .finally(() => setReady(true))
-  }, [])
-
-  // A89 — complete a cloud OAuth sign-in redirect, then arm the daily backup
-  // schedule (which also runs an overdue backup immediately). Best-effort.
-  useEffect(() => {
-    completeConnectFromRedirect()
-      .then((provider) => {
-        if (provider) toast.success(`Connected ${providerLabel(provider)}`)
-      })
-      .catch((err) => toast.error((err as Error)?.message ?? 'Sign-in failed'))
-    let cleanup = () => {}
-    try {
-      cleanup = initScheduledBackups()
-    } catch (err) {
-      console.error('Backup schedule init failed', err)
-    }
-    // Warm Google sign-in (if configured) so the first Connect tap opens its popup
-    // inside the user gesture — iOS Safari blocks a popup opened after an await.
-    preloadGis()
-    return cleanup
   }, [])
 
   if (!ready) return <LoadingScreen />

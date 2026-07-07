@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Activity, Bandage, Dumbbell, Flame, Hand, Play, Plus, Settings } from 'lucide-react'
+import { Activity, Bandage, Dumbbell, Flame, Hand, Play, Plus, Save, Settings } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import {
   createSession,
@@ -10,6 +10,7 @@ import {
   getAllSessions,
   getUnfinishedSession,
 } from '@/db/helpers'
+import { runBackup } from '@/lib/backup'
 import { computeStreak } from '@/lib/streak'
 import { formatLongDate, greeting } from '@/lib/date'
 import { getUserName } from '@/lib/userName'
@@ -44,6 +45,22 @@ export default function HomeScreen() {
   const streak = data ? computeStreak(data.sessions) : 0
   const recent = data?.recent ?? []
   const kinds = data?.kinds ?? {}
+
+  // Back up now — shares the same full-snapshot JSON as Settings → Export data via
+  // the OS share sheet (save to Files / iCloud), falling back to a download.
+  async function handleBackup() {
+    try {
+      const result = await runBackup()
+      if (!result) return // share sheet cancelled
+      if (result.ok) {
+        toast.success(result.destination === 'Files' ? 'Backup saved' : 'Backup downloaded')
+      } else {
+        toast.error(result.detail || 'Backup failed')
+      }
+    } catch (e) {
+      toast.error((e as Error).message || 'Backup failed')
+    }
+  }
 
   async function discardUnfinished() {
     if (!unfinished) return
@@ -81,13 +98,23 @@ export default function HomeScreen() {
             {getUserName() ? `, ${getUserName()}` : ''}
           </h1>
         </div>
-        <Link
-          to="/settings"
-          aria-label="Settings"
-          className="flex size-10 items-center justify-center rounded-full text-muted-foreground transition-colors active:bg-accent"
-        >
-          <Settings className="size-5" aria-hidden />
-        </Link>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={handleBackup}
+            aria-label="Back up now"
+            className="flex size-10 items-center justify-center rounded-full text-muted-foreground transition-colors active:bg-accent"
+          >
+            <Save className="size-5" aria-hidden />
+          </button>
+          <Link
+            to="/settings"
+            aria-label="Settings"
+            className="flex size-10 items-center justify-center rounded-full text-muted-foreground transition-colors active:bg-accent"
+          >
+            <Settings className="size-5" aria-hidden />
+          </Link>
+        </div>
       </header>
 
       {unfinished && (

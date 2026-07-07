@@ -1,14 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { toast } from 'sonner'
 import confetti from 'canvas-confetti'
 import { useLiveQuery } from '@/hooks/useDb'
-import { backupAfterSessionIfEnabled } from '@/lib/backup'
 import { getConfettiEnabled } from '@/lib/prefs'
-
-// A89 — fire the after-session backup at most once per finished session (the
-// summary screen is only reached right after endSession()).
-const backedUpSessions = new Set<string>()
 import { getTheme, THEME_PREVIEWS } from '@/lib/theme'
 import {
   getCardioForSession,
@@ -96,21 +90,6 @@ export default function SessionSummaryScreen() {
     celebratedRef.current = true
     if (getConfettiEnabled()) fireCelebration()
   }, [session])
-
-  // A89 — "after every session" backup, in the background (doesn't block this
-  // screen). Runs once per finished session.
-  useEffect(() => {
-    if (!id || backedUpSessions.has(id)) return
-    backedUpSessions.add(id)
-    void backupAfterSessionIfEnabled()
-      .then((results) => {
-        const ok = (results ?? []).filter((r) => r.ok).map((r) => r.destination)
-        if (ok.length) toast.success(`Backup saved to ${ok.join(', ')}`)
-      })
-      .catch(() => {
-        /* background failure — don't intrude on the summary */
-      })
-  }, [id])
 
   if (session === undefined) {
     return (
