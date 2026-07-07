@@ -14,10 +14,11 @@ interface Props {
 }
 
 // A78/A85 — pick a gym/board/crag for the active session from a scrollable row of
-// saved names, or type a new one. The "New <venue> name" input is open by default
-// when no name is set yet (gym/board without a default, and every crag), so the
-// user is prompted to name it without tapping first. No autofocus (F12) — the
-// input is visible but focus needs an explicit tap.
+// saved names, or type a new one via the "New" pill (F47 — the venue is named by a
+// help label above the input, not in the pill). The input is open by default when
+// no name is set yet (gym/board without a default, and every crag), so the user is
+// prompted to name it without tapping first. No autofocus (F12) — the input is
+// visible but focus needs an explicit tap.
 export function SessionLocationPills({ venue, value, onChange }: Props) {
   const [saved, setSaved] = useState<string[]>(() => getSavedLocations(venue))
   const [adding, setAdding] = useState(() => value.trim() === '')
@@ -30,6 +31,9 @@ export function SessionLocationPills({ venue, value, onChange }: Props) {
   const canDefault = venue === 'gym' || venue === 'board'
   const label = venue === 'board' ? 'board' : venue
   const newLabel = `New ${label} name`
+  // F47 — the "New" pill reads just "New"; the venue is spelled out in a small
+  // help label above the input instead ("Gym name" / "Crag name" / "Board name").
+  const helpLabel = `${label[0].toUpperCase()}${label.slice(1)} name`
   const inSaved = (n: string) => saved.some((s) => s.toLowerCase() === n.toLowerCase())
 
   // When a name lands (a saved pick or a pre-applied default), collapse the input
@@ -63,8 +67,8 @@ export function SessionLocationPills({ venue, value, onChange }: Props) {
     setDraft('')
   }
 
-  // Crag with no saved names shows only the input — the "New crag name" pill is
-  // redundant there and the input must never be hidden (A85).
+  // Crag with no saved names shows only the input — the "New" pill is redundant
+  // there and the input must never be hidden (A85).
   const showNewPill = saved.length > 0 || venue !== 'crag'
   const showSelectedExtra = !adding && selected !== '' && !inSaved(selected)
   const showRow = saved.length > 0 || showNewPill || showSelectedExtra
@@ -121,7 +125,7 @@ export function SessionLocationPills({ venue, value, onChange }: Props) {
                   : 'bg-muted text-muted-foreground ring-transparent active:bg-accent',
               )}
             >
-              <Plus className="size-3.5" /> {newLabel}
+              <Plus className="size-3.5" /> New
             </button>
           )}
         </div>
@@ -129,11 +133,11 @@ export function SessionLocationPills({ venue, value, onChange }: Props) {
 
       {inputOpen && (
         <div className="space-y-2">
-          <Input
-            value={draft}
-            placeholder={newLabel}
-            onChange={(e) => setDraft(e.target.value)}
-          />
+          {/* F47 — a small muted field label naming the venue, above the input. */}
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground">{helpLabel}</span>
+            <Input value={draft} placeholder={newLabel} onChange={(e) => setDraft(e.target.value)} />
+          </label>
           {draftName !== '' &&
             (canDefault ? (
               <div className="grid gap-2">
