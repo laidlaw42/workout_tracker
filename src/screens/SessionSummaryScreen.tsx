@@ -27,6 +27,7 @@ import {
   vGradeIndex,
 } from '@/lib/climbing'
 import { contrastText, gradeToColor, vGradeToColor } from '@/lib/gradeColors'
+import { assertNever } from '@/lib/assert'
 import { tickIndicator } from '@/lib/tickTypes'
 import { useTickDisplayStyle } from '@/hooks/useTickSymbol'
 import { cn } from '@/lib/utils'
@@ -375,5 +376,7 @@ function prLabel(pr: PersonalRecord): string {
       return `${pr.exerciseName} · ${pr.unit === 'vgrade' ? vGradeFromIndex(pr.value) : pr.value}`
     case 'duration':
       return `${pr.exerciseName} · ${pr.value}s hang`
+    default:
+      return assertNever(pr.prType, 'PR type')
   }
 }

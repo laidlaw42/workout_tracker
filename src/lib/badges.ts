@@ -14,6 +14,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { CLIMB_STYLE_ICONS } from '@/lib/climbing'
+import { assertNever } from '@/lib/assert'
 import { templateCategories } from '@/lib/templateCategories'
 import type {
   CardioActivityType,
@@ -111,6 +112,8 @@ export function badgeForCategory(category: ExerciseCategory): Badge {
       return REHAB_BADGE
     case 'hangboard':
       return HANGBOARD(TONE.climbing)
+    default:
+      return assertNever(category, 'exercise category')
   }
 }
 
@@ -155,19 +158,24 @@ export function badgeForSession(s: WorkoutSession, kind?: SessionKind): Badge {
   }
   if (s.type === 'cardio') return cardioBadge(kind?.cardioActivity ?? s.plannedActivity)
 
-  // Climbing: colour follows the venue (blue/amber/green); the icon follows the
-  // logged subtype so a crag-lead and a gym-boulder read apart.
-  const venue = normalizeVenue(s.climbingVenue)
-  const classes = venue ? TONE[venue] : TONE.climbing
-  if (kind?.climbingStyle) {
-    const st = STYLE[kind.climbingStyle]
-    return { Icon: st.Icon, label: st.label, classes }
+  if (s.type === 'climbing') {
+    // Climbing: colour follows the venue (blue/amber/green); the icon follows the
+    // logged subtype so a crag-lead and a gym-boulder read apart.
+    const venue = normalizeVenue(s.climbingVenue)
+    const classes = venue ? TONE[venue] : TONE.climbing
+    if (kind?.climbingStyle) {
+      const st = STYLE[kind.climbingStyle]
+      return { Icon: st.Icon, label: st.label, classes }
+    }
+    if (kind?.climbingIsHangboard) return HANGBOARD(classes)
+    if (kind?.climbingIsWorkout) return CLIMB_WORKOUT(classes)
+    // Nothing logged yet — fall back to the venue identity, else generic climbing.
+    if (venue) return VENUE_BADGES[venue]
+    return { Icon: Mountain, label: 'Climbing', classes: TONE.climbing }
   }
-  if (kind?.climbingIsHangboard) return HANGBOARD(classes)
-  if (kind?.climbingIsWorkout) return CLIMB_WORKOUT(classes)
-  // Nothing logged yet — fall back to the venue identity, else generic climbing.
-  if (venue) return VENUE_BADGES[venue]
-  return { Icon: Mountain, label: 'Climbing', classes: TONE.climbing }
+  // Exhaustive: a new DisciplineType must add a branch above rather than silently
+  // rendering as a climbing badge.
+  return assertNever(s.type, 'session type')
 }
 
 function dominantStyle(routes: ClimbingRoute[]): ClimbingStyle {
