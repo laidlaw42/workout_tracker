@@ -18,11 +18,13 @@ import { clearAllData, exportAllData, importAllData, mergeData } from '@/db/help
 import {
   PROVIDERS,
   backupAfterSession,
+  backupRedirectUri,
   backupScheduled,
   beginConnect,
   connectedAccount,
   disconnect,
   fetchCloudBackup,
+  getClientId,
   getScheduleTime,
   initScheduledBackups,
   isConnected,
@@ -30,6 +32,7 @@ import {
   listCloudBackups,
   providerLabel,
   runBackup,
+  setClientIdOverride,
   setScheduleTime,
   type OAuthProviderId,
 } from '@/lib/backup'
@@ -1173,8 +1176,20 @@ function BackupsSection() {
   const [listError, setListError] = useState('')
   const [pendingJson, setPendingJson] = useState<string | null>(null)
   const restoreFileRef = useRef<HTMLInputElement>(null)
+  const [showSetup, setShowSetup] = useState(false)
+  const [clientIds, setClientIds] = useState<Record<OAuthProviderId, string>>(() => ({
+    gdrive: getClientId('gdrive'),
+    dropbox: getClientId('dropbox'),
+    onedrive: getClientId('onedrive'),
+  }))
 
   const oauthProviders = PROVIDERS.filter((p) => p.oauth)
+
+  function saveClientId(id: OAuthProviderId, value: string) {
+    setClientIds((c) => ({ ...c, [id]: value }))
+    setClientIdOverride(id, value)
+    bumpConn()
+  }
 
   function toggleAfter(on: boolean) {
     setAfterSession(on)
@@ -1347,12 +1362,47 @@ function BackupsSection() {
         })}
       </div>
 
+      {/* One-time owner setup: paste each provider's OAuth client ID (no rebuild
+          needed). Users never see this — they just tap Connect. */}
+      <div className="space-y-2">
+        <button
+          type="button"
+          onClick={() => setShowSetup((v) => !v)}
+          className="flex w-full items-center justify-between rounded-md py-1 text-left text-sm text-muted-foreground"
+        >
+          <span>Set up providers</span>
+          <ChevronRight className={cn('size-4 transition-transform', showSetup && 'rotate-90')} />
+        </button>
+        {showSetup && (
+          <div className="space-y-3 rounded-xl border border-border bg-card p-3">
+            <p className="text-xs text-muted-foreground">
+              One-time setup: register an OAuth app with each provider, add the redirect URI below,
+              and paste its client ID. Everyone else just taps Connect.
+            </p>
+            <div className="rounded-md bg-muted p-2">
+              <p className="text-xs font-medium text-muted-foreground">Redirect URI to register</p>
+              <p className="break-all font-mono text-xs">{backupRedirectUri()}</p>
+            </div>
+            {oauthProviders.map((p) => (
+              <label key={p.id} className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">{p.label} client ID</span>
+                <Input
+                  value={clientIds[p.id as OAuthProviderId]}
+                  placeholder="Paste client ID"
+                  onChange={(e) => saveClientId(p.id as OAuthProviderId, e.target.value)}
+                />
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+
       <Button variant="outline" className="w-full justify-start" onClick={() => setRestoreOpen(true)}>
         <Cloud className="size-4" /> Restore from cloud
       </Button>
       <p className="px-1 text-xs text-muted-foreground">
         A backup is the same JSON as Export. With no cloud provider connected, backups are shared to
-        Files or downloaded. Cloud providers need the app’s OAuth client IDs to connect.
+        Files or downloaded.
       </p>
 
       <Dialog

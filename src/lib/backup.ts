@@ -64,6 +64,33 @@ export function isProviderConfigured(id: ProviderId): boolean {
   return clientId(id) !== ''
 }
 
+// The effective client ID (env var or the localStorage override), for pre-filling
+// the Settings "Set up providers" fields.
+export function getClientId(id: OAuthProviderId): string {
+  return clientId(id)
+}
+
+// Save/clear a provider's client ID in the localStorage override map, so the app
+// owner can configure OAuth without a rebuild. Empty clears it (falls back to the
+// build-time env var, if any).
+export function setClientIdOverride(id: OAuthProviderId, value: string): void {
+  let all: Record<string, string> = {}
+  try {
+    const parsed = JSON.parse(localStorage.getItem('backup_client_ids') ?? '{}')
+    if (parsed && typeof parsed === 'object') all = parsed
+  } catch {
+    /* ignore */
+  }
+  const v = value.trim()
+  if (v) all[id] = v
+  else delete all[id]
+  try {
+    localStorage.setItem('backup_client_ids', JSON.stringify(all))
+  } catch {
+    /* ignore */
+  }
+}
+
 // --- Trigger + schedule settings (localStorage) --------------------------------
 
 const K = {
@@ -210,6 +237,12 @@ interface OAuthConfig {
 
 const redirectUri = () =>
   typeof window !== 'undefined' ? `${window.location.origin}${import.meta.env.BASE_URL}` : ''
+
+// The redirect URI the app owner must register with each OAuth provider — shown
+// in the Settings "Set up providers" panel so it can be copied exactly.
+export function backupRedirectUri(): string {
+  return redirectUri()
+}
 
 const OAUTH: Record<OAuthProviderId, OAuthConfig> = {
   // Google Drive — app-scoped hidden folder (drive.appdata), no access to the
