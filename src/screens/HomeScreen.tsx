@@ -11,6 +11,7 @@ import {
   getUnfinishedSession,
 } from '@/db/helpers'
 import { runBackup } from '@/lib/backup'
+import { clearActivePhase } from '@/lib/activePhase'
 import { computeStreak } from '@/lib/streak'
 import { formatLongDate, greeting } from '@/lib/date'
 import { getUserName } from '@/lib/userName'
@@ -78,6 +79,7 @@ export default function HomeScreen() {
     if (!unfinished) return
     try {
       await deleteSession(unfinished.id)
+      clearActivePhase(unfinished.id) // F48 — drop any persisted timed phase
       setConfirmDiscard(false)
     } catch {
       toast.error('Could not discard workout')

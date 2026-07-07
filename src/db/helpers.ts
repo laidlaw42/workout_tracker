@@ -7,6 +7,7 @@ import { STYLE_LABELS, isCleanTick, vGradeIndex } from '@/lib/climbing'
 import { deriveSessionKind, normalizeVenue, type SessionKind } from '@/lib/badges'
 import { deriveSessionType, templateCategories } from '@/lib/templateCategories'
 import { templateExerciseFromExercise } from '@/lib/exerciseDefaults'
+import { clearAllActivePhases } from '@/lib/activePhase'
 import type {
   CardioActivityType,
   ClimbingRoute,
@@ -1464,5 +1465,6 @@ export async function clearAllData(): Promise<void> {
     } catch {
       /* ignore */
     }
+    clearAllActivePhases() // F48 — no session left to resume
   })
 }

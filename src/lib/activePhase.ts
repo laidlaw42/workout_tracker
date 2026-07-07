@@ -66,6 +66,18 @@ export function clearActivePhase(sessionId: string): void {
   }
 }
 
+// Drop every persisted phase (e.g. on "Clear all data"), so no key outlives the
+// sessions it referenced.
+export function clearAllActivePhases(): void {
+  try {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith('active_phase_')) localStorage.removeItem(k)
+    }
+  } catch {
+    /* ignore storage errors */
+  }
+}
+
 // A persisted phase older than this (relative to its endsAt) is treated as stale
 // and never auto-resumed — so re-opening a long-abandoned unfinished session
 // doesn't spontaneously fire a countdown. Generous enough to cover the longest
