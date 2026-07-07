@@ -14,12 +14,47 @@ import type {
 // time: new built-ins are added on upgrade, user-deleted ones are not
 // resurrected, and user-created templates (uuid ids) are never touched.
 
-const BUILTIN_SET_VERSION = 7 // A73: hangboard exercises + hangboard/workout templates re-typed as training
+const BUILTIN_SET_VERSION = 8 // trim bodybuilding-isolation exercises; refocus PPL/UL/full-body templates on compounds
 
 // Built-in strength templates removed in A54 — deleted once from existing
 // libraries (keyed by the meta flag below) and absent from the seed arrays so
 // they are never re-added.
 const REMOVED_TEMPLATE_IDS = ['tpl_push_b', 'tpl_pull_b', 'tpl_legs_b', 'tpl_full_body_b']
+
+// Built-in exercises removed/merged when the library was refocused toward climbing:
+// off-target rehab (tibialis, Achilles eccentric, Copenhagen), bodybuilding filler
+// (hip thrust, muscle-up), and duplicate forearm/shoulder entries collapsed into a
+// single canonical exercise each. Deleted once from existing libraries (keyed by the
+// meta flag below) and absent from EXERCISES so they are never re-seeded. The first
+// group (through ex_shoulder_press_antagonist) was template-free; the isolation lifts
+// below had their PPL/UL/full-body template rows re-pointed to compounds.
+const REMOVED_EXERCISE_IDS = [
+  'ex_hip_thrust',
+  'ex_muscle_up',
+  'ex_tibialis_raise',
+  'ex_calf_eccentric',
+  'ex_copenhagen_plank',
+  'ex_reverse_wrist_curl', // merged → ex_reverse_wrist_curl_climbing
+  'ex_wrist_roller', // merged → ex_wrist_roller_flexion / ex_wrist_roller_extension
+  'ex_rice_bucket_grip', // merged → ex_rice_bucket
+  'ex_theraband_external_rotation', // merged → ex_rotator_cuff_external_rotation
+  'ex_banded_external_rotation', // merged → ex_rotator_cuff_external_rotation
+  'ex_shoulder_press_antagonist', // merged → ex_db_shoulder_press
+  // Bodybuilding-isolation lifts cut to refocus the library on climbing; the
+  // PPL/UL/full-body templates were re-pointed to compound substitutes. Kept
+  // ex_bench_press (keystone) and ex_hammer_curl (forearm/elbow value).
+  'ex_cable_fly',
+  'ex_lateral_raise',
+  'ex_tricep_pushdown',
+  'ex_tricep_overhead_extension',
+  'ex_arnold_press',
+  'ex_bicep_curl',
+  'ex_kettlebell_swing',
+  'ex_leg_press',
+  'ex_leg_curl',
+  'ex_glute_bridge',
+  'ex_calf_raise',
+]
 
 // Evidence-based rest defaults. Heavy compound lifts at low reps need long rests
 // for full neuromuscular recovery and to preserve subsequent-set volume; longer
@@ -37,11 +72,7 @@ const COMPOUND_180 = new Set([
   'ex_barbell_row',
 ])
 const ISOLATION_60 = new Set([
-  'ex_lateral_raise',
-  'ex_face_pull',
-  'ex_tricep_pushdown',
-  'ex_bicep_curl',
-  'ex_calf_raise', // isolation, 15+ reps (A54 — science-based 60s)
+  'ex_face_pull', // isolation, 15+ reps → 60s. Other members removed with the isolation-lift trim.
 ])
 
 // Derived, science-based default rest for an exercise. A row may override it with
@@ -78,29 +109,20 @@ const EXERCISES: ExerciseSeed[] = [
   { id: 'ex_front_squat', name: 'Front squat', muscleGroups: ['quads', 'core'], trackingType: 'reps' },
   { id: 'ex_deadlift', name: 'Deadlift', muscleGroups: ['hamstrings', 'back', 'glutes'], trackingType: 'reps' },
   { id: 'ex_romanian_deadlift', name: 'Romanian deadlift', muscleGroups: ['hamstrings', 'glutes'], trackingType: 'reps' },
-  { id: 'ex_leg_press', name: 'Leg press', muscleGroups: ['quads', 'glutes'], trackingType: 'reps' },
-  { id: 'ex_leg_curl', name: 'Leg curl', muscleGroups: ['hamstrings'], trackingType: 'reps' },
-  { id: 'ex_hip_thrust', name: 'Hip thrust', muscleGroups: ['glutes'], trackingType: 'reps' },
-  { id: 'ex_calf_raise', name: 'Calf raise', muscleGroups: ['calves'], trackingType: 'reps' },
   // Push
   { id: 'ex_bench_press', name: 'Bench press', muscleGroups: ['chest', 'triceps'], trackingType: 'reps' },
   { id: 'ex_incline_db_press', name: 'Incline dumbbell press', muscleGroups: ['chest', 'shoulders'], trackingType: 'reps' },
-  { id: 'ex_cable_fly', name: 'Cable fly', muscleGroups: ['chest'], trackingType: 'reps' },
   { id: 'ex_chest_dip', name: 'Chest dip', muscleGroups: ['chest', 'triceps'], trackingType: 'reps', supportsAdditionalWeight: true },
   { id: 'ex_ring_dip', name: 'Ring dip', muscleGroups: ['chest', 'triceps'], trackingType: 'reps', supportsAdditionalWeight: true },
   { id: 'ex_overhead_press', name: 'Overhead press', muscleGroups: ['shoulders', 'triceps'], trackingType: 'reps' },
   { id: 'ex_db_shoulder_press', name: 'Dumbbell shoulder press', muscleGroups: ['shoulders', 'triceps'], trackingType: 'reps' },
-  { id: 'ex_lateral_raise', name: 'Lateral raise', muscleGroups: ['shoulders'], trackingType: 'reps' },
-  { id: 'ex_tricep_pushdown', name: 'Tricep pushdown', muscleGroups: ['triceps'], trackingType: 'reps' },
   // Pull
   { id: 'ex_pull_up', name: 'Pull-up', muscleGroups: ['back', 'biceps'], trackingType: 'reps', supportsAdditionalWeight: true },
   { id: 'ex_chin_up', name: 'Chin-up', muscleGroups: ['back', 'biceps'], trackingType: 'reps', supportsAdditionalWeight: true },
-  { id: 'ex_muscle_up', name: 'Muscle-up', muscleGroups: ['back', 'chest', 'triceps'], trackingType: 'reps', supportsAdditionalWeight: true },
   { id: 'ex_lat_pulldown', name: 'Lat pulldown', muscleGroups: ['back', 'biceps'], trackingType: 'reps' },
   { id: 'ex_seated_row', name: 'Seated row', muscleGroups: ['back', 'biceps'], trackingType: 'reps' },
   { id: 'ex_barbell_row', name: 'Barbell row', muscleGroups: ['back', 'biceps'], trackingType: 'reps' },
   { id: 'ex_face_pull', name: 'Face pull', muscleGroups: ['shoulders', 'back'], trackingType: 'reps' },
-  { id: 'ex_bicep_curl', name: 'Bicep curl', muscleGroups: ['biceps'], trackingType: 'reps' },
   // Core
   { id: 'ex_plank', name: 'Plank', muscleGroups: ['core'], trackingType: 'duration' },
   { id: 'ex_hanging_leg_raise', name: 'Hanging leg raise', muscleGroups: ['core'], trackingType: 'reps' },
@@ -109,32 +131,23 @@ const EXERCISES: ExerciseSeed[] = [
   { id: 'ex_ride', name: 'Ride', muscleGroups: [], trackingType: 'distance' },
   { id: 'ex_row', name: 'Row', muscleGroups: [], trackingType: 'distance' },
   // Rehab / prehab (A42) — discipline-agnostic recovery work.
-  { id: 'ex_theraband_external_rotation', name: 'Theraband external rotation', muscleGroups: ['shoulders'], trackingType: 'reps', category: 'rehab' },
-  { id: 'ex_wrist_roller', name: 'Wrist roller', muscleGroups: ['forearms'], trackingType: 'reps', category: 'rehab' },
   { id: 'ex_rice_bucket', name: 'Rice bucket', muscleGroups: ['forearms'], trackingType: 'duration', category: 'rehab' },
-  { id: 'ex_reverse_wrist_curl', name: 'Reverse wrist curl', muscleGroups: ['forearms'], trackingType: 'reps', category: 'rehab' },
   { id: 'ex_pronation_supination', name: 'Pronation/supination', muscleGroups: ['forearms'], trackingType: 'reps', category: 'rehab' },
   { id: 'ex_shoulder_cars', name: 'Shoulder CARs', muscleGroups: ['shoulders'], trackingType: 'reps', category: 'rehab' },
   { id: 'ex_hip_90_90', name: 'Hip 90/90', muscleGroups: ['hips'], trackingType: 'reps', category: 'rehab' },
   { id: 'ex_dead_hang', name: 'Dead hang (passive)', muscleGroups: ['forearms', 'shoulders'], trackingType: 'duration', category: 'rehab' },
   // Strength accessories added when the PPL/full-body templates were expanded (A54).
-  { id: 'ex_arnold_press', name: 'Arnold press', muscleGroups: ['shoulders', 'triceps'], trackingType: 'reps' },
-  { id: 'ex_tricep_overhead_extension', name: 'Tricep overhead extension', muscleGroups: ['triceps'], trackingType: 'reps' },
   { id: 'ex_single_arm_db_row', name: 'Single-arm dumbbell row', muscleGroups: ['back', 'biceps'], trackingType: 'reps' },
   { id: 'ex_cable_rear_delt_fly', name: 'Cable rear delt fly', muscleGroups: ['shoulders', 'back'], trackingType: 'reps' },
   { id: 'ex_hammer_curl', name: 'Hammer curl', muscleGroups: ['biceps', 'forearms'], trackingType: 'reps' },
   { id: 'ex_bulgarian_split_squat', name: 'Bulgarian split squat', muscleGroups: ['quads', 'glutes'], trackingType: 'reps' },
   { id: 'ex_walking_lunge', name: 'Walking lunge', muscleGroups: ['quads', 'glutes'], trackingType: 'reps' },
-  { id: 'ex_glute_bridge', name: 'Glute bridge', muscleGroups: ['glutes'], trackingType: 'reps' },
   { id: 'ex_db_row', name: 'Dumbbell row', muscleGroups: ['back', 'biceps'], trackingType: 'reps' },
   { id: 'ex_push_up', name: 'Push-up', muscleGroups: ['chest', 'triceps'], trackingType: 'reps' },
-  { id: 'ex_kettlebell_swing', name: 'Kettlebell swing', muscleGroups: ['glutes', 'hamstrings', 'back'], trackingType: 'reps' },
   // Additional rehab / prehab (A55). Exact duplicates of existing rows are
   // omitted (Reverse wrist curl, Shoulder CARs, Dead hang (passive)); the
   // distinctly-named variants below are seeded per F41's explicit list.
-  { id: 'ex_banded_external_rotation', name: 'Banded shoulder external rotation', muscleGroups: ['shoulders'], trackingType: 'reps', category: 'rehab' },
   { id: 'ex_banded_internal_rotation', name: 'Banded shoulder internal rotation', muscleGroups: ['shoulders'], trackingType: 'reps', category: 'rehab' },
-  { id: 'ex_rice_bucket_grip', name: 'Rice bucket (grip)', muscleGroups: ['forearms'], trackingType: 'duration', category: 'rehab' },
   { id: 'ex_wrist_flexor_stretch', name: 'Wrist flexor stretch', muscleGroups: ['forearms'], trackingType: 'duration', category: 'rehab' },
   { id: 'ex_wrist_extensor_stretch', name: 'Wrist extensor stretch', muscleGroups: ['forearms'], trackingType: 'duration', category: 'rehab' },
   { id: 'ex_wrist_roller_flexion', name: 'Wrist roller (flexion)', muscleGroups: ['forearms'], trackingType: 'reps', category: 'rehab' },
@@ -143,10 +156,7 @@ const EXERCISES: ExerciseSeed[] = [
   { id: 'ex_thoracic_ext_foam_roller', name: 'Thoracic extension over foam roller', muscleGroups: ['back'], trackingType: 'duration', category: 'rehab' },
   { id: 'ex_scapular_wall_slide', name: 'Scapular wall slide', muscleGroups: ['shoulders', 'back'], trackingType: 'reps', category: 'rehab' },
   { id: 'ex_pallof_press', name: 'Pallof press', muscleGroups: ['core'], trackingType: 'reps', category: 'rehab' },
-  { id: 'ex_copenhagen_plank', name: 'Copenhagen plank', muscleGroups: ['core'], trackingType: 'duration', category: 'rehab' },
   { id: 'ex_single_leg_rdl_rehab', name: 'Single-leg Romanian deadlift (rehab weight)', muscleGroups: ['hamstrings', 'glutes'], trackingType: 'reps', category: 'rehab' },
-  { id: 'ex_tibialis_raise', name: 'Tibialis raise', muscleGroups: ['calves'], trackingType: 'reps', category: 'rehab' },
-  { id: 'ex_calf_eccentric', name: 'Calf eccentric (Alfredson protocol)', muscleGroups: ['calves'], trackingType: 'reps', category: 'rehab' },
   // Climbing-specific strength & conditioning (A56), sourced from Lattice Training
   // and climbing-conditioning literature. Isometric holds track duration; dynamic
   // movements track reps; external-loadable movements set supportsAdditionalWeight.
@@ -154,7 +164,6 @@ const EXERCISES: ExerciseSeed[] = [
   { id: 'ex_system_board_move', name: 'System board move', muscleGroups: ['forearms', 'back'], trackingType: 'reps', category: 'climbing' },
   { id: 'ex_antagonist_press_flat', name: 'Antagonist press (flat)', muscleGroups: ['chest', 'triceps'], trackingType: 'reps', category: 'climbing' },
   { id: 'ex_antagonist_press_incline', name: 'Antagonist press (incline)', muscleGroups: ['chest', 'shoulders'], trackingType: 'reps', category: 'climbing' },
-  { id: 'ex_shoulder_press_antagonist', name: 'Shoulder press (climbing antagonist)', muscleGroups: ['shoulders'], trackingType: 'reps', category: 'climbing' },
   { id: 'ex_wrist_curl', name: 'Wrist curl', muscleGroups: ['forearms'], trackingType: 'reps', category: 'climbing' },
   { id: 'ex_reverse_wrist_curl_climbing', name: 'Reverse wrist curl (climbing)', muscleGroups: ['forearms'], trackingType: 'reps', category: 'climbing' },
   { id: 'ex_finger_extension_band', name: 'Finger extension (rubber band)', muscleGroups: ['forearms'], trackingType: 'reps', category: 'climbing' },
@@ -170,6 +179,17 @@ const EXERCISES: ExerciseSeed[] = [
   { id: 'ex_one_arm_lock_off', name: 'One-arm lock-off', muscleGroups: ['back', 'biceps'], trackingType: 'duration', supportsAdditionalWeight: true, category: 'climbing' },
   { id: 'ex_typewriter_pull_up', name: 'Typewriter pull-up', muscleGroups: ['back', 'biceps'], trackingType: 'reps', supportsAdditionalWeight: true, category: 'climbing' },
   { id: 'ex_archer_pull_up', name: 'Archer pull-up', muscleGroups: ['back', 'biceps'], trackingType: 'reps', supportsAdditionalWeight: true, category: 'climbing' },
+  // Finger-strength lifts (block/edge pulls & pinch) — loadable, lower-injury finger
+  // training than bodyweight hangs; plus the one-arm pulling ladder and hanging core
+  // that the library was missing. Edge/pinch lifts are loaded isometrics tracked as
+  // reps (each rep a short max-load pull) with added weight.
+  { id: 'ex_edge_lift', name: 'Edge lift (block pull)', muscleGroups: ['forearms'], trackingType: 'reps', supportsAdditionalWeight: true, category: 'climbing' },
+  { id: 'ex_one_arm_edge_lift', name: 'One-arm edge lift', muscleGroups: ['forearms'], trackingType: 'reps', supportsAdditionalWeight: true, category: 'climbing' },
+  { id: 'ex_pinch_block', name: 'Pinch block lift', muscleGroups: ['forearms'], trackingType: 'reps', supportsAdditionalWeight: true, category: 'climbing' },
+  { id: 'ex_offset_pull_up', name: 'Offset pull-up', muscleGroups: ['back', 'biceps'], trackingType: 'reps', supportsAdditionalWeight: true, category: 'climbing' },
+  { id: 'ex_frenchies', name: 'Frenchies (lock-off ladder)', muscleGroups: ['back', 'biceps'], trackingType: 'reps', category: 'climbing' },
+  { id: 'ex_toes_to_bar', name: 'Toes-to-bar', muscleGroups: ['core'], trackingType: 'reps', category: 'climbing' },
+  { id: 'ex_windshield_wiper', name: 'Windshield wipers', muscleGroups: ['core'], trackingType: 'reps', category: 'climbing' },
   // Hangboard exercises (A73) — first-class training exercises. Each carries a
   // default protocol (science-based rest: 300s max hangs, 180s repeaters); adding
   // one to a training session seeds a HangboardSet the athlete can tune per set.
@@ -213,12 +233,9 @@ const STRENGTH: StrengthSeed[] = [
       { ex: 'ex_bench_press', sets: 4, reps: 6 }, // 180
       { ex: 'ex_overhead_press', sets: 3, reps: 8 }, // 90
       { ex: 'ex_incline_db_press', sets: 3, reps: 10 }, // 90
-      { ex: 'ex_lateral_raise', sets: 4, reps: 15 }, // 60 — bumped 3→4 sets (A54)
+      { ex: 'ex_db_shoulder_press', sets: 3, reps: 10 }, // 90 — deltoid volume (was lateral raise + Arnold press)
       { ex: 'ex_chest_dip', sets: 3, reps: 10 }, // 90
-      { ex: 'ex_tricep_pushdown', sets: 3, reps: 12 }, // 60
-      { ex: 'ex_cable_fly', sets: 3, reps: 15, rest: 60 }, // A54
-      { ex: 'ex_arnold_press', sets: 3, reps: 12 }, // 90 (A54)
-      { ex: 'ex_tricep_overhead_extension', sets: 3, reps: 12 }, // 90 (A54)
+      { ex: 'ex_push_up', sets: 3, reps: 15 }, // 90 — compound finisher (was tricep/fly isolation)
     ],
   },
   {
@@ -230,10 +247,9 @@ const STRENGTH: StrengthSeed[] = [
       { ex: 'ex_pull_up', sets: 3, reps: 8 }, // 90
       { ex: 'ex_barbell_row', sets: 3, reps: 8 }, // 90
       { ex: 'ex_face_pull', sets: 3, reps: 15 }, // 60
-      { ex: 'ex_bicep_curl', sets: 3, reps: 12 }, // 60
       { ex: 'ex_single_arm_db_row', sets: 3, reps: 10 }, // 90 (A54)
       { ex: 'ex_cable_rear_delt_fly', sets: 3, reps: 15, rest: 60 }, // A54
-      { ex: 'ex_hammer_curl', sets: 3, reps: 12, rest: 60 }, // A54
+      { ex: 'ex_hammer_curl', sets: 3, reps: 12, rest: 60 }, // A54 — kept: forearm/elbow value (bicep curl dropped)
       { ex: 'ex_chin_up', sets: 3, reps: 6, rest: 180 }, // A54
     ],
   },
@@ -244,12 +260,10 @@ const STRENGTH: StrengthSeed[] = [
     rows: [
       { ex: 'ex_squat', sets: 4, reps: 6 }, // 180
       { ex: 'ex_romanian_deadlift', sets: 3, reps: 8 }, // 90
-      { ex: 'ex_leg_press', sets: 3, reps: 12 }, // 90
-      { ex: 'ex_leg_curl', sets: 3, reps: 12 }, // 90
-      { ex: 'ex_calf_raise', sets: 4, reps: 15 }, // 60 (isolation, A54)
+      { ex: 'ex_front_squat', sets: 3, reps: 8 }, // 90 — quad compound (was leg press)
       { ex: 'ex_bulgarian_split_squat', sets: 3, reps: 10, rest: 120 }, // A54
       { ex: 'ex_walking_lunge', sets: 3, reps: 12 }, // 90 (A54)
-      { ex: 'ex_glute_bridge', sets: 3, reps: 15, rest: 60 }, // A54
+      { ex: 'ex_single_leg_rdl_rehab', sets: 3, reps: 10 }, // 90 — unilateral posterior (was leg curl; calf/glute-bridge dropped)
     ],
   },
   // Upper / Lower
@@ -262,9 +276,8 @@ const STRENGTH: StrengthSeed[] = [
       { ex: 'ex_barbell_row', sets: 4, reps: 6 }, // 180
       { ex: 'ex_overhead_press', sets: 3, reps: 8 }, // 90
       { ex: 'ex_lat_pulldown', sets: 3, reps: 10 }, // 90
-      { ex: 'ex_lateral_raise', sets: 3, reps: 15 }, // 60
-      { ex: 'ex_bicep_curl', sets: 3, reps: 12 }, // 60
-      { ex: 'ex_tricep_pushdown', sets: 3, reps: 12 }, // 60
+      { ex: 'ex_chest_dip', sets: 3, reps: 10 }, // 90 — push/antagonist (was lateral raise/isolation)
+      { ex: 'ex_face_pull', sets: 3, reps: 15 }, // 60 — rear delt / shoulder health (was arm isolation)
     ],
   },
   {
@@ -274,9 +287,9 @@ const STRENGTH: StrengthSeed[] = [
     rows: [
       { ex: 'ex_squat', sets: 4, reps: 6 }, // 180
       { ex: 'ex_romanian_deadlift', sets: 3, reps: 8 }, // 90
-      { ex: 'ex_leg_press', sets: 3, reps: 12 }, // 90
-      { ex: 'ex_leg_curl', sets: 3, reps: 12 }, // 90
-      { ex: 'ex_calf_raise', sets: 4, reps: 15 }, // 60 (isolation, A54)
+      { ex: 'ex_bulgarian_split_squat', sets: 3, reps: 10 }, // 90 — unilateral quad/glute (was leg press)
+      { ex: 'ex_walking_lunge', sets: 3, reps: 12 }, // 90 — unilateral leg volume (was leg curl)
+      { ex: 'ex_hanging_leg_raise', sets: 3, reps: 12 }, // 90 — core (was calf raise)
       { ex: 'ex_plank', sets: 3, duration: 45 }, // 90
     ],
   },
@@ -292,7 +305,7 @@ const STRENGTH: StrengthSeed[] = [
       { ex: 'ex_deadlift', sets: 3, reps: 5, rest: 300 }, // A54
       { ex: 'ex_db_row', sets: 3, reps: 10 }, // 90 (A54)
       { ex: 'ex_push_up', sets: 3, reps: 15, rest: 60 }, // A54
-      { ex: 'ex_kettlebell_swing', sets: 3, reps: 15 }, // 90 (A54)
+      { ex: 'ex_hanging_leg_raise', sets: 3, reps: 12 }, // 90 — core (was kettlebell swing)
     ],
   },
 ]
@@ -602,6 +615,17 @@ export async function seedIfNeeded(): Promise<void> {
     if (!(await getMeta<boolean>('removedBTemplates'))) {
       await db.templates.bulkDelete(REMOVED_TEMPLATE_IDS)
       await db.meta.put({ key: 'removedBTemplates', value: true })
+    }
+
+    // One-time removal of exercises purged/merged when the library was refocused
+    // toward climbing. Historical sessions keep their denormalized exercise names;
+    // only the library/picker entries go away. The flag is versioned: bumping it
+    // (V1 → V2 when the isolation-lift batch was added to REMOVED_EXERCISE_IDS)
+    // re-runs the idempotent bulkDelete so users who already ran an earlier batch
+    // still get the newly-removed ids cleaned up.
+    if (!(await getMeta<boolean>('removedExercisesV2'))) {
+      await db.exercises.bulkDelete(REMOVED_EXERCISE_IDS)
+      await db.meta.put({ key: 'removedExercisesV2', value: true })
     }
 
     // Seed each built-in exercise once (tracked by id), so a user-deleted
