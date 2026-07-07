@@ -1,6 +1,7 @@
 import { Suspense, lazy } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { BottomNav } from '@/components/BottomNav'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Toaster } from '@/components/ui/sonner'
 import HomeScreen from '@/screens/HomeScreen'
 import LibraryScreen from '@/screens/LibraryScreen'
@@ -31,10 +32,14 @@ function useHideNav() {
 
 export default function App() {
   const hideNav = useHideNav()
+  const { pathname } = useLocation()
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col bg-background text-foreground">
       <main className={hideNav ? 'flex-1' : 'flex-1 overscroll-y-contain pb-20'}>
+        {/* A render error in any screen would otherwise blank the whole app.
+            Keyed by pathname so navigating away (nav stays mounted) clears it. */}
+        <ErrorBoundary key={pathname}>
         <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading…</div>}>
         <Routes>
           <Route path="/" element={<Navigate to="/home" replace />} />
@@ -59,6 +64,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/home" replace />} />
         </Routes>
         </Suspense>
+        </ErrorBoundary>
       </main>
       {!hideNav && <BottomNav />}
       <Toaster position="top-center" richColors />
