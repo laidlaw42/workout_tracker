@@ -40,9 +40,9 @@ const TONE = {
   cardio: 'bg-orange-500/15 text-orange-300 ring-orange-500/30',
   climbing: 'bg-green-500/15 text-green-300 ring-green-500/30',
   rehab: 'bg-sky-500/15 text-sky-300 ring-sky-500/30', // #38bdf8 (F31)
-  gym: 'bg-blue-500/15 text-blue-300 ring-blue-500/30', // #3b82f6
+  gym: 'bg-pink-500/15 text-pink-300 ring-pink-500/30', // #ec4899 (F47)
   crag: 'bg-amber-500/15 text-amber-300 ring-amber-500/30', // #f59e0b
-  board: 'bg-green-500/15 text-green-300 ring-green-500/30', // #22c55e (formerly 'home', F30)
+  board: 'bg-purple-500/15 text-purple-300 ring-purple-500/30', // #a855f7 (F47)
   mixed: 'bg-violet-500/15 text-violet-300 ring-violet-500/30', // #8b5cf6 (A66)
 } as const
 

@@ -1,9 +1,9 @@
 import {
   Anchor,
   Flag,
+  Gem,
   Inbox,
   Minus,
-  Mountain,
   TrendingDown,
   TrendingUp,
   Zap,
@@ -109,13 +109,28 @@ export const STYLE_LABELS: Record<ClimbingStyle, string> = {
 // Lucide icons for the three climb types, used on the climb-type buttons (A24) and
 // wherever a route's style is shown (RouteCard, SessionDetail, History). F47 swaps
 // the earlier geometric icons (a plain pentagon / up-arrow that read as bare
-// unicode symbols) for recognizable ones: Mountain ≈ a boulder, Anchor ≈ the fixed
-// top-rope anchor, Flag ≈ leading to the top. Kept beside STYLE_LABELS so they
-// never drift.
+// unicode symbols) for recognizable, distinct ones: Gem ≈ a boulder problem (Crag
+// already owns Mountain), Anchor ≈ the fixed top-rope anchor, Flag ≈ leading to the
+// top. Kept beside STYLE_LABELS so they never drift.
 export const CLIMB_STYLE_ICONS: Record<ClimbingStyle, LucideIcon> = {
-  bouldering: Mountain,
+  bouldering: Gem,
   top_rope: Anchor,
   lead: Flag,
+}
+
+// F47 — an accent tint per climb type for the climb-type buttons. Deliberately
+// distinct from the home-screen venue colours (gym pink, board purple, crag amber)
+// and from each other. Static strings so Tailwind never purges them.
+export const CLIMB_STYLE_TONE: Record<ClimbingStyle, string> = {
+  bouldering: 'bg-lime-500/15 text-lime-300 ring-lime-500/30',
+  top_rope: 'bg-cyan-500/15 text-cyan-300 ring-cyan-500/30',
+  lead: 'bg-red-500/15 text-red-300 ring-red-500/30',
+}
+// Icon/text-only colour per climb type (e.g. the RouteCard style icon).
+export const CLIMB_STYLE_TEXT: Record<ClimbingStyle, string> = {
+  bouldering: 'text-lime-400',
+  top_rope: 'text-cyan-400',
+  lead: 'text-red-400',
 }
 
 // --- Hangboard --------------------------------------------------------------

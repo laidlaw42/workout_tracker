@@ -28,6 +28,7 @@ import {
 } from '@/db/helpers'
 import {
   CLIMB_STYLE_ICONS,
+  CLIMB_STYLE_TONE,
   STYLE_LABELS,
   isCleanTick,
   routeGapSeconds,
@@ -794,7 +795,11 @@ export default function ClimbingSessionScreen() {
             return (
               <div className="space-y-3">
                 {isBoard ? (
-                  <Button size="lg" className="w-full" onClick={() => openNew('bouldering')}>
+                  <Button
+                    size="lg"
+                    className={`w-full ring-1 ${CLIMB_STYLE_TONE.bouldering}`}
+                    onClick={() => openNew('bouldering')}
+                  >
                     {(() => {
                       const Icon = CLIMB_STYLE_ICONS.bouldering
                       return <Icon className="size-5" />
@@ -809,7 +814,7 @@ export default function ClimbingSessionScreen() {
                         <Button
                           key={s}
                           onClick={() => openNew(s)}
-                          className="flex h-auto flex-col gap-1 py-2.5"
+                          className={`flex h-auto flex-col gap-1 py-2.5 ring-1 ${CLIMB_STYLE_TONE[s]}`}
                         >
                           <Icon className="size-5" />
                           <span className="text-xs font-medium">{STYLE_BTN_LABELS[s]}</span>

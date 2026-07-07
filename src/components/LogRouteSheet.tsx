@@ -261,6 +261,7 @@ export function LogRouteSheet({
     const cfg = getGymArea(gymName ?? '', name)
     if (cfg?.defaultHeightMetres != null) setHeight(String(cfg.defaultHeightMetres))
     if (cfg?.defaultCharacter != null) setClimbCharacter(cfg.defaultCharacter)
+    if (cfg?.defaultAngleDegrees != null) setWallAngleDeg(String(cfg.defaultAngleDegrees)) // F48
   }
 
   const canSave = tick !== null && primarySelected !== null

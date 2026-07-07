@@ -296,6 +296,7 @@ export interface GymArea {
   name: string
   defaultHeightMetres?: number
   defaultCharacter?: ClimbCharacter
+  defaultAngleDegrees?: number // F48 — numeric wall angle (0–90), pre-fills the log sheet
 }
 
 function toGymArea(a: unknown): GymArea | null {
@@ -308,6 +309,8 @@ function toGymArea(a: unknown): GymArea | null {
         defaultHeightMetres:
           typeof o.defaultHeightMetres === 'number' ? o.defaultHeightMetres : undefined,
         defaultCharacter: o.defaultCharacter,
+        defaultAngleDegrees:
+          typeof o.defaultAngleDegrees === 'number' ? o.defaultAngleDegrees : undefined,
       }
     }
   }
@@ -386,7 +389,7 @@ export function renameGymArea(gym: string, oldName: string, newName: string): Gy
 export function updateGymAreaDefaults(
   gym: string,
   name: string,
-  patch: { defaultHeightMetres?: number; defaultCharacter?: ClimbCharacter },
+  patch: { defaultHeightMetres?: number; defaultCharacter?: ClimbCharacter; defaultAngleDegrees?: number },
 ): GymArea[] {
   const next = getGymAreaList(gym).map((a) => (a.name === name ? { ...a, ...patch } : a))
   setGymAreaList(gym, next)

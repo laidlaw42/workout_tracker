@@ -31,7 +31,7 @@ import { RouteCard } from '@/components/RouteCard'
 import { TagInput } from '@/components/TagInput'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
 import { badgeForSession, deriveSessionKind, normalizeVenue } from '@/lib/badges'
-import { CLIMB_STYLE_ICONS, routeGapSeconds } from '@/lib/climbing'
+import { CLIMB_STYLE_ICONS, CLIMB_STYLE_TONE, routeGapSeconds } from '@/lib/climbing'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -903,7 +903,11 @@ function ClimbingDetail({
           )}
           {editing &&
             (venue === 'board' ? (
-              <Button variant="outline" className="w-full" onClick={() => onNewRoute('bouldering')}>
+              <Button
+                variant="outline"
+                className={`w-full ring-1 ${CLIMB_STYLE_TONE.bouldering}`}
+                onClick={() => onNewRoute('bouldering')}
+              >
                 {(() => {
                   const Icon = CLIMB_STYLE_ICONS.bouldering
                   return <Icon className="size-5" />
@@ -919,7 +923,7 @@ function ClimbingDetail({
                       key={s}
                       variant="outline"
                       onClick={() => onNewRoute(s)}
-                      className="flex h-auto flex-col gap-1 py-2.5"
+                      className={`flex h-auto flex-col gap-1 py-2.5 ring-1 ${CLIMB_STYLE_TONE[s]}`}
                     >
                       <Icon className="size-5" />
                       <span className="text-xs font-medium">{DETAIL_STYLE_LABELS[s]}</span>

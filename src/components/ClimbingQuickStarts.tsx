@@ -53,9 +53,9 @@ export function ClimbingQuickStarts() {
 
 // Per-venue card tint — kept as static strings so Tailwind doesn't purge them.
 const CARD_TONE: Record<Kind, string> = {
-  gym: 'bg-blue-500/10 text-blue-300',
+  gym: 'bg-pink-500/10 text-pink-300', // F47
   crag: 'bg-amber-500/10 text-amber-300',
-  board: 'bg-green-500/10 text-green-300',
+  board: 'bg-purple-500/10 text-purple-300', // F47
 }
 
 function QuickCard({ venue, onClick }: { venue: Kind; onClick: () => void }) {

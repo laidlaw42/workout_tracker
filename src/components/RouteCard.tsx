@@ -2,6 +2,7 @@ import { Pencil, Trash2 } from 'lucide-react'
 import {
   CLIMB_CHARACTER_LABEL,
   CLIMB_STYLE_ICONS,
+  CLIMB_STYLE_TEXT,
   STYLE_LABELS,
   climbStyleLabel,
   tickBadgeClass,
@@ -95,7 +96,7 @@ export function RouteCard({ route, onClick, onDelete, gapSeconds }: Props) {
           <StyleIcon
             role="img"
             aria-label={STYLE_LABELS[route.style]}
-            className="size-4 shrink-0 text-muted-foreground"
+            className={`size-4 shrink-0 ${CLIMB_STYLE_TEXT[route.style]}`}
           />
           {route.routeType && (
             <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground capitalize">

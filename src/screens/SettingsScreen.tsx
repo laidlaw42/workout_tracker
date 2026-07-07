@@ -954,16 +954,24 @@ function AreaRow({
   area: GymArea
   onRename: (next: string) => void
   onDelete: () => void
-  onSetDefaults: (patch: Partial<Pick<GymArea, 'defaultHeightMetres' | 'defaultCharacter'>>) => void
+  onSetDefaults: (
+    patch: Partial<
+      Pick<GymArea, 'defaultHeightMetres' | 'defaultCharacter' | 'defaultAngleDegrees'>
+    >,
+  ) => void
 }) {
   const [draft, setDraft] = useState(area.name)
   const [height, setHeight] = useState(
     area.defaultHeightMetres != null ? String(area.defaultHeightMetres) : '',
   )
+  const [angle, setAngle] = useState(
+    area.defaultAngleDegrees != null ? String(area.defaultAngleDegrees) : '',
+  )
   useEffect(() => {
     setDraft(area.name)
     setHeight(area.defaultHeightMetres != null ? String(area.defaultHeightMetres) : '')
-  }, [area.name, area.defaultHeightMetres])
+    setAngle(area.defaultAngleDegrees != null ? String(area.defaultAngleDegrees) : '')
+  }, [area.name, area.defaultHeightMetres, area.defaultAngleDegrees])
 
   return (
     <div className="space-y-2 rounded-xl border border-border bg-card p-3">
@@ -1011,8 +1019,25 @@ function AreaRow({
         />
       </label>
 
+      <label className="flex flex-col gap-1">
+        <span className="text-xs text-muted-foreground">Default angle (°)</span>
+        <Input
+          inputMode="numeric"
+          value={angle}
+          placeholder="optional"
+          onChange={(e) => setAngle(e.target.value.replace(/[^0-9]/g, ''))}
+          onBlur={() => {
+            const n = angle.trim() === '' ? undefined : Number(angle)
+            const clamped =
+              n != null && !Number.isNaN(n) ? Math.max(0, Math.min(90, Math.round(n))) : undefined
+            onSetDefaults({ defaultAngleDegrees: clamped })
+            setAngle(clamped != null ? String(clamped) : '')
+          }}
+        />
+      </label>
+
       <div className="space-y-1">
-        <span className="text-xs text-muted-foreground">Default angle</span>
+        <span className="text-xs text-muted-foreground">Default character</span>
         <div className="flex flex-wrap gap-2">
           {CLIMB_CHARACTERS.map((c) => (
             <SelectPill
