@@ -110,15 +110,17 @@ export async function upsertExercise(
   })
 }
 
-// Updates an exercise; a rename cascades to templates' denormalised names so
-// they stay in sync. Historical sets/routes keep their recorded names.
+// Updates an exercise; a rename cascades to templates' denormalised names and to
+// this exercise's personal records so they stay reachable (DM1 — a PR is "your
+// best <exercise>", so it follows the rename; PR lookups are keyed by the
+// denormalised name). Historical logged sets/routes keep their recorded names.
 export async function updateExercise(
   id: string,
   updates: Partial<Omit<Exercise, 'id' | 'createdAt'>>,
 ): Promise<void> {
   return run('updateExercise', async () => {
     const normalized = updates.tags ? { ...updates, tags: normalizeTags(updates.tags) } : updates
-    await db.transaction('rw', [db.exercises, db.templates], async () => {
+    await db.transaction('rw', [db.exercises, db.templates, db.prs], async () => {
       await db.exercises.update(id, normalized)
       if (updates.name) {
         const templates = await db.templates.toArray()
@@ -131,6 +133,11 @@ export async function updateExercise(
             })
           }
         }
+        // DM1 — keep this exercise's PRs reachable by name. Only PRs tagged with
+        // this exerciseId are strength/weight PRs derived from it; grade PRs (keyed
+        // by climbing style) and hangboard/cardio PRs carry no exerciseId, so
+        // filtering by it leaves them untouched.
+        await db.prs.filter((p) => p.exerciseId === id).modify({ exerciseName: updates.name! })
       }
     })
     // Register any new tags AFTER the exercises/templates transaction (the tags
