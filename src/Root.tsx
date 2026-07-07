@@ -4,7 +4,12 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import { seedIfNeeded } from '@/db/seed'
 import { migrateHomeVenueToBoard, migrateWallAngles, syncAllTagMeta } from '@/db/helpers'
-import { completeConnectFromRedirect, initScheduledBackups, providerLabel } from '@/lib/backup'
+import {
+  completeConnectFromRedirect,
+  initScheduledBackups,
+  preloadGis,
+  providerLabel,
+} from '@/lib/backup'
 
 function LoadingScreen() {
   return (
@@ -46,6 +51,9 @@ export function Root() {
     } catch (err) {
       console.error('Backup schedule init failed', err)
     }
+    // Warm Google sign-in (if configured) so the first Connect tap opens its popup
+    // inside the user gesture — iOS Safari blocks a popup opened after an await.
+    preloadGis()
     return cleanup
   }, [])
 

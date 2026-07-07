@@ -18,6 +18,7 @@ import { clearAllData, exportAllData, importAllData, mergeData } from '@/db/help
 import {
   PROVIDERS,
   backupAfterSession,
+  backupJsOrigin,
   backupRedirectUri,
   backupScheduled,
   beginConnect,
@@ -30,6 +31,7 @@ import {
   isConnected,
   isProviderConfigured,
   listCloudBackups,
+  preloadGis,
   providerLabel,
   runBackup,
   setClientIdOverride,
@@ -1166,7 +1168,7 @@ function BackupsSection() {
   const [afterSession, setAfterSession] = useState(() => backupAfterSession.get())
   const [scheduled, setScheduled] = useState(() => backupScheduled.get())
   const [time, setTime] = useState(() => getScheduleTime())
-  const [, bumpConn] = useReducer((n: number) => n + 1, 0)
+  const [connTick, bumpConn] = useReducer((n: number) => n + 1, 0)
   const [busy, setBusy] = useState(false)
   const [restoreOpen, setRestoreOpen] = useState(false)
   const [listProvider, setListProvider] = useState<OAuthProviderId | null>(null)
@@ -1184,6 +1186,12 @@ function BackupsSection() {
   }))
 
   const oauthProviders = PROVIDERS.filter((p) => p.oauth)
+
+  // Warm Google sign-in once a client ID is configured (re-runs when one is pasted
+  // this session, via bumpConn) so the first Connect tap opens its popup in-gesture.
+  useEffect(() => {
+    preloadGis()
+  }, [connTick])
 
   function saveClientId(id: OAuthProviderId, value: string) {
     setClientIds((c) => ({ ...c, [id]: value }))
@@ -1367,6 +1375,13 @@ function BackupsSection() {
         })}
       </div>
 
+      {isConnected('gdrive') && (afterSession || scheduled) && (
+        <p className="px-1 text-xs text-muted-foreground">
+          Note: Google Drive auto-backups only run while the app is open and may ask you to
+          reconnect. For unattended daily backups, connect Dropbox or OneDrive.
+        </p>
+      )}
+
       {/* One-time owner setup: paste each provider's OAuth client ID (no rebuild
           needed). Users never see this — they just tap Connect. */}
       <div className="space-y-2">
@@ -1381,13 +1396,26 @@ function BackupsSection() {
         {showSetup && (
           <div className="space-y-3 rounded-xl border border-border bg-card p-3">
             <p className="text-xs text-muted-foreground">
-              One-time setup: register an OAuth app with each provider, add the redirect URI below,
-              and paste its client ID. Everyone else just taps Connect.
+              One-time setup: register an OAuth app with each provider, add the address below to the
+              right field, and paste its client ID. Everyone else just taps Connect.
             </p>
             <div className="rounded-md bg-muted p-2">
-              <p className="text-xs font-medium text-muted-foreground">Redirect URI to register</p>
+              <p className="text-xs font-medium text-muted-foreground">
+                Google Drive — Authorized JavaScript origin
+              </p>
+              <p className="break-all font-mono text-xs">{backupJsOrigin()}</p>
+            </div>
+            <div className="rounded-md bg-muted p-2">
+              <p className="text-xs font-medium text-muted-foreground">
+                Dropbox / OneDrive — Redirect URI
+              </p>
               <p className="break-all font-mono text-xs">{backupRedirectUri()}</p>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Google also needs your account added as a Test user on the OAuth consent screen. Its
+              auto-backups only run while the app is open — use Dropbox or OneDrive for unattended
+              daily backups.
+            </p>
             {oauthProviders.map((p) => (
               <label key={p.id} className="flex flex-col gap-1">
                 <span className="text-xs text-muted-foreground">{p.label} client ID</span>

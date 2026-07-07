@@ -238,10 +238,16 @@ interface OAuthConfig {
 const redirectUri = () =>
   typeof window !== 'undefined' ? `${window.location.origin}${import.meta.env.BASE_URL}` : ''
 
-// The redirect URI the app owner must register with each OAuth provider — shown
-// in the Settings "Set up providers" panel so it can be copied exactly.
+// The redirect URI Dropbox/OneDrive must register (includes the app's base path).
+// Shown in the Settings "Set up providers" panel so it can be copied exactly.
 export function backupRedirectUri(): string {
   return redirectUri()
+}
+
+// The bare origin (scheme://host, NO path) that Google's "Authorized JavaScript
+// origins" field requires for the GIS flow — Google rejects any value with a path.
+export function backupJsOrigin(): string {
+  return typeof window !== 'undefined' ? window.location.origin : ''
 }
 
 const OAUTH: Record<OAuthProviderId, OAuthConfig> = {
@@ -408,10 +414,18 @@ async function sha256Base64Url(input: string): Promise<string> {
 // A Google *web* OAuth client requires a client secret at the token-exchange step,
 // which can't live safely in a browser — so the code+PKCE flow used for the other
 // providers can't complete for Google. GIS's token client grants access tokens
-// directly in the browser (no secret, no redirect). The trade-off: it returns no
-// refresh token, so we silently re-request a token (hidden iframe, no popup) when
-// the current one expires — which works while the Google session is still valid.
-// Requires the app origin in the client's "Authorized JavaScript origins".
+// directly in the browser (no secret, no redirect). Two consequences shape this
+// code:
+//   1. GIS is popup-based (NOT a hidden iframe). The consent popup must be opened
+//      synchronously inside the tap's user activation or iOS Safari blocks it — so
+//      the interactive path never awaits before requestAccessToken(), and GIS is
+//      preloaded (preloadGis) so it's warm by the first tap.
+//   2. It returns no refresh token. A background renewal (prompt:'') is best-effort:
+//      it can succeed while the Google session is valid, but has no user gesture, so
+//      on an installed iOS PWA it typically can't and fails cleanly to "reconnect".
+//      For unattended backups, Dropbox/OneDrive (real refresh tokens) are better.
+// Setup: the app origin must be in the client's "Authorized JavaScript origins"
+// (NOT a redirect URI), and the owner added as a Test user on the consent screen.
 
 // Scope: app-private Drive folder + email (for the connected-account label).
 const GOOGLE_GIS_SCOPE = 'https://www.googleapis.com/auth/drive.appdata email'
@@ -500,20 +514,84 @@ function googleTokenClient(): GisTokenClient {
   return gisClient
 }
 
-// Request a Google access token. interactive=true shows the consent popup (needs a
-// user gesture — the Connect button); false requests silently for background use.
+// Warm the GIS script ahead of time so the first Connect tap can open the consent
+// popup synchronously inside the user gesture (iOS Safari blocks a popup opened
+// after an await). Self-gates on a configured Google client ID so we never load
+// Google's script for owners who don't use Google Drive. Safe to call repeatedly.
+export function preloadGis(): void {
+  if (typeof window !== 'undefined' && clientId('gdrive')) void loadGis().catch(() => {})
+}
+
+// Coalesce overlapping background (silent) refreshes onto one in-flight request:
+// two triggers (after-session + scheduled, or two runBackups) can fire close
+// together and would otherwise clobber each other's single pending slot.
+let gisInFlight: Promise<string> | null = null
+
+// Request a Google access token.
+//   interactive=true  → opens the GIS consent popup. MUST run synchronously within
+//     the tap's user activation, so we never await before requestAccessToken(); GIS
+//     has to already be warm (preloadGis). If it isn't, we throw and ask for a
+//     second tap rather than awaiting (which would get the popup blocked on iOS).
+//   interactive=false → best-effort background refresh (no gesture): awaiting to
+//     load GIS is fine, concurrent calls coalesce, and a wedged request times out.
 async function requestGoogleToken(interactive: boolean): Promise<string> {
-  await loadGis()
+  if (!window.google?.accounts?.oauth2) {
+    void loadGis()
+    if (interactive) {
+      throw new Error('Google sign-in is still loading — tap Connect again in a moment.')
+    }
+    await loadGis() // background: no user gesture to preserve, so awaiting is safe
+  }
+  if (!interactive && gisInFlight) return gisInFlight
+
   const client = googleTokenClient()
-  return new Promise<string>((resolve, reject) => {
-    gisPending = { resolve, reject }
+  const p = new Promise<string>((resolve, reject) => {
+    // Fail any still-pending request fast instead of orphaning its awaiter (should
+    // not happen once silent requests coalesce, but guard the interactive case).
+    if (gisPending) {
+      const prev = gisPending
+      gisPending = null
+      prev.reject(new Error('Superseded by a newer Google sign-in request.'))
+    }
+    let settled = false
+    // Guarantee the promise settles: GIS can (rarely) fire neither callback (a
+    // wedged popup / abandoned consent), which would hang runBackup forever.
+    const timer = setTimeout(
+      () => {
+        if (settled) return
+        settled = true
+        gisPending = null
+        reject(new Error(`${providerLabel('gdrive')} sign-in timed out — try again.`))
+      },
+      interactive ? 120_000 : 20_000,
+    )
+    gisPending = {
+      resolve: (t) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        resolve(t)
+      },
+      reject: (e) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        reject(e)
+      },
+    }
     try {
       client.requestAccessToken({ prompt: interactive ? 'consent' : '' })
     } catch (e) {
-      gisPending = null
-      reject(e as Error)
+      gisPending?.reject(e as Error)
     }
   })
+  if (!interactive) {
+    gisInFlight = p
+    void p.catch(() => {}).then(() => {
+      if (gisInFlight === p) gisInFlight = null
+    })
+  }
+  return p
 }
 
 // Start connecting a provider. Google uses GIS (a popup that completes in place);
