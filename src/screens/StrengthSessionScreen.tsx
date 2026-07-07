@@ -99,7 +99,7 @@ export default function StrengthSessionScreen() {
   const countdown = useCountdownTimer(timer.paused)
   const precount = useCountdownTimer(timer.paused)
   useCountdownBeeps(countdown.remaining, countdown.isRunning && !timer.paused)
-  usePrecountBeeps(precount.remaining, precount.isRunning)
+  usePrecountBeeps(precount.remaining, precount.isRunning && !timer.paused)
   useWakeLock(getKeepAwake())
 
   // Build the working list once, from the linked template or (for a repeat
