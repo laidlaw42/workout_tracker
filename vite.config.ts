@@ -31,6 +31,10 @@ export default defineConfig(({ mode }) => ({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      // We register the SW ourselves via virtual:pwa-register in main.tsx (which
+      // reloads the page when a new version activates), so don't also inject the
+      // minimal registration script — that would double-register without the reload.
+      injectRegister: false,
       includeAssets: ['icons/apple-touch-icon.png'],
       manifest: {
         name: 'Workout Tracker',
