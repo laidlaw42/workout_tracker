@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie'
+import { categoryForTracking, legacyTemplateToCategories } from '@/lib/migrations'
 import type {
   Exercise,
   WorkoutTemplate,
@@ -70,7 +71,7 @@ export class WorkoutDB extends Dexie {
           .toCollection()
           .modify((e: { category?: string; trackingType?: string }) => {
             if (e.category == null) {
-              e.category = e.trackingType === 'distance' ? 'cardio' : 'strength'
+              e.category = categoryForTracking(e.trackingType)
             }
           })
       })
@@ -117,7 +118,6 @@ export class WorkoutDB extends Dexie {
         } catch (err) {
           console.error('F46 could not load exercise categories', err)
         }
-        const VALID = new Set(['strength', 'cardio', 'climbing', 'rehab'])
         await tx
           .table('templates')
           .toCollection()
@@ -131,28 +131,10 @@ export class WorkoutDB extends Dexie {
             }) => {
               try {
                 if (Array.isArray(t.categories) && t.categories.length > 0) return // already migrated
-                const type = t.type
-                let cats: string[]
-                if (type === 'cardio') {
-                  cats = ['cardio']
-                } else {
-                  // strength / climbing / mixed — derive from the ACTUAL exercise
-                  // content, not the coarse legacy type. Pre-F46 the create screen
-                  // stored rehab-only and strength+rehab templates as type:'strength'
-                  // (it only distinguished cardio/climbing), so trusting the type
-                  // here would hide them from the new Rehab tab. Hangboard sets read
-                  // as climbing (A92). Fall back to the type (or strength) if the
-                  // template has no classifiable content.
-                  const s = new Set<string>()
-                  for (const ex of t.exercises ?? []) {
-                    const c = ex.exerciseId ? exCat.get(ex.exerciseId) : undefined
-                    if (c === 'hangboard') s.add('climbing')
-                    else if (c && VALID.has(c)) s.add(c)
-                  }
-                  if ((t.hangboardSets?.length ?? 0) > 0) s.add('climbing')
-                  cats = s.size > 0 ? [...s] : type === 'climbing' ? ['climbing'] : ['strength']
-                }
-                t.categories = cats
+                // Derive from the ACTUAL exercise content, not the coarse legacy
+                // type (pre-F46 rehab-only / strength+rehab were stored as
+                // type:'strength'). Shared with the import path (src/lib/migrations).
+                t.categories = legacyTemplateToCategories(t, exCat)
                 delete t.type
               } catch (err) {
                 console.error('F46 template migration failed for record', t.id, err)
