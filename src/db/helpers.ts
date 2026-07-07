@@ -8,6 +8,7 @@ import { deriveSessionKind, normalizeVenue, type SessionKind } from '@/lib/badge
 import { deriveSessionType, templateCategories } from '@/lib/templateCategories'
 import { templateExerciseFromExercise } from '@/lib/exerciseDefaults'
 import { clearAllActivePhases } from '@/lib/activePhase'
+import { repsMet, weightPrValue } from '@/lib/pr'
 import type {
   CardioActivityType,
   ClimbingRoute,
@@ -1271,15 +1272,9 @@ async function redetectPRs(
   )
   for (const s of newSets) {
     if (s.skipped) continue
-    const repsMet = s.targetReps == null || (s.actualReps ?? 0) >= s.targetReps
-    if (!repsMet) continue
-    // Bodyweight-loadable moves compare the added load alone; everything else the
-    // entered weight — matching the live logging path.
-    const value = loadable.has(s.exerciseId)
-      ? s.additionalWeightKg != null && s.additionalWeightKg > 0
-        ? s.additionalWeightKg
-        : undefined
-      : (s.weightKg ?? undefined)
+    if (!repsMet(s.targetReps, s.actualReps)) continue
+    // Same weight-PR rule as the live logging path (loadable → added load alone).
+    const value = weightPrValue(loadable.has(s.exerciseId), s)
     if (value == null) continue
     await checkAndSavePR({
       exerciseId: s.exerciseId,

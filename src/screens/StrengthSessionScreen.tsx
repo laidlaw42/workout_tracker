@@ -28,6 +28,7 @@ import { Dumbbell, Plus } from 'lucide-react'
 import { generateId } from '@/lib/id'
 import { templateCategories } from '@/lib/templateCategories'
 import { resolveExerciseDefaults } from '@/lib/exerciseDefaults'
+import { repsMet, weightPrValue } from '@/lib/pr'
 import {
   clearActivePhase,
   loadActivePhase,
@@ -265,17 +266,9 @@ export default function StrengthSessionScreen() {
         swappedFrom: ex.swappedFrom,
         loggedAt: Date.now(),
       })
-      const repsMet = ex.targetReps == null || (data.actualReps ?? 0) >= ex.targetReps
-      if (repsMet) {
-        // Bodyweight-loadable moves (pull-up, dip, …): bodyweight isn't tracked,
-        // so the PR compares the added load alone. Everything else uses the bar
-        // weight.
+      if (repsMet(ex.targetReps, data.actualReps)) {
         const loadable = exById.get(ex.exerciseId)?.supportsAdditionalWeight
-        const prValue = loadable
-          ? data.additionalWeightKg != null && data.additionalWeightKg > 0
-            ? data.additionalWeightKg
-            : undefined
-          : data.weightKg
+        const prValue = weightPrValue(loadable, data)
         if (prValue != null) {
           await checkAndSavePR({
             exerciseId: ex.exerciseId,
