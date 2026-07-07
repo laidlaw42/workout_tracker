@@ -4,7 +4,7 @@ import { generateId } from '@/lib/id'
 import { normalizeTags } from '@/lib/tags'
 import { paletteColourForOrder } from '@/lib/tagColors'
 import { STYLE_LABELS, isCleanTick, vGradeIndex } from '@/lib/climbing'
-import { deriveSessionKind, type SessionKind } from '@/lib/badges'
+import { deriveSessionKind, normalizeVenue, type SessionKind } from '@/lib/badges'
 import { deriveSessionType, templateCategories } from '@/lib/templateCategories'
 import type {
   CardioActivityType,
@@ -379,6 +379,25 @@ export async function renameSession(id: string, name: string): Promise<void> {
   return run('renameSession', async () => {
     const n = name.trim()
     if (n) await db.sessions.update(id, { templateName: n, titleRenamed: true })
+  })
+}
+
+// A96 — edit a historic climbing session's location name. Writes to the field
+// matching the session's venue (gym/crag/board), mirroring the active-session
+// setLocation semantics: board keeps '' so its flavour stays detectable, gym/crag
+// clear to undefined when blank. Live queries update History/Recents/progress.
+export async function updateClimbingSessionLocation(id: string, location: string): Promise<void> {
+  return run('updateClimbingSessionLocation', async () => {
+    const s = await db.sessions.get(id)
+    if (!s) return
+    const venue =
+      normalizeVenue(s.climbingVenue) ??
+      (s.board !== undefined ? 'board' : s.crag !== undefined ? 'crag' : s.gym !== undefined ? 'gym' : undefined)
+    if (!venue) return
+    const n = location.trim()
+    if (venue === 'board') await db.sessions.update(id, { board: n })
+    else if (venue === 'gym') await db.sessions.update(id, { gym: n || undefined })
+    else await db.sessions.update(id, { crag: n || undefined })
   })
 }
 

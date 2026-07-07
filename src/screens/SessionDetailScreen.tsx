@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Check, Pencil, Play, Plus, Repeat, Save, Trash2 } from 'lucide-react'
+import { Check, MapPin, Pencil, Play, Plus, Repeat, Save, Trash2 } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import {
   addHang,
@@ -20,12 +20,14 @@ import {
   reopenSession,
   repeatSession,
   updateCardio,
+  updateClimbingSessionLocation,
   updateSession,
   updateSet,
 } from '@/db/helpers'
 import { ExercisePicker } from '@/components/ExercisePicker'
 import { LoggedHangList } from '@/components/LoggedHangList'
 import { LogRouteSheet } from '@/components/LogRouteSheet'
+import { SessionLocationPills } from '@/components/SessionLocationPills'
 import { PageHeader } from '@/components/PageHeader'
 import { RouteCard } from '@/components/RouteCard'
 import { TagInput } from '@/components/TagInput'
@@ -109,6 +111,8 @@ export default function SessionDetailScreen() {
   // A68 — inline rename of the session title.
   const [renaming, setRenaming] = useState(false)
   const [nameDraft, setNameDraft] = useState('')
+  // A96 — inline edit of a climbing session's location name.
+  const [editingLocation, setEditingLocation] = useState(false)
 
   function commitRename() {
     if (!session) return
@@ -258,6 +262,18 @@ export default function SessionDetailScreen() {
           ? 'gym'
           : undefined)
 
+  // A96 — the current location name for the venue, and its label for placeholders.
+  const locationName =
+    venue === 'gym'
+      ? session.gym
+      : venue === 'crag'
+        ? session.crag
+        : venue === 'board'
+          ? session.board
+          : undefined
+  const locationText = locationName?.trim() ?? ''
+  const venueLabel = venue === 'board' ? 'board' : venue
+
   // A61 — "Save as template" is for completed sessions that have a reusable
   // structure: any strength/cardio session, and climbing sessions that logged
   // exercises or hangs. Route-only climbing sessions (Gym/Crag/Board) have no
@@ -335,6 +351,43 @@ export default function SessionDetailScreen() {
           <span>{fullDate(session.startedAt)}</span>
           <span>· {formatWorkoutLength(durationSeconds)}</span>
         </div>
+
+        {/* A96 — editable location name for Gym/Crag/Board climbing sessions. Tap to
+            reveal the same saved-pills + "New" picker as the active session. */}
+        {venue && (
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => setEditingLocation((v) => !v)}
+              className="flex w-full items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-left text-sm active:bg-accent"
+            >
+              <MapPin className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+              <span
+                className={`min-w-0 flex-1 truncate ${
+                  locationText ? 'font-medium' : 'text-muted-foreground'
+                }`}
+              >
+                {locationText || `Add ${venueLabel} name`}
+              </span>
+              <Pencil className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+            </button>
+            {editingLocation && (
+              <SessionLocationPills
+                venue={venue}
+                value={locationText}
+                onChange={(name) => {
+                  // A saved pick or a committed new name (SessionLocationPills also
+                  // handles the "add to saved list" prompt); '' from tapping "New"
+                  // is ignored so the editor stays open to type.
+                  if (name) {
+                    void updateClimbingSessionLocation(session.id, name)
+                    setEditingLocation(false)
+                  }
+                }}
+              />
+            )}
+          </div>
+        )}
 
         {!editing && (
           <div className="flex flex-col gap-2">
