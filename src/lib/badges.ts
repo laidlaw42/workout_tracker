@@ -35,15 +35,18 @@ export interface Badge {
 
 // Accent tones per entry family. Strength is red (#ef4444), climbing venues get
 // distinct hues so gym/crag/home read apart at a glance.
+// F49 — theme-adaptive badge tints: a darker text shade in light themes (the old
+// fixed *-300 washed out on light backgrounds), the same lighter shade in dark
+// themes via the dark: variant. Fill stays /15; the dark look is unchanged.
 const TONE = {
-  strength: 'bg-red-500/15 text-red-300 ring-red-500/30',
-  cardio: 'bg-orange-500/15 text-orange-300 ring-orange-500/30',
-  climbing: 'bg-green-500/15 text-green-300 ring-green-500/30',
-  rehab: 'bg-sky-500/15 text-sky-300 ring-sky-500/30', // #38bdf8 (F31)
-  gym: 'bg-pink-500/15 text-pink-300 ring-pink-500/30', // #ec4899 (F47)
-  crag: 'bg-amber-500/15 text-amber-300 ring-amber-500/30', // #f59e0b
-  board: 'bg-purple-500/15 text-purple-300 ring-purple-500/30', // #a855f7 (F47)
-  mixed: 'bg-violet-500/15 text-violet-300 ring-violet-500/30', // #8b5cf6 (A66)
+  strength: 'bg-red-500/15 text-red-700 dark:text-red-300 ring-red-500/30',
+  cardio: 'bg-orange-500/15 text-orange-700 dark:text-orange-300 ring-orange-500/30',
+  climbing: 'bg-green-500/15 text-green-700 dark:text-green-300 ring-green-500/30',
+  rehab: 'bg-sky-500/15 text-sky-700 dark:text-sky-300 ring-sky-500/30', // (F31)
+  gym: 'bg-pink-500/15 text-pink-700 dark:text-pink-300 ring-pink-500/30', // (F47)
+  crag: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 ring-amber-500/30',
+  board: 'bg-purple-500/15 text-purple-700 dark:text-purple-300 ring-purple-500/30', // (F47)
+  mixed: 'bg-violet-500/15 text-violet-700 dark:text-violet-300 ring-violet-500/30', // (A66)
 } as const
 
 const CARDIO: Record<CardioActivityType, { Icon: LucideIcon; label: string }> = {

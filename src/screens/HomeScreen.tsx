@@ -31,6 +31,18 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 
+// Theme-adaptive tile tints for the Training quick-starts. Light themes get a
+// darker text shade for contrast; dark themes get lighter text + a stronger fill.
+// (Kept as full static strings so Tailwind never purges them.) Edit to taste — the
+// climbing venue tiles live in ClimbingQuickStarts (CARD_TONE) and the climbing
+// session buttons in src/lib/climbing.ts (CLIMB_STYLE_TONE).
+const TRAINING_TONE = {
+  strength: 'bg-red-500/15 text-red-700 dark:bg-red-500/25 dark:text-red-300',
+  cardio: 'bg-orange-500/15 text-orange-700 dark:bg-orange-500/25 dark:text-orange-300',
+  rehab: 'bg-sky-500/15 text-sky-700 dark:bg-sky-500/25 dark:text-sky-300',
+  hangboard: 'bg-green-500/15 text-green-700 dark:bg-green-500/25 dark:text-green-300',
+} as const
+
 export default function HomeScreen() {
   const navigate = useNavigate()
   const data = useLiveQuery(async () => {
@@ -164,25 +176,25 @@ export default function HomeScreen() {
           <QuickStart
             label="Strength"
             icon={Dumbbell}
-            className="bg-red-500/15 text-red-300"
+            className={TRAINING_TONE.strength}
             onClick={() => navigate('/library?type=strength')}
           />
           <QuickStart
             label="Cardio"
             icon={Activity}
-            className="bg-orange-500/15 text-orange-300"
+            className={TRAINING_TONE.cardio}
             onClick={() => navigate('/library?type=cardio')}
           />
           <QuickStart
             label="Rehab"
             icon={Bandage}
-            className="bg-sky-500/15 text-sky-300"
+            className={TRAINING_TONE.rehab}
             onClick={() => navigate('/library?type=rehab')}
           />
           <QuickStart
             label="Hangboard"
             icon={Hand}
-            className="bg-green-500/15 text-green-300"
+            className={TRAINING_TONE.hangboard}
             onClick={() => navigate('/library?type=hangboard')}
           />
         </div>

@@ -52,10 +52,12 @@ export function ClimbingQuickStarts() {
 }
 
 // Per-venue card tint — kept as static strings so Tailwind doesn't purge them.
+// Theme-adaptive venue tints (F49): darker text in light themes, lighter text +
+// stronger fill in dark themes. Full static strings so Tailwind keeps them.
 const CARD_TONE: Record<Kind, string> = {
-  gym: 'bg-pink-500/10 text-pink-300', // F47
-  crag: 'bg-amber-500/10 text-amber-300',
-  board: 'bg-purple-500/10 text-purple-300', // F47
+  gym: 'bg-pink-500/15 text-pink-700 dark:bg-pink-500/25 dark:text-pink-300',
+  crag: 'bg-amber-500/15 text-amber-700 dark:bg-amber-500/25 dark:text-amber-300',
+  board: 'bg-purple-500/15 text-purple-700 dark:bg-purple-500/25 dark:text-purple-300',
 }
 
 function QuickCard({ venue, onClick }: { venue: Kind; onClick: () => void }) {

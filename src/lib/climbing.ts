@@ -121,16 +121,18 @@ export const CLIMB_STYLE_ICONS: Record<ClimbingStyle, LucideIcon> = {
 // F47 — an accent tint per climb type for the climb-type buttons. Deliberately
 // distinct from the home-screen venue colours (gym pink, board purple, crag amber)
 // and from each other. Static strings so Tailwind never purges them.
+// Theme-adaptive (F49): darker text in light themes, lighter text + stronger fill
+// in dark themes. Full static strings so Tailwind never purges them.
 export const CLIMB_STYLE_TONE: Record<ClimbingStyle, string> = {
-  bouldering: 'bg-lime-500/15 text-lime-300 ring-lime-500/30',
-  top_rope: 'bg-cyan-500/15 text-cyan-300 ring-cyan-500/30',
-  lead: 'bg-red-500/15 text-red-300 ring-red-500/30',
+  bouldering: 'bg-lime-500/15 text-lime-700 dark:bg-lime-500/25 dark:text-lime-300 ring-lime-500/30',
+  top_rope: 'bg-cyan-500/15 text-cyan-700 dark:bg-cyan-500/25 dark:text-cyan-300 ring-cyan-500/30',
+  lead: 'bg-red-500/15 text-red-700 dark:bg-red-500/25 dark:text-red-300 ring-red-500/30',
 }
 // Icon/text-only colour per climb type (e.g. the RouteCard style icon).
 export const CLIMB_STYLE_TEXT: Record<ClimbingStyle, string> = {
-  bouldering: 'text-lime-400',
-  top_rope: 'text-cyan-400',
-  lead: 'text-red-400',
+  bouldering: 'text-lime-600 dark:text-lime-400',
+  top_rope: 'text-cyan-600 dark:text-cyan-400',
+  lead: 'text-red-600 dark:text-red-400',
 }
 
 // --- Hangboard --------------------------------------------------------------
