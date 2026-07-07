@@ -5,6 +5,7 @@ import { normalizeTags } from '@/lib/tags'
 import { paletteColourForOrder } from '@/lib/tagColors'
 import { STYLE_LABELS, isCleanTick, vGradeIndex } from '@/lib/climbing'
 import { deriveSessionKind, type SessionKind } from '@/lib/badges'
+import { deriveSessionType, templateCategories } from '@/lib/templateCategories'
 import type {
   CardioActivityType,
   ClimbingRoute,
@@ -19,6 +20,7 @@ import type {
   PlannedWorkout,
   PRType,
   TagMeta,
+  TemplateCategory,
   TemplateExercise,
   WorkoutSession,
   WorkoutTemplate,
@@ -245,78 +247,29 @@ export async function deleteTag(name: string): Promise<void> {
 // Templates
 // ---------------------------------------------------------------------------
 
+// Most-recently-used first, then alphabetical; never-used sink to the bottom.
+function sortTemplatesMru(list: WorkoutTemplate[]): WorkoutTemplate[] {
+  return list.sort(
+    (a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || a.name.localeCompare(b.name),
+  )
+}
+
 export async function getAllTemplates(): Promise<WorkoutTemplate[]> {
-  return getTemplatesByType(undefined)
+  return run('getAllTemplates', async () => sortTemplatesMru(await db.templates.toArray()))
 }
 
-export async function getTemplatesByType(
-  type?: DisciplineType,
+// A94 — templates that span a given discipline. A template appears under EACH of
+// its `categories` (a strength+rehab template shows in both the Strength and Rehab
+// tabs), which is the single source of truth (F46) — no longer content-derived.
+// Filtered in memory; the template count is small.
+export async function getTemplatesInCategory(
+  category: TemplateCategory,
 ): Promise<WorkoutTemplate[]> {
-  return run('getTemplatesByType', async () => {
-    const list = type
-      ? await db.templates.where('type').equals(type).toArray()
-      : await db.templates.toArray()
-    // Most-recently-used first, then alphabetical; never-used sink to the bottom.
-    return list.sort(
-      (a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || a.name.localeCompare(b.name),
-    )
-  })
-}
-
-// Templates that contain at least one rehab-category exercise (F31). Rehab isn't
-// a template discipline — it's an exercise category (A42) — so this is a
-// content-based filter rather than a `type` query.
-export async function getRehabTemplates(): Promise<WorkoutTemplate[]> {
-  return run('getRehabTemplates', async () => {
-    const rehabIds = new Set(
-      (await db.exercises.where('category').equals('rehab').toArray()).map((e) => e.id),
-    )
+  return run('getTemplatesInCategory', async () => {
     const list = (await db.templates.toArray()).filter((t) =>
-      t.exercises.some((e) => rehabIds.has(e.exerciseId)),
+      templateCategories(t).includes(category),
     )
-    return list.sort(
-      (a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || a.name.localeCompare(b.name),
-    )
-  })
-}
-
-// Templates that contain at least one climbing-category exercise (A86) — the
-// library's Climbing tab (climbing-strength workouts; route sessions have no
-// templates). Content-based, since climbing is no longer a template discipline.
-export async function getClimbingTemplates(): Promise<WorkoutTemplate[]> {
-  return run('getClimbingTemplates', async () => {
-    const climbIds = new Set(
-      (await db.exercises.where('category').equals('climbing').toArray()).map((e) => e.id),
-    )
-    const list = (await db.templates.toArray()).filter((t) =>
-      t.exercises.some((e) => climbIds.has(e.exerciseId)),
-    )
-    return list.sort(
-      (a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || a.name.localeCompare(b.name),
-    )
-  })
-}
-
-// Templates that contain hangboard rows (A73) — the training-library Hangboard tab.
-export async function getHangboardTemplates(): Promise<WorkoutTemplate[]> {
-  return run('getHangboardTemplates', async () => {
-    const list = (await db.templates.toArray()).filter((t) => (t.hangboardSets?.length ?? 0) > 0)
-    return list.sort(
-      (a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || a.name.localeCompare(b.name),
-    )
-  })
-}
-
-// A92 — the Library's Climbing tab: climbing-strength templates PLUS hangboard
-// templates (hangboarding now lives under Climbing in the workout library).
-export async function getClimbingLibraryTemplates(): Promise<WorkoutTemplate[]> {
-  return run('getClimbingLibraryTemplates', async () => {
-    const [climb, hang] = await Promise.all([getClimbingTemplates(), getHangboardTemplates()])
-    const seen = new Set<string>()
-    const merged = [...climb, ...hang].filter((t) => !seen.has(t.id) && seen.add(t.id))
-    return merged.sort(
-      (a, b) => (b.lastUsedAt ?? 0) - (a.lastUsedAt ?? 0) || a.name.localeCompare(b.name),
-    )
+    return sortTemplatesMru(list)
   })
 }
 
@@ -334,7 +287,7 @@ export async function upsertTemplate(
     const record: WorkoutTemplate = {
       id,
       name: t.name,
-      type: t.type,
+      categories: templateCategories(t),
       tags,
       exercises: t.exercises,
       cardioActivity: t.cardioActivity,
@@ -647,7 +600,7 @@ export async function createTemplateFromSession(
     const templateName = await uniqueTemplateName(name || src.templateName)
     const base: Omit<WorkoutTemplate, 'id' | 'createdAt'> = {
       name: templateName,
-      type: src.type,
+      categories: [], // A94 — derived from the reconstructed content below
       tags,
       exercises: [],
     }
@@ -685,8 +638,38 @@ export async function createTemplateFromSession(
       base.hangboardSets = ph.length ? ph : undefined
       base.climbingKind = pe.length > 0 ? 'workout' : 'hangboard'
     }
+    // A94 — categories from the reconstructed content. Cardio/climbing sessions
+    // carry no exercise rows, so they map from the session discipline directly.
+    base.categories =
+      src.type === 'cardio'
+        ? ['cardio']
+        : src.type === 'climbing'
+          ? ['climbing']
+          : await deriveTemplateCategories(
+              base.exercises.map((e) => e.exerciseId),
+              (base.hangboardSets?.length ?? 0) > 0,
+            )
     return upsertTemplate(base)
   })
+}
+
+// The distinct disciplines covered by a set of exercises (+ any hangboard sets,
+// which read as climbing per A92). Never empty — falls back to strength.
+async function deriveTemplateCategories(
+  exerciseIds: string[],
+  hasHangs: boolean,
+): Promise<TemplateCategory[]> {
+  const cats = new Set<TemplateCategory>()
+  if (exerciseIds.length > 0) {
+    const exs = await db.exercises.bulkGet(exerciseIds)
+    for (const e of exs) {
+      const c = e?.category
+      if (c === 'hangboard') cats.add('climbing')
+      else if (c === 'strength' || c === 'cardio' || c === 'climbing' || c === 'rehab') cats.add(c)
+    }
+  }
+  if (hasHangs) cats.add('climbing')
+  return cats.size > 0 ? [...cats] : ['strength']
 }
 
 // Deletes a session and everything logged under it.
@@ -750,16 +733,19 @@ export async function startSessionFromTemplate(
     const t = await db.templates.get(templateId)
     if (!t) return null
     const sessionId = generateId()
+    // A94 — the session gets a single DisciplineType derived from the template's
+    // categories + content (sessions keep their own type, incl. 'mixed').
+    const type = deriveSessionType(t)
     await db.sessions.put({
       id: sessionId,
       templateId: t.id,
       templateName: t.name,
-      type: t.type,
+      type,
       startedAt: Date.now(),
       modifiedFromTemplate: false,
     })
     await db.templates.update(t.id, { lastUsedAt: Date.now() })
-    return { sessionId, type: t.type }
+    return { sessionId, type }
   })
 }
 

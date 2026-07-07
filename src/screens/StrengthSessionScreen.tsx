@@ -26,6 +26,7 @@ import {
 } from '@/db/helpers'
 import { Dumbbell, Plus } from 'lucide-react'
 import { generateId } from '@/lib/id'
+import { templateCategories } from '@/lib/templateCategories'
 import { SessionHeader } from '@/components/SessionHeader'
 import { ExerciseCard, type LoggedSetInput, type WorkExercise } from '@/components/ExerciseCard'
 import { HangCard } from '@/components/HangCard'
@@ -623,9 +624,9 @@ export default function StrengthSessionScreen() {
         await upsertTemplate({
           id: session.templateId,
           name: session.templateName,
-          // Preserve the session's discipline (A66 — a mixed session must not be
-          // written back as a strength template).
-          type: session.type,
+          // A94 — keep the template's own categories (a multi-discipline template
+          // must not be written back as a single-discipline one).
+          categories: template ? templateCategories(template) : ['strength'],
           tags: template?.tags ?? [],
           exercises: work
             .filter((e) => !e.skipped)

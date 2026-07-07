@@ -31,6 +31,7 @@ import {
   weekdayShort,
 } from '@/lib/date'
 import { getWeekStart } from '@/lib/prefs'
+import { deriveSessionType } from '@/lib/templateCategories'
 import { DISCIPLINE_BADGE, DISCIPLINE_DOT, DISCIPLINE_LABEL } from '@/lib/discipline'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { DayDetailSheet } from '@/components/DayDetailSheet'
@@ -135,7 +136,7 @@ export default function PlannerScreen() {
       await addPlannedWorkout({
         templateId: t.id,
         templateName: t.name,
-        disciplineType: t.type,
+        disciplineType: deriveSessionType(t),
         plannedDate: selectedDate,
       })
       setPickerOpen(false)

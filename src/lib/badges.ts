@@ -14,11 +14,13 @@ import {
   Zap,
 } from 'lucide-react'
 import { CLIMB_STYLE_ICONS } from '@/lib/climbing'
+import { templateCategories } from '@/lib/templateCategories'
 import type {
   CardioActivityType,
   ClimbingRoute,
   ClimbingStyle,
   ExerciseCategory,
+  TemplateCategory,
   WorkoutSession,
   WorkoutTemplate,
 } from '@/types'
@@ -109,19 +111,25 @@ export function badgeForCategory(category: ExerciseCategory): Badge {
   }
 }
 
+// A94 — display order for a template's category pills (app-wide alphabetical, A93).
+const CATEGORY_BADGE_ORDER: TemplateCategory[] = ['cardio', 'climbing', 'rehab', 'strength']
+
+function templateCategoryBadge(t: WorkoutTemplate, c: TemplateCategory): Badge {
+  // Cardio keeps its activity-specific icon; the others use the category badge.
+  return c === 'cardio' ? cardioBadge(t.cardioActivity) : badgeForCategory(c)
+}
+
+// A94 — one badge per category a template spans, shown as a row of pills on the
+// template card. Ordered alphabetically for a stable read.
+export function badgesForTemplate(t: WorkoutTemplate): Badge[] {
+  const cats = templateCategories(t)
+  return CATEGORY_BADGE_ORDER.filter((c) => cats.includes(c)).map((c) => templateCategoryBadge(t, c))
+}
+
+// Single representative badge (multi-category → Mixed) for compact one-badge spots.
 export function badgeForTemplate(t: WorkoutTemplate): Badge {
-  if (t.type === 'strength') return STRENGTH
-  if (t.type === 'mixed') {
-    // A73: a hang-only training template reads as Hangboard; with exercises too,
-    // it's a genuine Mixed workout.
-    if ((t.hangboardSets?.length ?? 0) > 0 && t.exercises.length === 0) {
-      return HANGBOARD(TONE.climbing)
-    }
-    return MIXED
-  }
-  if (t.type === 'cardio') return cardioBadge(t.cardioActivity)
-  // climbing template — hangboard or workout
-  return t.climbingKind === 'hangboard' ? HANGBOARD(TONE.climbing) : CLIMB_WORKOUT(TONE.climbing)
+  const cats = templateCategories(t)
+  return cats.length > 1 ? MIXED : templateCategoryBadge(t, cats[0])
 }
 
 // Extra per-session info needed to pick a climbing/cardio subtype. Sessions don't

@@ -16,6 +16,12 @@ export type TrackingType = 'reps' | 'duration' | 'distance'
 // hangboard protocol config and log as LoggedHang rather than LoggedSet.
 export type ExerciseCategory = 'strength' | 'cardio' | 'climbing' | 'rehab' | 'hangboard'
 
+// A94 — the disciplines a workout template can span. A template carries one or more
+// of these in `categories` (multi-select); it appears under each in the Library.
+// NB: this is deliberately NOT DisciplineType — there is no 'mixed' category (a
+// multi-category template *is* the mixed case) and 'rehab' is a first-class option.
+export type TemplateCategory = 'strength' | 'cardio' | 'climbing' | 'rehab'
+
 // theCrag tick types — bouldering subset
 export type BoulderTick = 'onsight' | 'flash' | 'send' | 'working' | 'repeat' | 'dab'
 
@@ -112,7 +118,12 @@ export type HangConfig = Omit<HangboardSet, 'id' | 'order'>
 export interface WorkoutTemplate {
   id: string
   name: string
-  type: DisciplineType
+  // A94/F46 — the disciplines this template spans; a template shows under each in
+  // the Library. Source of truth for the ExercisePicker scope + card badges.
+  categories: TemplateCategory[]
+  /** @deprecated pre-F46 single discipline. Migrated into `categories` (v8) and
+   *  cleared; kept optional only so legacy/backup records still read defensively. */
+  type?: DisciplineType
   tags: string[]
   exercises: TemplateExercise[]
   // cardio-only fields

@@ -1,6 +1,7 @@
 import { useLiveQuery } from '@/hooks/useDb'
 import { getAllTemplates } from '@/db/helpers'
-import { DISCIPLINE_BADGE, DISCIPLINE_LABEL } from '@/lib/discipline'
+import { badgesForTemplate } from '@/lib/badges'
+import { DisciplineBadge } from '@/components/DisciplineBadge'
 import {
   Sheet,
   SheetContent,
@@ -8,7 +9,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { cn } from '@/lib/utils'
 import type { WorkoutTemplate } from '@/types'
 
 interface Props {
@@ -41,13 +41,10 @@ export function TemplatePickerSheet({ open, onOpenChange, onSelect }: Props) {
             >
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{t.name}</span>
-                <span
-                  className={cn(
-                    'mt-1 inline-block rounded px-1.5 py-0.5 text-xs font-medium',
-                    DISCIPLINE_BADGE[t.type],
-                  )}
-                >
-                  {DISCIPLINE_LABEL[t.type]}
+                <span className="mt-1 flex flex-wrap gap-1">
+                  {badgesForTemplate(t).map((b, i) => (
+                    <DisciplineBadge key={i} badge={b} />
+                  ))}
                 </span>
               </span>
             </button>

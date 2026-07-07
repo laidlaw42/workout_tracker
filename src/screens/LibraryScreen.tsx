@@ -3,11 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Dumbbell, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useTagColours } from '@/hooks/useTagColours'
-import {
-  getClimbingLibraryTemplates,
-  getRehabTemplates,
-  getTemplatesByType,
-} from '@/db/helpers'
+import { getAllTemplates, getTemplatesInCategory } from '@/db/helpers'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { TemplateCard } from '@/components/TemplateCard'
 import { ExerciseLibrary } from '@/components/ExerciseLibrary'
@@ -15,20 +11,18 @@ import { EmptyState } from '@/components/EmptyState'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { DisciplineType } from '@/types'
+import type { TemplateCategory } from '@/types'
 
-// Content-based filters: rehab and climbing aren't template `type`s — they filter
-// by the categories of the exercises a template contains. Climbing also folds in
-// hangboard templates (A92). Mixed (A86) is the `type: 'mixed'` view.
-type Filter = 'all' | DisciplineType | 'rehab'
+// A94/F46 — templates carry a `categories` array; each tab shows every template
+// whose categories include it, so a multi-discipline template appears under each.
+type Filter = 'all' | TemplateCategory
 
-// A93 — fixed strictly-alphabetical order, All pinned first. Hardcoded so it never
-// reorders by content. Workout tabs have Mixed but not Hangboard (A92).
+// A93/A95 — fixed strictly-alphabetical order, All pinned first (no Mixed tab: a
+// multi-category template shows under each of its disciplines). Hardcoded.
 const OPTIONS: { value: Filter; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'cardio', label: 'Cardio' },
   { value: 'climbing', label: 'Climbing' },
-  { value: 'mixed', label: 'Mixed' },
   { value: 'rehab', label: 'Rehab' },
   { value: 'strength', label: 'Strength' },
 ]
@@ -38,13 +32,13 @@ export default function LibraryScreen() {
   const [params] = useSearchParams()
   const initial = params.get('type')
   const [filter, setFilter] = useState<Filter>(() => {
-    // A92 — hangboard templates now live under the Climbing tab.
+    // A92 — hangboard templates now live under the Climbing tab. A95 — Mixed is no
+    // longer a tab, so a legacy ?type=mixed link falls back to All.
     if (initial === 'hangboard') return 'climbing'
     return initial === 'strength' ||
       initial === 'cardio' ||
       initial === 'climbing' ||
-      initial === 'rehab' ||
-      initial === 'mixed'
+      initial === 'rehab'
       ? initial
       : 'all'
   })
@@ -52,12 +46,7 @@ export default function LibraryScreen() {
   const [activeTag, setActiveTag] = useState<string | null>(null)
 
   const templates = useLiveQuery(
-    () =>
-      filter === 'rehab'
-        ? getRehabTemplates()
-        : filter === 'climbing'
-          ? getClimbingLibraryTemplates() // A92 — climbing + hangboard templates
-          : getTemplatesByType(filter === 'all' ? undefined : filter),
+    () => (filter === 'all' ? getAllTemplates() : getTemplatesInCategory(filter)),
     [filter],
   )
   const tagColour = useTagColours()
@@ -140,9 +129,7 @@ export default function LibraryScreen() {
                     ? 'No climbing workouts yet.'
                     : filter === 'rehab'
                       ? 'No rehab workouts yet.'
-                      : filter === 'mixed'
-                        ? 'No mixed workouts yet.'
-                        : 'Tap “Add new workout” to create one.'
+                      : 'Tap “Add new workout” to create one.'
               }
             />
           ) : (

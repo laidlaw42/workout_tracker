@@ -97,6 +97,72 @@ export class WorkoutDB extends Dexie {
             }
           })
       })
+    // v8 (A94/F46): templates move from a single `type` to `categories: []`. The
+    // `type` index is dropped. Each template's legacy type maps to categories:
+    // strength/cardio/climbing → [type]; 'mixed' is derived from its actual content
+    // (the distinct exercise categories it contains, + 'climbing' for any hangboard
+    // sets — A92); then `type` is cleared. Records already carrying `categories`
+    // (created post-A94) are left untouched. Only the templates table is touched;
+    // exercises are read (not modified) to classify 'mixed' templates. Per-record
+    // try/catch: one bad row is logged and skipped, never aborting the upgrade.
+    this.version(8)
+      .stores({ templates: '&id, lastUsedAt' })
+      .upgrade(async (tx) => {
+        const exCat = new Map<string, string>()
+        try {
+          const exs = await tx.table('exercises').toArray()
+          for (const e of exs as { id?: string; category?: string }[]) {
+            if (e.id) exCat.set(e.id, e.category ?? 'strength')
+          }
+        } catch (err) {
+          console.error('F46 could not load exercise categories', err)
+        }
+        const VALID = new Set(['strength', 'cardio', 'climbing', 'rehab'])
+        await tx
+          .table('templates')
+          .toCollection()
+          .modify(
+            (t: {
+              id?: string
+              type?: string
+              categories?: string[]
+              exercises?: { exerciseId?: string }[]
+              hangboardSets?: unknown[]
+            }) => {
+              try {
+                if (Array.isArray(t.categories) && t.categories.length > 0) return // already migrated
+                const type = t.type
+                let cats: string[]
+                if (type === 'strength' || type === 'cardio' || type === 'climbing') {
+                  cats = [type]
+                } else {
+                  // 'mixed' or unknown — derive from content.
+                  const s = new Set<string>()
+                  for (const ex of t.exercises ?? []) {
+                    const c = ex.exerciseId ? exCat.get(ex.exerciseId) : undefined
+                    if (c === 'hangboard') s.add('climbing')
+                    else if (c && VALID.has(c)) s.add(c)
+                  }
+                  if ((t.hangboardSets?.length ?? 0) > 0) s.add('climbing')
+                  cats = s.size > 0 ? [...s] : ['strength']
+                }
+                t.categories = cats
+                delete t.type
+              } catch (err) {
+                console.error('F46 template migration failed for record', t.id, err)
+                // Best-effort fallback so the record still filters/renders.
+                try {
+                  if (!Array.isArray(t.categories) || t.categories.length === 0) {
+                    t.categories = ['strength']
+                    delete t.type
+                  }
+                } catch {
+                  /* give up on this one row */
+                }
+              }
+            },
+          )
+      })
   }
 }
 

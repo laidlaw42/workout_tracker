@@ -16,7 +16,9 @@ import { getAllExercises, getDefaultTags, upsertTemplate } from '@/db/helpers'
 import { generateId } from '@/lib/id'
 import { ExercisePicker } from '@/components/ExercisePicker'
 import { HangboardSetsEditor } from '@/components/HangboardSetsEditor'
+import { IntervalsEditor } from '@/components/IntervalsEditor'
 import { TemplateExerciseRow, type TemplateRow } from '@/components/TemplateExerciseRow'
+import { CategoryMultiSelect } from '@/components/CategoryMultiSelect'
 import { PageHeader } from '@/components/PageHeader'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { TagInput } from '@/components/TagInput'
@@ -24,32 +26,24 @@ import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import type { Exercise, ExerciseCategory, HangboardSet } from '@/types'
+import type {
+  CardioActivityType,
+  Exercise,
+  ExerciseCategory,
+  HangboardSet,
+  IntervalBlock,
+  TemplateCategory,
+} from '@/types'
 
-// A81 — the build-a-workout creation view. Mirrors the empty-session structure
-// (name, add exercises, editable rows) but builds an in-memory draft and only
-// writes a template on Save (no session record, no premature draft).
+// A94 — the build-a-workout creation view. Two steps: pick one or more disciplines
+// (categories), then build the draft (name, exercises, hangboard, cardio) scoped to
+// them. Writes a template only on Save (no session record, no premature draft).
 
-type CatFilter = 'all' | ExerciseCategory
-
-// A93 — fixed strictly-alphabetical order, All pinned first.
-const CATEGORY_TABS: { value: CatFilter; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'cardio', label: 'Cardio' },
-  { value: 'climbing', label: 'Climbing' },
-  { value: 'hangboard', label: 'Hangboard' },
-  { value: 'rehab', label: 'Rehab' },
-  { value: 'strength', label: 'Strength' },
+const ACTIVITIES: { value: CardioActivityType; label: string }[] = [
+  { value: 'run', label: 'Run' },
+  { value: 'ride', label: 'Ride' },
+  { value: 'row', label: 'Row' },
+  { value: 'other', label: 'Other' },
 ]
 
 export default function TemplateCreateScreen() {
@@ -58,15 +52,18 @@ export default function TemplateCreateScreen() {
   const exById = useMemo(() => new Map(exercises.map((e) => [e.id, e])), [exercises])
   const defaultTags = useLiveQuery(() => getDefaultTags(), [])
 
+  const [step, setStep] = useState<'pick' | 'build'>('pick')
+  const [categories, setCategories] = useState<TemplateCategory[]>([])
   const [name, setName] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [tagsSeeded, setTagsSeeded] = useState(false)
   const [rows, setRows] = useState<TemplateRow[]>([])
   const [hangSets, setHangSets] = useState<HangboardSet[]>([])
-  const [catFilter, setCatFilter] = useState<CatFilter>('all')
-  const [dirty, setDirty] = useState(false)
+  const [activity, setActivity] = useState<CardioActivityType>('run')
+  const [durationMin, setDurationMin] = useState('')
+  const [distanceKm, setDistanceKm] = useState('')
+  const [intervals, setIntervals] = useState<IntervalBlock[]>([])
   const [pickerOpen, setPickerOpen] = useState(false)
-  const [confirmCancel, setConfirmCancel] = useState(false)
 
   // Pre-apply the user's default tags (A35) once the query resolves — but never
   // clobber tags the user already typed while it was loading (keep theirs).
@@ -79,14 +76,13 @@ export default function TemplateCreateScreen() {
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
-  // Category tabs (A79) filter which rows / the hang section are shown; reorder
-  // works on the full list regardless of filter.
-  const visibleRows = useMemo(() => {
-    if (catFilter === 'hangboard') return []
-    if (catFilter === 'all') return rows
-    return rows.filter((r) => (exById.get(r.exerciseId)?.category ?? 'strength') === catFilter)
-  }, [rows, catFilter, exById])
-  const showHang = catFilter === 'all' || catFilter === 'hangboard'
+  // Which sections the chosen disciplines enable (mirrors TemplateEditScreen).
+  const showExercises = categories.some((c) => c !== 'cardio')
+  const showCardio = categories.includes('cardio')
+  const showHangboard = categories.includes('climbing')
+  const pickerCategories: ExerciseCategory[] = categories.includes('climbing')
+    ? [...categories, 'hangboard']
+    : categories
 
   function onDragEnd({ active, over }: DragEndEvent) {
     if (over && active.id !== over.id) {
@@ -95,17 +91,14 @@ export default function TemplateCreateScreen() {
         const to = rs.findIndex((r) => r.uid === over.id)
         return from < 0 || to < 0 ? rs : arrayMove(rs, from, to)
       })
-      setDirty(true)
     }
   }
 
   function patchRow(uid: string, patch: Partial<TemplateRow>) {
     setRows((rs) => rs.map((r) => (r.uid === uid ? { ...r, ...patch } : r)))
-    setDirty(true)
   }
   function removeRow(uid: string) {
     setRows((rs) => rs.filter((r) => r.uid !== uid))
-    setDirty(true)
   }
 
   // Hangboard exercises become hang rows seeded from their protocol; everything
@@ -134,18 +127,6 @@ export default function TemplateCreateScreen() {
         ...hangboardExs.map((ex, i) => ({ id: generateId(), order: hs.length + i, ...ex.hangboard! })),
       ])
     }
-    setDirty(true)
-  }
-
-  // A66-style: a workout spanning cardio/climbing, or carrying hangs, is 'mixed';
-  // otherwise (strength and/or rehab) it's a strength template.
-  function deriveType(): 'strength' | 'mixed' {
-    if (hangSets.length > 0) return 'mixed'
-    const hasOtherDiscipline = rows.some((r) => {
-      const c = exById.get(r.exerciseId)?.category
-      return c === 'cardio' || c === 'climbing'
-    })
-    return hasOtherDiscipline ? 'mixed' : 'strength'
   }
 
   async function save() {
@@ -153,20 +134,27 @@ export default function TemplateCreateScreen() {
     try {
       const id = await upsertTemplate({
         name: trimmed,
-        type: deriveType(),
+        categories,
         tags,
-        exercises: rows.map((r, i) => ({
-          exerciseId: r.exerciseId,
-          exerciseName: r.exerciseName,
-          order: i,
-          defaultSets: r.defaultSets,
-          defaultReps: r.defaultReps,
-          defaultDuration: r.defaultDuration,
-          defaultWeight: r.defaultWeight,
-          defaultRestSeconds: r.defaultRestSeconds,
-          notes: r.notes,
-        })),
-        hangboardSets: hangSets.length ? hangSets.map((h, i) => ({ ...h, order: i })) : undefined,
+        exercises: showExercises
+          ? rows.map((r, i) => ({
+              exerciseId: r.exerciseId,
+              exerciseName: r.exerciseName,
+              order: i,
+              defaultSets: r.defaultSets,
+              defaultReps: r.defaultReps,
+              defaultDuration: r.defaultDuration,
+              defaultWeight: r.defaultWeight,
+              defaultRestSeconds: r.defaultRestSeconds,
+              notes: r.notes,
+            }))
+          : [],
+        cardioActivity: showCardio ? activity : undefined,
+        targetDurationSeconds: showCardio && durationMin.trim() ? Number(durationMin) * 60 : undefined,
+        targetDistanceKm: showCardio && distanceKm.trim() ? Number(distanceKm) : undefined,
+        intervals: showCardio && intervals.length > 0 ? intervals : undefined,
+        hangboardSets:
+          showHangboard && hangSets.length ? hangSets.map((h, i) => ({ ...h, order: i })) : undefined,
       })
       navigate(`/library/${id}`)
     } catch {
@@ -174,22 +162,40 @@ export default function TemplateCreateScreen() {
     }
   }
 
-  function cancel() {
-    if (dirty) setConfirmCancel(true)
-    else navigate('/library')
-  }
-  function discard() {
-    setConfirmCancel(false)
-    navigate('/library')
+  // Step 1 — pick the discipline(s). Continue is disabled until at least one.
+  if (step === 'pick') {
+    return (
+      <div className="min-h-dvh pb-24">
+        <PageHeader title="New workout" onBack={() => navigate('/library')} />
+        <div className="space-y-5 p-4">
+          <div className="space-y-2">
+            <Label>What kind of workout?</Label>
+            <p className="text-sm text-muted-foreground">
+              Pick one or more disciplines. You can change these later.
+            </p>
+            <CategoryMultiSelect value={categories} onChange={setCategories} />
+          </div>
+          <Button
+            className="w-full"
+            size="lg"
+            disabled={categories.length === 0}
+            onClick={() => setStep('build')}
+          >
+            Continue
+          </Button>
+        </div>
+      </div>
+    )
   }
 
+  // Step 2 — build the draft, scoped to the chosen categories.
   const isEmpty = rows.length === 0 && hangSets.length === 0
 
   return (
     <div className="min-h-dvh pb-24">
       <PageHeader
         title={name.trim() || 'New workout'}
-        onBack={cancel}
+        onBack={() => setStep('pick')}
         right={
           <Button size="sm" onClick={save}>
             Save
@@ -204,47 +210,37 @@ export default function TemplateCreateScreen() {
             id="new-name"
             value={name}
             placeholder="e.g. Upper B"
-            onChange={(e) => {
-              setName(e.target.value)
-              setDirty(true)
-            }}
+            onChange={(e) => setName(e.target.value)}
           />
         </div>
 
         <div className="space-y-2">
           <Label>Tags</Label>
-          <TagInput
-            value={tags}
-            onChange={(t) => {
-              setTags(t)
-              setDirty(true)
-            }}
-          />
+          <TagInput value={tags} onChange={setTags} />
         </div>
 
-        <SegmentedControl options={CATEGORY_TABS} value={catFilter} onChange={setCatFilter} />
-
-        <div className="space-y-3">
-          {isEmpty ? (
-            <EmptyState
-              icon={Dumbbell}
-              title="No exercises yet"
-              subtitle="Add exercises to build your workout."
-            />
-          ) : (
-            <>
-              {visibleRows.length > 0 && (
+        {showExercises && (
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-muted-foreground">Exercises</p>
+            {isEmpty ? (
+              <EmptyState
+                icon={Dumbbell}
+                title="No exercises yet"
+                subtitle="Add exercises to build your workout."
+              />
+            ) : (
+              rows.length > 0 && (
                 <DndContext
                   sensors={sensors}
                   collisionDetection={closestCenter}
                   onDragEnd={onDragEnd}
                 >
                   <SortableContext
-                    items={visibleRows.map((r) => r.uid)}
+                    items={rows.map((r) => r.uid)}
                     strategy={verticalListSortingStrategy}
                   >
                     <div className="space-y-2">
-                      {visibleRows.map((row) => {
+                      {rows.map((row) => {
                         const ex = exById.get(row.exerciseId)
                         return (
                           <TemplateExerciseRow
@@ -259,54 +255,74 @@ export default function TemplateCreateScreen() {
                     </div>
                   </SortableContext>
                 </DndContext>
-              )}
+              )
+            )}
+            <Button variant="outline" className="w-full" onClick={() => setPickerOpen(true)}>
+              <Plus className="size-4" /> Add exercise
+            </Button>
+          </div>
+        )}
 
-              {showHang && hangSets.length > 0 && (
-                <div className="space-y-3">
-                  <p className="text-sm font-medium text-muted-foreground">Hangboard</p>
-                  <HangboardSetsEditor
-                    value={hangSets}
-                    onChange={(v) => {
-                      setHangSets(v)
-                      setDirty(true)
-                    }}
-                  />
-                </div>
-              )}
-
-              {visibleRows.length === 0 && !(showHang && hangSets.length > 0) && (
+        {showCardio && (
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <Label>Activity</Label>
+              <SegmentedControl options={ACTIVITIES} value={activity} onChange={setActivity} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="target-duration">Target duration (min)</Label>
+                <Input
+                  id="target-duration"
+                  inputMode="numeric"
+                  value={durationMin}
+                  placeholder="optional"
+                  onChange={(e) => setDurationMin(e.target.value.replace(/[^0-9]/g, ''))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="target-distance">Target distance (km)</Label>
+                <Input
+                  id="target-distance"
+                  inputMode="decimal"
+                  value={distanceKm}
+                  placeholder="optional"
+                  onChange={(e) => setDistanceKm(e.target.value.replace(/[^0-9.]/g, ''))}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">Intervals</p>
+              {intervals.length === 0 && (
                 <p className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
-                  Nothing in this category yet.
+                  No intervals — add rounds for a structured session.
                 </p>
               )}
-            </>
-          )}
+              <IntervalsEditor value={intervals} onChange={setIntervals} />
+            </div>
+          </div>
+        )}
 
-          <Button variant="outline" className="w-full" onClick={() => setPickerOpen(true)}>
-            <Plus className="size-4" /> Add exercise
-          </Button>
-        </div>
+        {showHangboard && (
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-muted-foreground">Hangboard</p>
+            {hangSets.length === 0 && (
+              <p className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+                No hangs yet — add hangboard exercises above, or grip/edge sets below.
+              </p>
+            )}
+            <HangboardSetsEditor value={hangSets} onChange={setHangSets} />
+          </div>
+        )}
       </div>
 
       <ExercisePicker
         open={pickerOpen}
         onOpenChange={setPickerOpen}
         multiple
+        categories={pickerCategories}
         onSelect={addExercises}
       />
-
-      <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Discard this workout?</AlertDialogTitle>
-            <AlertDialogDescription>Your changes will not be saved.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep editing</AlertDialogCancel>
-            <AlertDialogAction onClick={discard}>Discard</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }

@@ -4,7 +4,8 @@ import { useLiveQuery } from '@/hooks/useDb'
 import { useTagColours } from '@/hooks/useTagColours'
 import { getTemplate, startSessionFromTemplate } from '@/db/helpers'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
-import { badgeForTemplate } from '@/lib/badges'
+import { badgesForTemplate } from '@/lib/badges'
+import { templateCategories } from '@/lib/templateCategories'
 import { PageHeader } from '@/components/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -93,7 +94,9 @@ export default function TemplateDetailScreen() {
 
       <div className="space-y-4 p-4">
         <div className="flex flex-wrap items-center gap-2">
-          <DisciplineBadge badge={badgeForTemplate(template)} />
+          {badgesForTemplate(template).map((b, i) => (
+            <DisciplineBadge key={i} badge={b} />
+          ))}
           {template.tags.map((tag) => (
             <span
               key={tag}
@@ -105,7 +108,7 @@ export default function TemplateDetailScreen() {
           ))}
         </div>
 
-        {template.type !== 'cardio' && template.exercises.length > 0 && (
+        {template.exercises.length > 0 && (
           <ol className="space-y-2">
             {template.exercises.map((ex, i) => (
               <li
@@ -119,7 +122,7 @@ export default function TemplateDetailScreen() {
           </ol>
         )}
 
-        {template.type === 'cardio' && (
+        {templateCategories(template).includes('cardio') && (
           <div className="space-y-3">
             <div className="rounded-xl border border-border bg-card p-3 text-sm">
               <p className="font-medium">{ACTIVITY_LABELS[template.cardioActivity ?? 'other']}</p>

@@ -1,6 +1,7 @@
 import { ChevronRight } from 'lucide-react'
 import { DisciplineBadge } from './DisciplineBadge'
-import { badgeForTemplate } from '@/lib/badges'
+import { badgesForTemplate } from '@/lib/badges'
+import { templateCategories } from '@/lib/templateCategories'
 import { formatRelativeDay } from '@/lib/date'
 import { formatWorkoutLength } from '@/lib/formatDuration'
 import type { WorkoutTemplate } from '@/types'
@@ -13,32 +14,22 @@ const ACTIVITY_LABELS: Record<string, string> = {
 }
 
 function summarise(t: WorkoutTemplate): string {
-  if (t.type === 'strength' || t.type === 'mixed') {
-    // A73/F43 — a mixed (training) template may carry hangboard sets as well as
-    // exercises; count both so a hang-only template doesn't read "0 exercises".
-    const exs = t.exercises.length
-    const hangs = t.hangboardSets?.length ?? 0
-    const parts = [
-      exs ? `${exs} exercise${exs === 1 ? '' : 's'}` : null,
-      hangs ? `${hangs} hang${hangs === 1 ? '' : 's'}` : null,
-    ].filter(Boolean)
-    return parts.length ? parts.join(' · ') : 'No exercises'
+  // A pure cardio template (no exercise rows / hangs) — describe activity + target.
+  const exs = t.exercises.length
+  const hangs = t.hangboardSets?.length ?? 0
+  if (templateCategories(t).includes('cardio') && exs === 0 && hangs === 0) {
+    const activity = ACTIVITY_LABELS[t.cardioActivity ?? 'other']
+    if (t.intervals?.length) return `${activity} · intervals`
+    if (t.targetDurationSeconds) return `${activity} · ${formatWorkoutLength(t.targetDurationSeconds)}`
+    if (t.targetDistanceKm) return `${activity} · ${t.targetDistanceKm} km`
+    return activity
   }
-  if (t.type === 'climbing') {
-    const hangs = t.hangboardSets?.length ?? 0
-    const exs = t.exercises.length
-    if (t.climbingKind === 'hangboard') return `Hangboard · ${hangs} grip${hangs === 1 ? '' : 's'}`
-    const parts = [
-      exs ? `${exs} exercise${exs === 1 ? '' : 's'}` : null,
-      hangs ? `${hangs} hang${hangs === 1 ? '' : 's'}` : null,
-    ].filter(Boolean)
-    return parts.length ? `Climbing · ${parts.join(', ')}` : 'Climbing workout'
-  }
-  const activity = ACTIVITY_LABELS[t.cardioActivity ?? 'other']
-  if (t.intervals?.length) return `${activity} · intervals`
-  if (t.targetDurationSeconds) return `${activity} · ${formatWorkoutLength(t.targetDurationSeconds)}`
-  if (t.targetDistanceKm) return `${activity} · ${t.targetDistanceKm} km`
-  return activity
+  // Exercise / hangboard template — count both (A73/F43).
+  const parts = [
+    exs ? `${exs} exercise${exs === 1 ? '' : 's'}` : null,
+    hangs ? `${hangs} hang${hangs === 1 ? '' : 's'}` : null,
+  ].filter(Boolean)
+  return parts.length ? parts.join(' · ') : 'No exercises'
 }
 
 interface Props {
@@ -59,7 +50,12 @@ export function TemplateCard({ template, onOpen }: Props) {
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex items-center gap-2">
           <span className="truncate font-medium">{template.name}</span>
-          <DisciplineBadge badge={badgeForTemplate(template)} />
+          {/* A94 — one pill per category the template spans. */}
+          <span className="flex shrink-0 flex-wrap gap-1">
+            {badgesForTemplate(template).map((b, i) => (
+              <DisciplineBadge key={i} badge={b} />
+            ))}
+          </span>
         </div>
         <div className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
           <span>{summarise(template)}</span>

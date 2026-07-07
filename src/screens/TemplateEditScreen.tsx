@@ -18,9 +18,11 @@ import { ExercisePicker } from '@/components/ExercisePicker'
 import { IntervalsEditor } from '@/components/IntervalsEditor'
 import { HangboardSetsEditor } from '@/components/HangboardSetsEditor'
 import { TemplateExerciseRow, type TemplateRow } from '@/components/TemplateExerciseRow'
+import { CategoryMultiSelect } from '@/components/CategoryMultiSelect'
 import { PageHeader } from '@/components/PageHeader'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { TagInput } from '@/components/TagInput'
+import { templateCategories } from '@/lib/templateCategories'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -34,7 +36,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import type { CardioActivityType, Exercise, HangboardSet, IntervalBlock } from '@/types'
+import type {
+  CardioActivityType,
+  Exercise,
+  ExerciseCategory,
+  HangboardSet,
+  IntervalBlock,
+  TemplateCategory,
+} from '@/types'
 
 type Row = TemplateRow
 
@@ -57,6 +66,7 @@ export default function TemplateEditScreen() {
   const exById = useMemo(() => new Map(exercises.map((e) => [e.id, e])), [exercises])
 
   const [name, setName] = useState('')
+  const [categories, setCategories] = useState<TemplateCategory[]>([])
   const [tags, setTags] = useState<string[]>([])
   const [rows, setRows] = useState<Row[]>([])
   const [activity, setActivity] = useState<CardioActivityType>('run')
@@ -74,6 +84,7 @@ export default function TemplateEditScreen() {
   useEffect(() => {
     if (template && !inited) {
       setName(template.name)
+      setCategories(templateCategories(template))
       setTags(template.tags)
       setRows(template.exercises.map((e) => ({ ...e, uid: generateId() })))
       setActivity(template.cardioActivity ?? 'run')
@@ -147,21 +158,12 @@ export default function TemplateEditScreen() {
   }
 
   async function save() {
-    if (!template) return
-    const isCardio = template.type === 'cardio'
-    const isClimbing = template.type === 'climbing'
-    // Exercise rows: strength, mixed, or a legacy climbing-workout template.
-    const showExercises =
-      template.type === 'strength' ||
-      template.type === 'mixed' ||
-      (isClimbing && template.climbingKind === 'workout')
-    // Hang rows live on mixed (training) templates post-A73, plus legacy climbing.
-    const showHangboard = template.type === 'mixed' || isClimbing
+    if (!template || categories.length === 0) return
     try {
       await upsertTemplate({
         id: template.id,
         name: name.trim() || template.name,
-        type: template.type,
+        categories,
         tags,
         exercises: showExercises
           ? rows.map((r, i) => ({
@@ -176,12 +178,14 @@ export default function TemplateEditScreen() {
               notes: r.notes,
             }))
           : [],
-        cardioActivity: isCardio ? activity : undefined,
+        cardioActivity: showCardio ? activity : undefined,
         targetDurationSeconds:
-          isCardio && durationMin.trim() ? Number(durationMin) * 60 : undefined,
-        targetDistanceKm: isCardio && distanceKm.trim() ? Number(distanceKm) : undefined,
-        intervals: isCardio && intervals.length > 0 ? intervals : undefined,
-        climbingKind: isClimbing ? template.climbingKind : undefined,
+          showCardio && durationMin.trim() ? Number(durationMin) * 60 : undefined,
+        targetDistanceKm: showCardio && distanceKm.trim() ? Number(distanceKm) : undefined,
+        intervals: showCardio && intervals.length > 0 ? intervals : undefined,
+        // climbingKind is preserved only for climbing templates (drives the
+        // climbing session screen); undefined otherwise.
+        climbingKind: showHangboard ? template.climbingKind : undefined,
         hangboardSets: showHangboard ? hangSets.map((h, i) => ({ ...h, order: i })) : undefined,
         lastUsedAt: template.lastUsedAt,
       })
@@ -215,13 +219,17 @@ export default function TemplateEditScreen() {
     }
   }
 
-  const isCardio = template?.type === 'cardio'
-  const isClimbing = template?.type === 'climbing'
-  const showExercises =
-    template?.type === 'strength' ||
-    template?.type === 'mixed' ||
-    (isClimbing && template?.climbingKind === 'workout')
-  const showHangboard = template?.type === 'mixed' || isClimbing
+  // A94 — which content sections apply, derived from the (editable) categories.
+  // Exercises for any non-cardio discipline; cardio fields for cardio; hangboard
+  // sets for climbing (A92).
+  const showExercises = categories.some((c) => c !== 'cardio')
+  const showCardio = categories.includes('cardio')
+  const showHangboard = categories.includes('climbing')
+  // The picker shows exactly the template's disciplines; climbing also offers
+  // hangboard exercises (they seed hang rows).
+  const pickerCategories: ExerciseCategory[] = categories.includes('climbing')
+    ? [...categories, 'hangboard']
+    : categories
 
   return (
     <div className="min-h-dvh pb-24">
@@ -229,13 +237,29 @@ export default function TemplateEditScreen() {
         title={inited ? name || 'Edit template' : 'Edit template'}
         onBack={cancel}
         right={
-          <Button size="sm" onClick={save} disabled={!inited}>
+          <Button size="sm" onClick={save} disabled={!inited || categories.length === 0}>
             Save
           </Button>
         }
       />
 
       <div className="space-y-5 p-4">
+        {/* A94 — the categories multi-select is the source of truth for the
+            Library tabs, the ExercisePicker scope, and the sections shown below. */}
+        <div className="space-y-2">
+          <Label>Categories</Label>
+          <CategoryMultiSelect
+            value={categories}
+            onChange={(c) => {
+              setCategories(c)
+              setDirty(true)
+            }}
+          />
+          {categories.length === 0 && (
+            <p className="text-xs text-destructive">Select at least one category.</p>
+          )}
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="tmpl-name">Name</Label>
           <Input
@@ -296,7 +320,7 @@ export default function TemplateEditScreen() {
           </div>
         )}
 
-        {isCardio && (
+        {showCardio && (
           <div className="space-y-5">
             <div className="space-y-2">
               <Label>Activity</Label>
@@ -391,16 +415,9 @@ export default function TemplateEditScreen() {
         open={pickerOpen}
         onOpenChange={setPickerOpen}
         multiple
-        // A87 — the picker always shows category tabs; `categories` restricts them
-        // to what this template accepts (mixed accepts any discipline, incl. F43
-        // hangboard).
-        categories={
-          template?.type === 'climbing'
-            ? ['climbing', 'rehab']
-            : template?.type === 'mixed'
-              ? undefined
-              : ['strength', 'rehab']
-        }
+        // A94 — the picker scope is exactly this template's categories (climbing
+        // also offers hangboard exercises, which seed hang rows).
+        categories={pickerCategories}
         onSelect={addExercises}
       />
 

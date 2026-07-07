@@ -500,9 +500,9 @@ function buildTemplate(
     return {
       id: seed.id,
       name: seed.name,
-      // A73: hangboarding + climbing strength are training, not climbing. A
-      // template mixing exercises and hangs is a 'mixed' training template.
-      type: 'mixed',
+      // A94: a climbing-strength workout (climbing-category exercises + hangs)
+      // lives under the Climbing discipline (A92).
+      categories: ['climbing'],
       tags: seed.tags,
       createdAt: now,
       exercises: seed.rows.map<TemplateExercise>((r, order) => buildTemplateExercise(r, order)),
@@ -523,10 +523,9 @@ function buildTemplate(
     return {
       id: seed.id,
       name: seed.name,
-      // A73: a pure-hangboard template is a training template. It has no exercise
-      // rows, only hangboardSets, and is 'mixed' so it renders on the training
-      // session screen alongside any other training content.
-      type: 'mixed',
+      // A94: a pure-hangboard template lives under the Climbing discipline (A92);
+      // deriveSessionType routes it to the training session screen.
+      categories: ['climbing'],
       tags: seed.tags,
       createdAt: now,
       exercises: [],
@@ -549,7 +548,7 @@ function buildTemplate(
     return {
       id: seed.id,
       name: seed.name,
-      type: 'strength',
+      categories: ['strength'],
       tags: seed.tags,
       createdAt: now,
       exercises: seed.rows.map<TemplateExercise>((r, order) => buildTemplateExercise(r, order)),
@@ -558,7 +557,7 @@ function buildTemplate(
   return {
     id: seed.id,
     name: seed.name,
-    type: 'cardio',
+    categories: ['cardio'],
     tags: seed.tags,
     createdAt: now,
     exercises: [],
