@@ -1,0 +1,397 @@
+import { useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
+import { useRestTimer } from '@/hooks/useRestTimer'
+import { useCountdownTimer } from '@/hooks/useCountdownTimer'
+import { useCountdownBeeps } from '@/hooks/useCountdownBeeps'
+import { usePrecountBeeps } from '@/hooks/usePrecountBeeps'
+import { getAutoAdvance, getPrecountSeconds } from '@/lib/prefs'
+import { addHang, addSet, checkAndSavePR } from '@/db/helpers'
+import { repsMet, weightPrValue } from '@/lib/pr'
+import {
+  clearActivePhase,
+  loadActivePhase,
+  saveActivePhase,
+  RESUME_GRACE_MS,
+} from '@/lib/activePhase'
+import type { LoggedSetInput, WorkExercise } from '@/components/ExerciseCard'
+import type { Exercise, HangboardSet } from '@/types'
+
+// A hangboard row in a working plan (A73): a HangboardSet plus a UI skip flag.
+export type WorkHang = HangboardSet & { skipped: boolean }
+
+export interface TimedSetEngineParams {
+  /** The session id (keys the persisted F48 phase and the logged records). */
+  sessionId: string
+  /** Whether the session clock is paused — freezes all three timers. */
+  paused: boolean
+  /** Lift any session pause when logging/starting activity (F19). */
+  resume: () => void
+  /** The exercise queue (drives auto-advance + F48 resume "current" lookup). */
+  work: WorkExercise[]
+  /** The hangboard queue. */
+  hangWork: WorkHang[]
+  /** exerciseId → Exercise, for the PR loadable flag and the timed check. */
+  exById: Map<string, Exercise>
+  /** Count of sets already logged for this exercise → next setNumber. */
+  loggedCountFor: (ex: WorkExercise) => number
+  isComplete: (ex: WorkExercise) => boolean
+  /** Count of hangs already logged for this hang set → next setNumber. */
+  completedForHang: (hs: HangboardSet) => number
+  isCompleteHang: (h: WorkHang) => boolean
+  /** True once the working lists + logged sets/hangs have loaded, so the
+   *  once-only F48 resume picks the correct "current" item. Flipping this
+   *  false→true is what fires the resume. */
+  ready: boolean
+}
+
+export interface TimedSetEngine {
+  rest: ReturnType<typeof useRestTimer>
+  countdown: ReturnType<typeof useCountdownTimer>
+  precount: ReturnType<typeof useCountdownTimer>
+  /** Current Abrahang phase label ('Hang' | 'Rest'), else null (A37). */
+  abrahangLabel: string | null
+  logSet: (ex: WorkExercise, data: LoggedSetInput) => Promise<void>
+  startTimedSet: (ex: WorkExercise) => void
+  logHang: (hs: HangboardSet, opts?: { abrahangReps?: number }) => Promise<void>
+  startHang: (hs: HangboardSet) => void
+  /** Cancel the active pre-count/countdown/rest and drop the persisted phase —
+   *  call when the current item is skipped. */
+  cancelTimers: () => void
+  /** Drop the persisted F48 phase (finish/cancel/manual rest-skip). */
+  clearPhase: () => void
+}
+
+// CA1 — the timed-set engine shared by StrengthSessionScreen and
+// ClimbingSessionScreen: the three timers (rest / exercise-countdown /
+// pre-count), the log→rest→auto-advance orchestration for both exercises and
+// hangboard hangs (incl. the Abrahang runner, A37), and the F48 persist/resume
+// that lets a running phase survive a reload. The screens own their working
+// lists and views; they hand the engine the current state and render with what
+// it returns.
+export function useTimedSetEngine(params: TimedSetEngineParams): TimedSetEngine {
+  const {
+    sessionId: id,
+    paused,
+    resume,
+    work,
+    hangWork,
+    exById,
+    loggedCountFor,
+    isComplete,
+    completedForHang,
+    isCompleteHang,
+    ready,
+  } = params
+
+  // Pausing the session freezes the rest and countdown timers too (they resume
+  // from where they left off when the session resumes).
+  const rest = useRestTimer(paused)
+  const countdown = useCountdownTimer(paused)
+  const precount = useCountdownTimer(paused)
+  useCountdownBeeps(countdown.remaining, countdown.isRunning && !paused)
+  usePrecountBeeps(precount.remaining, precount.isRunning && !paused)
+
+  const [abrahangLabel, setAbrahangLabel] = useState<string | null>(null)
+
+  // F48 — persist the running timed phase so it survives a reload/remount (see
+  // src/lib/activePhase.ts). `ref` is stable across a reload: an exercise's
+  // exerciseId (its uid is regenerated each mount) or a hang's hangSetId.
+  const persistPhase = (
+    phase: 'precount' | 'countdown' | 'rest',
+    kind: 'exercise' | 'hang',
+    ref: string,
+    seconds: number,
+  ) => saveActivePhase(id, { kind, ref, phase, endsAt: Date.now() + seconds * 1000 })
+  const clearPhase = () => clearActivePhase(id)
+  const resumedRef = useRef(false)
+
+  // Rest-timer completion: haptic (no-op on iOS) + auto-dismiss. For a timed
+  // set, reaching 0 auto-starts the next set's countdown (A8, if enabled).
+  const firedRef = useRef(false)
+  // The timed item (exercise or hangboard hang) the current rest follows, so its
+  // countdown can auto-start when the rest expires (A8). Null when the rest
+  // follows an untimed set.
+  const restTimedRef = useRef<{ kind: 'exercise' | 'hang'; uid: string } | null>(null)
+  const autoAdvanceRef = useRef<() => boolean>(() => false)
+  useEffect(() => {
+    if (rest.isRunning && rest.remaining === 0) {
+      if (!firedRef.current) {
+        firedRef.current = true
+        navigator.vibrate?.([200, 100, 200])
+        if (autoAdvanceRef.current()) return // began the next timed set instead of dismissing
+        // No next timed set — the flow is done; drop the persisted phase so a
+        // later reload doesn't try to resume a finished rest.
+        clearPhase()
+        const t = setTimeout(() => rest.skip(), 2000)
+        return () => clearTimeout(t)
+      }
+    } else {
+      firedRef.current = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rest.isRunning, rest.remaining, rest.skip])
+
+  async function logSet(ex: WorkExercise, data: LoggedSetInput) {
+    resume() // logging activity lifts any pause (F19)
+    const setNumber = loggedCountFor(ex) + 1
+    try {
+      await addSet({
+        sessionId: id,
+        exerciseId: ex.exerciseId,
+        exerciseName: ex.exerciseName,
+        setNumber,
+        targetReps: ex.targetReps,
+        actualReps: data.actualReps,
+        weightKg: data.weightKg,
+        additionalWeightKg: data.additionalWeightKg,
+        durationSeconds: data.durationSeconds,
+        distanceKm: data.distanceKm, // cardio exercise in a mixed session (A66)
+        skipped: false,
+        swappedFrom: ex.swappedFrom,
+        loggedAt: Date.now(),
+      })
+      if (repsMet(ex.targetReps, data.actualReps)) {
+        const loadable = exById.get(ex.exerciseId)?.supportsAdditionalWeight
+        const prValue = weightPrValue(loadable, data)
+        if (prValue != null) {
+          await checkAndSavePR({
+            exerciseId: ex.exerciseId,
+            exerciseName: ex.exerciseName,
+            prType: 'weight',
+            value: prValue,
+            unit: 'kg',
+            sessionId: id,
+            achievedAt: Date.now(),
+          })
+        }
+      }
+      // Only a genuinely timed exercise (a hold) auto-advances its countdown —
+      // a cardio bout has a durationSeconds but no countdown (A66).
+      restTimedRef.current =
+        exById.get(ex.exerciseId)?.trackingType === 'duration'
+          ? { kind: 'exercise', uid: ex.uid }
+          : null
+      rest.start(ex.restSeconds)
+      // Persist the rest so a reload mid-rest resumes it and still auto-advances
+      // (F48). Only for timed exercises — a reps rest has nothing to advance to.
+      if (restTimedRef.current) persistPhase('rest', 'exercise', ex.exerciseId, ex.restSeconds)
+      else clearPhase()
+    } catch {
+      toast.error('Could not log set')
+    }
+  }
+
+  // Timed exercises: run the countdown, then log the set (which starts rest).
+  // Starting a set dismisses any running rest timer immediately (A8).
+  function startTimedSet(ex: WorkExercise) {
+    if (ex.durationSeconds == null) return
+    resume() // starting a timed set lifts any pause (F19)
+    rest.skip()
+    const run = () => {
+      persistPhase('countdown', 'exercise', ex.exerciseId, ex.durationSeconds!)
+      countdown.start(ex.uid, ex.durationSeconds!, () =>
+        logSet(ex, { durationSeconds: ex.durationSeconds }),
+      )
+    }
+    // Optional "Get ready" pre-count before the exercise countdown (A30).
+    const pre = getPrecountSeconds()
+    if (pre > 0) {
+      persistPhase('precount', 'exercise', ex.exerciseId, pre)
+      precount.start(ex.uid, pre, run)
+    } else run()
+  }
+
+  // --- Hangboard (A73) — hang rows log as LoggedHang, running the full
+  // countdown / pre-count / Abrahang / science-rest engine. -----------------
+  async function logHang(hs: HangboardSet, opts?: { abrahangReps?: number }) {
+    resume() // logging activity lifts any pause (F19)
+    try {
+      await addHang({
+        sessionId: id,
+        hangSetId: hs.id,
+        gripType: hs.gripType,
+        edgeDepthMm: hs.edgeDepthMm,
+        setNumber: completedForHang(hs) + 1,
+        targetDurationSeconds: hs.durationSeconds,
+        actualDurationSeconds: hs.durationSeconds,
+        weightKg: hs.weightKg,
+        hangType: hs.hangType ?? 'sub_max',
+        abrahangReps: opts?.abrahangReps,
+        skipped: false,
+        loggedAt: Date.now(),
+      })
+      // Hangboard PRs are keyed per grip type: heaviest added load and longest
+      // hang. Assisted (negative) hangs don't count toward a weight PR.
+      const now = Date.now()
+      if (hs.weightKg > 0) {
+        await checkAndSavePR({
+          exerciseName: hs.gripType,
+          prType: 'weight',
+          value: hs.weightKg,
+          unit: 'kg',
+          sessionId: id,
+          achievedAt: now,
+        })
+      }
+      if (hs.durationSeconds > 0) {
+        await checkAndSavePR({
+          exerciseName: hs.gripType,
+          prType: 'duration',
+          value: hs.durationSeconds,
+          unit: 's',
+          sessionId: id,
+          achievedAt: now,
+        })
+      }
+      restTimedRef.current = { kind: 'hang', uid: hs.id }
+      rest.start(hs.restSeconds)
+      persistPhase('rest', 'hang', hs.id, hs.restSeconds) // F48 — survive a reload mid-rest
+    } catch {
+      toast.error('Could not log hang')
+    }
+  }
+  function startHangCountdown(hs: HangboardSet) {
+    resume() // starting a hang lifts any pause (F19)
+    rest.skip()
+    const run = () => {
+      persistPhase('countdown', 'hang', hs.id, hs.durationSeconds)
+      countdown.start(hs.id, hs.durationSeconds, () => logHang(hs))
+    }
+    const pre = getPrecountSeconds()
+    if (pre > 0) {
+      persistPhase('precount', 'hang', hs.id, pre)
+      precount.start(hs.id, pre, run)
+    } else run()
+  }
+  // Abrahang (A37): precount → work / short intra-rest, alternating for N reps,
+  // then log one hang and start the full inter-set rest. Both phases reuse the
+  // countdown timer (so A7 beeps fire); the label drives the on-screen phase.
+  function startAbrahang(hs: HangboardSet) {
+    resume()
+    rest.skip()
+    const reps = hs.abrahangReps ?? 6
+    const intra = hs.intraRestSeconds ?? 3
+    let rep = 0
+    const doWork = () => {
+      rep += 1
+      setAbrahangLabel('Hang')
+      // Persisted as a plain 'countdown'; a reload restarts the whole Abrahang set
+      // (startHang re-routes to the runner), which is the faithful resume (F48).
+      persistPhase('countdown', 'hang', hs.id, hs.durationSeconds)
+      countdown.start(hs.id, hs.durationSeconds, () => {
+        if (rep >= reps) {
+          setAbrahangLabel(null)
+          void logHang(hs, { abrahangReps: reps })
+        } else {
+          setAbrahangLabel('Rest')
+          countdown.start(hs.id, intra, doWork)
+        }
+      })
+    }
+    const pre = getPrecountSeconds()
+    if (pre > 0) {
+      persistPhase('precount', 'hang', hs.id, pre)
+      precount.start(hs.id, pre, doWork)
+    } else doWork()
+  }
+  function startHang(hs: HangboardSet) {
+    if ((hs.hangType ?? 'sub_max') === 'abrahang') startAbrahang(hs)
+    else startHangCountdown(hs)
+  }
+
+  // Re-assigned every render so the rest-expiry effect starts the next timed set
+  // (exercise or hang) using the latest state. Returns true when it began one.
+  autoAdvanceRef.current = () => {
+    if (!getAutoAdvance()) return false
+    const info = restTimedRef.current
+    restTimedRef.current = null
+    if (!info) return false
+    if (info.kind === 'exercise') {
+      const ex = work.find((e) => e.uid === info.uid)
+      if (ex && ex.durationSeconds != null && !isComplete(ex)) {
+        startTimedSet(ex)
+        return true
+      }
+    } else {
+      const h = hangWork.find((x) => x.id === info.uid)
+      if (h && !isCompleteHang(h)) {
+        startHang(h)
+        return true
+      }
+    }
+    return false
+  }
+
+  // Skipping the active item stops its running rest and any in-flight
+  // countdown/pre-count — otherwise a timed exercise's countdown would run to
+  // zero and log a phantom set for the now-skipped item.
+  function cancelTimers() {
+    rest.skip()
+    countdown.cancel()
+    precount.cancel()
+    clearPhase()
+  }
+
+  // F48 — resume a timed phase that a reload/remount interrupted. Runs once, when
+  // `ready` flips true (working lists + logged sets/hangs loaded, so the
+  // "current" item is correct). A running rest resumes with its remaining time and
+  // still auto-advances; a rest that fully elapsed while away, or an interrupted
+  // pre-count/countdown, (re)starts the current set. A stale phase (session
+  // re-opened much later) is dropped rather than auto-firing a countdown.
+  useEffect(() => {
+    if (resumedRef.current) return
+    if (!ready) return
+    resumedRef.current = true
+    const ap = loadActivePhase(id)
+    if (!ap) return
+    // Don't fight a timer that's already live (e.g. StrictMode double-mount).
+    if (precount.isRunning || countdown.isRunning || rest.isRunning) return
+    if (Date.now() - ap.endsAt >= RESUME_GRACE_MS) {
+      clearPhase()
+      return
+    }
+    if (ap.kind === 'exercise') {
+      const ex = work.find((e) => !isComplete(e)) // the current exercise
+      if (!ex || ex.exerciseId !== ap.ref || ex.durationSeconds == null) {
+        clearPhase()
+        return
+      }
+      const remaining = Math.round((ap.endsAt - Date.now()) / 1000)
+      if (ap.phase === 'rest' && remaining > 1) {
+        restTimedRef.current = { kind: 'exercise', uid: ex.uid }
+        persistPhase('rest', 'exercise', ex.exerciseId, remaining)
+        rest.start(remaining)
+      } else {
+        startTimedSet(ex) // elapsed rest, or interrupted pre-count/countdown → (re)start the set
+      }
+    } else {
+      const h = hangWork.find((x) => !isCompleteHang(x)) // the current hang
+      if (!h || h.id !== ap.ref) {
+        clearPhase()
+        return
+      }
+      const remaining = Math.round((ap.endsAt - Date.now()) / 1000)
+      if (ap.phase === 'rest' && remaining > 1) {
+        restTimedRef.current = { kind: 'hang', uid: h.id }
+        persistPhase('rest', 'hang', h.id, remaining)
+        rest.start(remaining)
+      } else {
+        startHang(h)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready])
+
+  return {
+    rest,
+    countdown,
+    precount,
+    abrahangLabel,
+    logSet,
+    startTimedSet,
+    logHang,
+    startHang,
+    cancelTimers,
+    clearPhase,
+  }
+}
