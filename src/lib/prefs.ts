@@ -1,38 +1,42 @@
 // Small UI preferences kept in localStorage.
+//
+// The flat on/off + numeric settings below are registered in a shared, typed,
+// reactive settings store (src/lib/settingsStore.ts) — so their keys and defaults
+// live in one place and `useSetting(SETTING)` re-renders on change. These thin
+// getters/setters keep the existing call sites working; screens that want live
+// updates can read `useSetting(...)` directly. Structured-list prefs further down
+// (saved gyms/boards, gym areas, grade ranges, custom styles) keep their own bespoke
+// storage since they aren't flat values.
 import { CLIMB_STYLE_TAGS, climbStyleLabel } from './climbing'
+import {
+  boolDefaultOff,
+  boolDefaultOn,
+  getSetting,
+  intSetting,
+  setSetting,
+  type Setting,
+} from '@/lib/settingsStore'
 import type { ClimbCharacter } from '@/types'
 
-// Generic on/off pref defaulting to ON (only an explicit '0' disables it).
-function getBool(key: string): boolean {
-  try {
-    return localStorage.getItem(key) !== '0'
-  } catch {
-    return true
-  }
-}
-function setBool(key: string, on: boolean): void {
-  try {
-    localStorage.setItem(key, on ? '1' : '0')
-  } catch {
-    /* ignore */
-  }
-}
-
 // Whether the rest timer auto-starts the next timed set's countdown on expiry.
-export const getAutoAdvance = () => getBool('auto_advance_timed')
-export const setAutoAdvance = (on: boolean) => setBool('auto_advance_timed', on)
+export const AUTO_ADVANCE = boolDefaultOn('auto_advance_timed')
+export const getAutoAdvance = () => getSetting(AUTO_ADVANCE)
+export const setAutoAdvance = (on: boolean) => setSetting(AUTO_ADVANCE, on)
 
 // Whether countdown/rest timer beeps play.
-export const getTimerSounds = () => getBool('timer_sounds')
-export const setTimerSounds = (on: boolean) => setBool('timer_sounds', on)
+export const TIMER_SOUNDS = boolDefaultOn('timer_sounds')
+export const getTimerSounds = () => getSetting(TIMER_SOUNDS)
+export const setTimerSounds = (on: boolean) => setSetting(TIMER_SOUNDS, on)
 
 // Whether to hold a screen wake lock during an active session.
-export const getKeepAwake = () => getBool('keep_awake')
-export const setKeepAwake = (on: boolean) => setBool('keep_awake', on)
+export const KEEP_AWAKE = boolDefaultOn('keep_awake')
+export const getKeepAwake = () => getSetting(KEEP_AWAKE)
+export const setKeepAwake = (on: boolean) => setSetting(KEEP_AWAKE, on)
 
 // Whether the celebration confetti fires on the session summary screen (A41).
-export const getConfettiEnabled = () => getBool('confettiEnabled')
-export const setConfettiEnabled = (on: boolean) => setBool('confettiEnabled', on)
+export const CONFETTI_ENABLED = boolDefaultOn('confettiEnabled')
+export const getConfettiEnabled = () => getSetting(CONFETTI_ENABLED)
+export const setConfettiEnabled = (on: boolean) => setSetting(CONFETTI_ENABLED, on)
 
 // Tick-type indicator style (A49): 'symbols' (Unicode) or 'emojis' (default).
 // setTickDisplayStyle fires a custom event so useTickSymbol re-renders live.
@@ -54,20 +58,13 @@ export function setTickDisplayStyle(style: 'symbols' | 'emojis'): void {
 }
 
 // First day of the week for the planner calendar: 1 = Monday (default), 0 = Sunday.
-export function getWeekStart(): 0 | 1 {
-  try {
-    return localStorage.getItem('week_start') === '0' ? 0 : 1
-  } catch {
-    return 1
-  }
+export const WEEK_START: Setting<0 | 1> = {
+  key: 'week_start',
+  read: (r) => (r === '0' ? 0 : 1),
+  write: (v) => String(v),
 }
-export function setWeekStart(v: 0 | 1): void {
-  try {
-    localStorage.setItem('week_start', String(v))
-  } catch {
-    /* ignore */
-  }
-}
+export const getWeekStart = () => getSetting(WEEK_START)
+export const setWeekStart = (v: 0 | 1) => setSetting(WEEK_START, v)
 
 // --- Weight increment (A60) -------------------------------------------------
 
@@ -78,20 +75,9 @@ export function setWeekStart(v: 0 | 1): void {
 // flag ('weightIncrementEnabled').
 export const DEFAULT_WEIGHT_STEP = 0.5 // kg (the app is currently kg-only)
 
-export function getWeightIncrementEnabled(): boolean {
-  try {
-    return localStorage.getItem('weightIncrementEnabled') === '1'
-  } catch {
-    return false
-  }
-}
-export function setWeightIncrementEnabled(on: boolean): void {
-  try {
-    localStorage.setItem('weightIncrementEnabled', on ? '1' : '0')
-  } catch {
-    /* ignore */
-  }
-}
+export const WEIGHT_INCREMENT_ENABLED = boolDefaultOff('weightIncrementEnabled')
+export const getWeightIncrementEnabled = () => getSetting(WEIGHT_INCREMENT_ENABLED)
+export const setWeightIncrementEnabled = (on: boolean) => setSetting(WEIGHT_INCREMENT_ENABLED, on)
 
 // The configured increment (a positive number, ≤2dp). Falls back to the default
 // step when unset or invalid.
@@ -123,23 +109,9 @@ export function getWeightStep(): number {
 
 // Pre-count ("Get ready") seconds before a timed exercise countdown (A30).
 // 0 disables it. Clamped 0–10, defaults to 5.
-export function getPrecountSeconds(): number {
-  try {
-    const raw = localStorage.getItem('precountSeconds')
-    if (raw == null) return 5
-    const v = Number(raw)
-    return Number.isFinite(v) ? Math.max(0, Math.min(10, Math.round(v))) : 5
-  } catch {
-    return 5
-  }
-}
-export function setPrecountSeconds(n: number): void {
-  try {
-    localStorage.setItem('precountSeconds', String(Math.max(0, Math.min(10, Math.round(n)))))
-  } catch {
-    /* ignore */
-  }
-}
+export const PRECOUNT_SECONDS = intSetting('precountSeconds', 5, 0, 10)
+export const getPrecountSeconds = () => getSetting(PRECOUNT_SECONDS)
+export const setPrecountSeconds = (n: number) => setSetting(PRECOUNT_SECONDS, n)
 
 // --- Remembered location names (A17) ---------------------------------------
 
