@@ -306,6 +306,7 @@ export default function ClimbingSessionScreen() {
     if (uid === currentEx?.uid) {
       rest.skip()
       countdown.cancel()
+      precount.cancel()
     }
   }
   function swapCurrent(ex: Exercise) {
@@ -442,6 +443,7 @@ export default function ClimbingSessionScreen() {
     if (hid === currentHang?.id) {
       rest.skip()
       countdown.cancel()
+      precount.cancel()
     }
   }
   function reorderHangs(activeIds: string[]) {

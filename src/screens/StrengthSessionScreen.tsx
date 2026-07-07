@@ -311,6 +311,7 @@ export default function StrengthSessionScreen() {
     if (hid === currentHang?.id) {
       rest.skip()
       countdown.cancel()
+      precount.cancel()
     }
     markModified()
   }
@@ -543,7 +544,14 @@ export default function StrengthSessionScreen() {
 
   function skip(uid: string) {
     setWork((w) => w.map((e) => (e.uid === uid ? { ...e, skipped: true } : e)))
-    if (uid === currentEx?.uid) rest.skip()
+    // Skipping the active item also stops its running rest and any in-flight
+    // countdown/pre-count — otherwise a timed exercise's countdown would run to
+    // zero and log a phantom set for the now-skipped exercise.
+    if (uid === currentEx?.uid) {
+      rest.skip()
+      countdown.cancel()
+      precount.cancel()
+    }
     markModified()
   }
 

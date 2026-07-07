@@ -52,8 +52,11 @@ export function formatGap(seconds: number): string {
 // Pace: "5:42 /km"
 export function formatPace(secondsPerKm: number): string {
   if (!isFinite(secondsPerKm) || secondsPerKm <= 0) return '—'
-  const m = Math.floor(secondsPerKm / 60)
-  const s = Math.round(secondsPerKm % 60)
+  // Round to whole seconds first so a fractional input can never surface a
+  // ":60" (e.g. 359.6 → 6:00, not 5:60).
+  const total = Math.round(secondsPerKm)
+  const m = Math.floor(total / 60)
+  const s = total % 60
   return `${m}:${String(s).padStart(2, '0')} /km`
 }
 
