@@ -544,11 +544,9 @@ export default function SettingsScreen() {
             </p>
           )}
 
-          {/* Default locations (A51) — a saved default skips the name prompt. */}
-          <div className="space-y-2 pt-2">
-            <h3 className="text-xs font-medium text-muted-foreground">Default locations</h3>
+          {/* A51 — a saved default skips the name prompt on session start. */}
+          <div className="pt-2">
             <DefaultLocationRow type="gym" label="Default gym" />
-            <DefaultLocationRow type="board" label="Default board" />
           </div>
         </section>
 
@@ -592,6 +590,10 @@ export default function SettingsScreen() {
               logged sessions.
             </p>
           )}
+          {/* A51 — a saved default skips the name prompt on session start. */}
+          <div className="pt-2">
+            <DefaultLocationRow type="board" label="Default board" />
+          </div>
         </section>
 
         <ClimbStylesManager />
