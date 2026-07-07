@@ -29,7 +29,7 @@ the Dexie `.upgrade()` callbacks and the import normalisers. Unit-test them.
 
 ---
 
-## CA2 (remainder) — finish splitting SettingsScreen  ⬜
+## CA2 (remainder) — finish splitting SettingsScreen  ✅
 
 **What.** SettingsScreen is still ~1100 lines after the DataToolsSection
 extraction. Remaining self-contained blocks: the gym manager, the board manager,
