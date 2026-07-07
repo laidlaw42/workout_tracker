@@ -79,6 +79,7 @@ export default function TemplateEditScreen() {
   const [pickerOpen, setPickerOpen] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [confirmDropClimbing, setConfirmDropClimbing] = useState(false)
 
   // Initialise the editable draft once, when the template first loads.
   useEffect(() => {
@@ -157,8 +158,21 @@ export default function TemplateEditScreen() {
     setDirty(true)
   }
 
-  async function save() {
+  function save() {
     if (!template || categories.length === 0) return
+    // Reclassifying away from Climbing drops the hangboard sets + climbingKind —
+    // confirm first so protocol data isn't lost silently.
+    const hadClimbingContent = (template.hangboardSets?.length ?? 0) > 0 || !!template.climbingKind
+    if (!categories.includes('climbing') && hadClimbingContent) {
+      setConfirmDropClimbing(true)
+      return
+    }
+    void doSave()
+  }
+
+  async function doSave() {
+    if (!template || categories.length === 0) return
+    setConfirmDropClimbing(false)
     try {
       await upsertTemplate({
         id: template.id,
@@ -430,6 +444,23 @@ export default function TemplateEditScreen() {
           <AlertDialogFooter>
             <AlertDialogCancel>Keep editing</AlertDialogCancel>
             <AlertDialogAction onClick={discard}>Discard</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmDropClimbing} onOpenChange={setConfirmDropClimbing}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Climbing from this workout?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This workout’s hangboard sets will be deleted when you save.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={() => void doSave()}>
+              Remove and save
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

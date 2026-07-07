@@ -133,10 +133,16 @@ export class WorkoutDB extends Dexie {
                 if (Array.isArray(t.categories) && t.categories.length > 0) return // already migrated
                 const type = t.type
                 let cats: string[]
-                if (type === 'strength' || type === 'cardio' || type === 'climbing') {
-                  cats = [type]
+                if (type === 'cardio') {
+                  cats = ['cardio']
                 } else {
-                  // 'mixed' or unknown — derive from content.
+                  // strength / climbing / mixed — derive from the ACTUAL exercise
+                  // content, not the coarse legacy type. Pre-F46 the create screen
+                  // stored rehab-only and strength+rehab templates as type:'strength'
+                  // (it only distinguished cardio/climbing), so trusting the type
+                  // here would hide them from the new Rehab tab. Hangboard sets read
+                  // as climbing (A92). Fall back to the type (or strength) if the
+                  // template has no classifiable content.
                   const s = new Set<string>()
                   for (const ex of t.exercises ?? []) {
                     const c = ex.exerciseId ? exCat.get(ex.exerciseId) : undefined
@@ -144,7 +150,7 @@ export class WorkoutDB extends Dexie {
                     else if (c && VALID.has(c)) s.add(c)
                   }
                   if ((t.hangboardSets?.length ?? 0) > 0) s.add('climbing')
-                  cats = s.size > 0 ? [...s] : ['strength']
+                  cats = s.size > 0 ? [...s] : type === 'climbing' ? ['climbing'] : ['strength']
                 }
                 t.categories = cats
                 delete t.type

@@ -45,6 +45,34 @@ function withCategory(e: Exercise): Exercise {
     : { ...e, category: e.trackingType === 'distance' ? 'cardio' : 'strength' }
 }
 
+// A94/F46 — a pre-v8 backup's templates carry the legacy single `type` and no
+// `categories`. The Dexie v8 upgrade only runs on a version bump, never on import,
+// so normalise here with the SAME content derivation as the migration, using the
+// (imported + local) exercise categories. Idempotent: templates that already have
+// categories pass through unchanged.
+function withCategories(exCat: Map<string, string>) {
+  return (t: WorkoutTemplate): WorkoutTemplate => {
+    if (Array.isArray(t.categories) && t.categories.length > 0) return t
+    const legacy = (t as { type?: string }).type
+    let cats: TemplateCategory[]
+    if (legacy === 'cardio') {
+      cats = ['cardio']
+    } else {
+      const s = new Set<TemplateCategory>()
+      for (const ex of t.exercises ?? []) {
+        const c = exCat.get(ex.exerciseId)
+        if (c === 'hangboard') s.add('climbing')
+        else if (c === 'strength' || c === 'cardio' || c === 'climbing' || c === 'rehab') s.add(c)
+      }
+      if ((t.hangboardSets?.length ?? 0) > 0) s.add('climbing')
+      cats = s.size > 0 ? [...s] : legacy === 'climbing' ? ['climbing'] : ['strength']
+    }
+    const rest = { ...t }
+    delete (rest as { type?: string }).type
+    return { ...rest, categories: cats }
+  }
+}
+
 // A pre-F30 backup may store the board venue as 'home'; normalise it to 'board'
 // on import so it matches the renamed discriminator.
 function withBoardVenue(s: WorkoutSession): WorkoutSession {
@@ -1178,8 +1206,11 @@ export async function importAllData(json: string): Promise<void> {
           db.plannedWorkouts.clear(),
           db.tags.clear(),
         ])
-        if (d.exercises?.length) await db.exercises.bulkAdd(d.exercises.map(withCategory))
-        if (d.templates?.length) await db.templates.bulkAdd(d.templates)
+        const importExs = (d.exercises ?? []).map(withCategory)
+        const importExCat = new Map(importExs.map((e) => [e.id, e.category ?? 'strength']))
+        if (importExs.length) await db.exercises.bulkAdd(importExs)
+        if (d.templates?.length)
+          await db.templates.bulkAdd(d.templates.map(withCategories(importExCat)))
         if (d.sessions?.length) await db.sessions.bulkAdd(d.sessions.map(withBoardVenue))
         if (d.sets?.length) await db.sets.bulkAdd(d.sets)
         if (d.cardio?.length) await db.cardio.bulkAdd(d.cardio)
@@ -1289,7 +1320,12 @@ export async function mergeData(json: string): Promise<{ inserted: number; skipp
         }
 
         await mergeInto(db.exercises, d.exercises?.map(withCategory))
-        await mergeInto(db.templates, d.templates)
+        // Build the exercise-category map from the post-merge exercises table (local
+        // + just-added), so imported legacy templates derive categories correctly.
+        const mergeExCat = new Map(
+          (await db.exercises.toArray()).map((e) => [e.id, e.category ?? 'strength']),
+        )
+        await mergeInto(db.templates, d.templates?.map(withCategories(mergeExCat)))
         await mergeInto(db.sessions, d.sessions?.map(withBoardVenue))
         await mergeInto(db.sets, d.sets, (s) => newSets.push(s))
         await mergeInto(db.cardio, d.cardio)
