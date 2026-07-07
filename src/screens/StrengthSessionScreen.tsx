@@ -29,6 +29,7 @@ import { generateId } from '@/lib/id'
 import { templateCategories } from '@/lib/templateCategories'
 import { resolveExerciseDefaults } from '@/lib/exerciseDefaults'
 import { repsMet, weightPrValue } from '@/lib/pr'
+import { patchById, removeById, reorderKeepingComplete, updateById } from '@/lib/workQueue'
 import {
   clearActivePhase,
   loadActivePhase,
@@ -57,6 +58,11 @@ import type { Exercise, HangboardSet, LoggedSet, WorkoutTemplate } from '@/types
 // A hangboard row in the working plan (A73). Hangboard exercises log as
 // LoggedHang, so they run on a parallel queue to the strength ExerciseCards.
 type WorkHang = HangboardSet & { skipped: boolean }
+
+// uid accessors for the shared work-queue transforms (exercises key by uid, hangs
+// by id).
+const exUid = (e: WorkExercise) => e.uid
+const hangUid = (h: WorkHang) => h.id
 
 export default function StrengthSessionScreen() {
   const { id = '' } = useParams()
@@ -325,15 +331,15 @@ export default function StrengthSessionScreen() {
   const currentHang = hangWork.find((h) => !isCompleteHang(h))
 
   function addSetToHang(hid: string) {
-    setHangWork((w) => w.map((h) => (h.id === hid ? { ...h, sets: h.sets + 1 } : h)))
+    setHangWork((w) => updateById(w, hangUid, hid, (h) => ({ ...h, sets: h.sets + 1 })))
     markModified()
   }
   function editHang(hid: string, updates: Partial<HangboardSet>) {
-    setHangWork((w) => w.map((h) => (h.id === hid ? { ...h, ...updates } : h)))
+    setHangWork((w) => patchById(w, hangUid, hid, updates))
     markModified()
   }
   function skipHang(hid: string) {
-    setHangWork((w) => w.map((h) => (h.id === hid ? { ...h, skipped: true } : h)))
+    setHangWork((w) => patchById(w, hangUid, hid, { skipped: true }))
     if (hid === currentHang?.id) {
       rest.skip()
       countdown.cancel()
@@ -343,17 +349,12 @@ export default function StrengthSessionScreen() {
     markModified()
   }
   function reorderHangs(activeIds: string[]) {
-    setHangWork((w) => {
-      const done = w.filter((h) => isCompleteHang(h))
-      const byId = new Map(w.map((h) => [h.id, h]))
-      const reordered = activeIds.map((x) => byId.get(x)).filter((h): h is WorkHang => h != null)
-      return [...done, ...reordered]
-    })
+    setHangWork((w) => reorderKeepingComplete(w, hangUid, isCompleteHang, activeIds))
     markModified()
   }
   function doRemoveHang() {
     if (!confirmRemoveHangId) return
-    setHangWork((w) => w.filter((h) => h.id !== confirmRemoveHangId))
+    setHangWork((w) => removeById(w, hangUid, confirmRemoveHangId))
     markModified()
     setConfirmRemoveHangId(null)
   }
@@ -364,12 +365,12 @@ export default function StrengthSessionScreen() {
       setConfirmRemoveLastHangId(hid)
       return
     }
-    setHangWork((w) => w.map((x) => (x.id === hid ? { ...x, sets: x.sets - 1 } : x)))
+    setHangWork((w) => updateById(w, hangUid, hid, (x) => ({ ...x, sets: x.sets - 1 })))
     markModified()
   }
   function doRemoveLastHang() {
     if (!confirmRemoveLastHangId) return
-    setHangWork((w) => w.filter((h) => h.id !== confirmRemoveLastHangId))
+    setHangWork((w) => removeById(w, hangUid, confirmRemoveLastHangId))
     markModified()
     setConfirmRemoveLastHangId(null)
   }
@@ -543,13 +544,13 @@ export default function StrengthSessionScreen() {
   }, [inited, loggedSetsRaw, loggedHangsRaw])
 
   function addSetTo(uid: string) {
-    setWork((w) => w.map((e) => (e.uid === uid ? { ...e, targetSets: e.targetSets + 1 } : e)))
+    setWork((w) => updateById(w, exUid, uid, (e) => ({ ...e, targetSets: e.targetSets + 1 })))
     markModified()
   }
 
   // Apply an inline edit (A31) to the remaining unlogged sets of one exercise.
   function editExercise(uid: string, updates: Partial<WorkExercise>) {
-    setWork((w) => w.map((e) => (e.uid === uid ? { ...e, ...updates } : e)))
+    setWork((w) => patchById(w, exUid, uid, updates))
     markModified()
   }
 
@@ -563,12 +564,12 @@ export default function StrengthSessionScreen() {
       setConfirmRemoveLastUid(uid)
       return
     }
-    setWork((w) => w.map((e) => (e.uid === uid ? { ...e, targetSets: e.targetSets - 1 } : e)))
+    setWork((w) => updateById(w, exUid, uid, (e) => ({ ...e, targetSets: e.targetSets - 1 })))
     markModified()
   }
   function doRemoveLast() {
     if (!confirmRemoveLastUid) return
-    setWork((w) => w.filter((e) => e.uid !== confirmRemoveLastUid))
+    setWork((w) => removeById(w, exUid, confirmRemoveLastUid))
     markModified()
     setConfirmRemoveLastUid(null)
   }
@@ -638,7 +639,7 @@ export default function StrengthSessionScreen() {
   }
 
   function skip(uid: string) {
-    setWork((w) => w.map((e) => (e.uid === uid ? { ...e, skipped: true } : e)))
+    setWork((w) => patchById(w, exUid, uid, { skipped: true }))
     // Skipping the active item also stops its running rest and any in-flight
     // countdown/pre-count — otherwise a timed exercise's countdown would run to
     // zero and log a phantom set for the now-skipped exercise.
@@ -678,21 +679,14 @@ export default function StrengthSessionScreen() {
   }
 
   function reorderActive(activeUids: string[]) {
-    setWork((w) => {
-      const completed = w.filter((e) => isComplete(e))
-      const byUid = new Map(w.map((e) => [e.uid, e]))
-      const reordered = activeUids
-        .map((u) => byUid.get(u))
-        .filter((e): e is WorkExercise => e != null)
-      return [...completed, ...reordered]
-    })
+    setWork((w) => reorderKeepingComplete(w, exUid, isComplete, activeUids))
     markModified()
   }
 
   // Removes an exercise from the queue; logged sets stay in the DB.
   function doRemove() {
     if (!confirmRemoveUid) return
-    setWork((w) => w.filter((e) => e.uid !== confirmRemoveUid))
+    setWork((w) => removeById(w, exUid, confirmRemoveUid))
     markModified()
     setConfirmRemoveUid(null)
   }

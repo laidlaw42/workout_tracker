@@ -37,6 +37,7 @@ import {
 import { normalizeVenue } from '@/lib/badges'
 import { resolveExerciseDefaults } from '@/lib/exerciseDefaults'
 import { repsMet, weightPrValue } from '@/lib/pr'
+import { patchById, removeById, reorderKeepingComplete, updateById } from '@/lib/workQueue'
 import {
   clearActivePhase,
   loadActivePhase,
@@ -70,6 +71,11 @@ import {
 import type { ClimbingRoute, ClimbingStyle, Exercise, HangboardSet, LoggedSet } from '@/types'
 
 type WorkHang = HangboardSet & { skipped: boolean }
+
+// uid accessors for the shared work-queue transforms (exercises key by uid, hangs
+// by id).
+const exUid = (e: WorkExercise) => e.uid
+const hangUid = (h: WorkHang) => h.id
 
 // Short per-style button labels (A24).
 const STYLE_BTN_LABELS: Record<ClimbingStyle, string> = {
@@ -320,14 +326,14 @@ export default function ClimbingSessionScreen() {
   const prefill = prefillRaw?.exerciseId === currentEx?.exerciseId ? prefillRaw : undefined
 
   function addSetTo(uid: string) {
-    setWork((w) => w.map((e) => (e.uid === uid ? { ...e, targetSets: e.targetSets + 1 } : e)))
+    setWork((w) => updateById(w, exUid, uid, (e) => ({ ...e, targetSets: e.targetSets + 1 })))
   }
   // Inline edit (A31) — applies to the exercise's remaining unlogged sets.
   function editExercise(uid: string, updates: Partial<WorkExercise>) {
-    setWork((w) => w.map((e) => (e.uid === uid ? { ...e, ...updates } : e)))
+    setWork((w) => patchById(w, exUid, uid, updates))
   }
   function skip(uid: string) {
-    setWork((w) => w.map((e) => (e.uid === uid ? { ...e, skipped: true } : e)))
+    setWork((w) => patchById(w, exUid, uid, { skipped: true }))
     if (uid === currentEx?.uid) {
       rest.skip()
       countdown.cancel()
@@ -347,16 +353,11 @@ export default function ClimbingSessionScreen() {
     setPickerOpen(false)
   }
   function reorderActive(activeUids: string[]) {
-    setWork((w) => {
-      const completed = w.filter((e) => isComplete(e))
-      const byUid = new Map(w.map((e) => [e.uid, e]))
-      const reordered = activeUids.map((u) => byUid.get(u)).filter((e): e is WorkExercise => e != null)
-      return [...completed, ...reordered]
-    })
+    setWork((w) => reorderKeepingComplete(w, exUid, isComplete, activeUids))
   }
   function doRemoveExercise() {
     if (!confirmRemoveUid) return
-    setWork((w) => w.filter((e) => e.uid !== confirmRemoveUid))
+    setWork((w) => removeById(w, exUid, confirmRemoveUid))
     setConfirmRemoveUid(null)
   }
   function removeSet(uid: string) {
@@ -366,11 +367,11 @@ export default function ClimbingSessionScreen() {
       setConfirmRemoveLastUid(uid)
       return
     }
-    setWork((w) => w.map((e) => (e.uid === uid ? { ...e, targetSets: e.targetSets - 1 } : e)))
+    setWork((w) => updateById(w, exUid, uid, (e) => ({ ...e, targetSets: e.targetSets - 1 })))
   }
   function doRemoveLast() {
     if (!confirmRemoveLastUid) return
-    setWork((w) => w.filter((e) => e.uid !== confirmRemoveLastUid))
+    setWork((w) => removeById(w, exUid, confirmRemoveLastUid))
     setConfirmRemoveLastUid(null)
   }
   function appendExercises(exs: Exercise[]) {
@@ -465,14 +466,14 @@ export default function ClimbingSessionScreen() {
   const currentHang = hangWork.find((h) => !isCompleteHang(h))
 
   function addSetToHang(hid: string) {
-    setHangWork((w) => w.map((h) => (h.id === hid ? { ...h, sets: h.sets + 1 } : h)))
+    setHangWork((w) => updateById(w, hangUid, hid, (h) => ({ ...h, sets: h.sets + 1 })))
   }
   // Inline edit (A31) — applies to the set's remaining unlogged hangs.
   function editHang(hid: string, updates: Partial<HangboardSet>) {
-    setHangWork((w) => w.map((h) => (h.id === hid ? { ...h, ...updates } : h)))
+    setHangWork((w) => patchById(w, hangUid, hid, updates))
   }
   function skipHang(hid: string) {
-    setHangWork((w) => w.map((h) => (h.id === hid ? { ...h, skipped: true } : h)))
+    setHangWork((w) => patchById(w, hangUid, hid, { skipped: true }))
     if (hid === currentHang?.id) {
       rest.skip()
       countdown.cancel()
@@ -481,16 +482,11 @@ export default function ClimbingSessionScreen() {
     }
   }
   function reorderHangs(activeIds: string[]) {
-    setHangWork((w) => {
-      const done = w.filter((h) => isCompleteHang(h))
-      const byId = new Map(w.map((h) => [h.id, h]))
-      const reordered = activeIds.map((x) => byId.get(x)).filter((h): h is WorkHang => h != null)
-      return [...done, ...reordered]
-    })
+    setHangWork((w) => reorderKeepingComplete(w, hangUid, isCompleteHang, activeIds))
   }
   function doRemoveHang() {
     if (!confirmRemoveHangId) return
-    setHangWork((w) => w.filter((h) => h.id !== confirmRemoveHangId))
+    setHangWork((w) => removeById(w, hangUid, confirmRemoveHangId))
     setConfirmRemoveHangId(null)
   }
   function removeHangSet(hid: string) {
@@ -500,11 +496,11 @@ export default function ClimbingSessionScreen() {
       setConfirmRemoveLastHangId(hid)
       return
     }
-    setHangWork((w) => w.map((x) => (x.id === hid ? { ...x, sets: x.sets - 1 } : x)))
+    setHangWork((w) => updateById(w, hangUid, hid, (x) => ({ ...x, sets: x.sets - 1 })))
   }
   function doRemoveLastHang() {
     if (!confirmRemoveLastHangId) return
-    setHangWork((w) => w.filter((h) => h.id !== confirmRemoveLastHangId))
+    setHangWork((w) => removeById(w, hangUid, confirmRemoveLastHangId))
     setConfirmRemoveLastHangId(null)
   }
 
