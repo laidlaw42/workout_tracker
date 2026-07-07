@@ -3,9 +3,14 @@ import { toast } from 'sonner'
 import { deleteExercise, updateExercise, upsertExercise } from '@/db/helpers'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { DEFAULT_HANG, HangConfigFields } from '@/components/HangConfigFields'
-import { NumberStepper } from '@/components/NumberStepper'
+import {
+  ExerciseDefaultsFields,
+  EMPTY_DEFAULTS,
+  defaultsToDraft,
+  draftToDefaults,
+  type DefaultsDraft,
+} from '@/components/ExerciseDefaultsFields'
 import { TagInput } from '@/components/TagInput'
-import { getWeightStep } from '@/lib/prefs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -26,7 +31,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import type { Exercise, ExerciseCategory, ExerciseDefaults, HangConfig, TrackingType } from '@/types'
+import type { Exercise, ExerciseCategory, HangConfig, TrackingType } from '@/types'
 
 interface Props {
   open: boolean
@@ -68,14 +73,9 @@ export function ExerciseFormSheet({
   const [hangCfg, setHangCfg] = useState<HangConfig>(DEFAULT_HANG)
   const [tags, setTags] = useState<string[]>([])
   const [confirmDelete, setConfirmDelete] = useState(false)
-  // A98 — optional default parameters (held as strings; blank = unset → falls
-  // back to the hardcoded add-to-template defaults).
-  const [defSets, setDefSets] = useState('')
-  const [defReps, setDefReps] = useState('')
-  const [defWeight, setDefWeight] = useState('')
-  const [defDuration, setDefDuration] = useState('')
-  const [defDistance, setDefDistance] = useState('')
-  const [defRest, setDefRest] = useState('')
+  // A98 — optional default parameters (held as a string draft; blank = unset →
+  // falls back to the hardcoded add-to-template defaults).
+  const [defDraft, setDefDraft] = useState<DefaultsDraft>(EMPTY_DEFAULTS)
 
   // Seed on open only. `defaultTags` is intentionally not a dependency: it is read
   // once at open time for a new exercise, so a later live update never clobbers
@@ -88,14 +88,7 @@ export function ExerciseFormSheet({
     setTracking(exercise?.trackingType ?? 'reps')
     setHangCfg(exercise?.hangboard ?? DEFAULT_HANG)
     setTags(exercise?.tags ?? defaultTags)
-    const d = exercise?.defaults
-    const s = (n?: number) => (n != null ? String(n) : '')
-    setDefSets(s(d?.sets))
-    setDefReps(s(d?.reps))
-    setDefWeight(s(d?.weightKg))
-    setDefDuration(s(d?.durationSeconds))
-    setDefDistance(s(d?.distanceKm))
-    setDefRest(s(d?.restSeconds))
+    setDefDraft(defaultsToDraft(exercise?.defaults))
   }, [open, exercise])
 
   async function save() {
@@ -110,23 +103,10 @@ export function ExerciseFormSheet({
     const isHang = category === 'hangboard'
     const trackingType: TrackingType = isHang ? 'duration' : tracking
     const hangboard = isHang ? hangCfg : undefined
-    // A98 — default parameters (non-hangboard); only the fields relevant to the
-    // tracking type are kept. Undefined when nothing is set, so an exercise with
-    // no defaults stays clean and falls back to the hardcoded add defaults.
-    const num = (s: string) => {
-      const n = Number(s)
-      return s.trim() === '' || Number.isNaN(n) ? undefined : n
-    }
-    const defaultsDraft: ExerciseDefaults = {
-      sets: num(defSets),
-      restSeconds: num(defRest),
-      reps: trackingType === 'reps' ? num(defReps) : undefined,
-      weightKg: trackingType === 'reps' ? num(defWeight) : undefined,
-      durationSeconds: trackingType === 'duration' ? num(defDuration) : undefined,
-      distanceKm: trackingType === 'distance' ? num(defDistance) : undefined,
-    }
-    const defaults =
-      isHang || !Object.values(defaultsDraft).some((v) => v != null) ? undefined : defaultsDraft
+    // A98 — default parameters (non-hangboard); the shared builder keeps only the
+    // fields relevant to the tracking type and returns undefined when nothing is
+    // set, so an exercise with no defaults stays clean and uses the add fallbacks.
+    const defaults = isHang ? undefined : draftToDefaults(trackingType, defDraft)
     try {
       let id: string
       if (exercise) {
@@ -218,82 +198,11 @@ export function ExerciseFormSheet({
               </div>
               {/* A98 — default parameters, keyed to the tracking type. Pre-fill a
                   new template/session row; blank falls back to the standard defaults. */}
-              <div className="space-y-2">
-                <Label>Default parameters</Label>
-                <p className="text-xs text-muted-foreground">
-                  Pre-filled when this exercise is added to a workout. Leave blank for the
-                  standard defaults.
-                </p>
-                <div className="space-y-2 rounded-lg border border-border p-3">
-                  <DefaultField label="Sets">
-                    <NumberStepper
-                      value={defSets}
-                      onChange={setDefSets}
-                      ariaLabel="default sets"
-                      min={1}
-                      placeholder="3"
-                    />
-                  </DefaultField>
-                  {tracking === 'reps' && (
-                    <>
-                      <DefaultField label="Reps">
-                        <NumberStepper
-                          value={defReps}
-                          onChange={setDefReps}
-                          ariaLabel="default reps"
-                          min={0}
-                          placeholder="10"
-                        />
-                      </DefaultField>
-                      <DefaultField label="Weight (kg)">
-                        <NumberStepper
-                          value={defWeight}
-                          onChange={setDefWeight}
-                          ariaLabel="default weight"
-                          step={getWeightStep()}
-                          min={0}
-                          inputMode="decimal"
-                          placeholder="optional"
-                        />
-                      </DefaultField>
-                    </>
-                  )}
-                  {tracking === 'duration' && (
-                    <DefaultField label="Duration (s)">
-                      <NumberStepper
-                        value={defDuration}
-                        onChange={setDefDuration}
-                        ariaLabel="default duration"
-                        min={1}
-                        placeholder="30"
-                      />
-                    </DefaultField>
-                  )}
-                  {tracking === 'distance' && (
-                    <DefaultField label="Distance (km)">
-                      <NumberStepper
-                        value={defDistance}
-                        onChange={setDefDistance}
-                        ariaLabel="default distance"
-                        step={0.5}
-                        min={0}
-                        inputMode="decimal"
-                        placeholder="optional"
-                      />
-                    </DefaultField>
-                  )}
-                  <DefaultField label="Rest (s)">
-                    <NumberStepper
-                      value={defRest}
-                      onChange={setDefRest}
-                      ariaLabel="default rest"
-                      step={5}
-                      min={0}
-                      placeholder="90"
-                    />
-                  </DefaultField>
-                </div>
-              </div>
+              <ExerciseDefaultsFields
+                tracking={tracking}
+                value={defDraft}
+                onChange={(patch) => setDefDraft((d) => ({ ...d, ...patch }))}
+              />
             </>
           )}
           <div className="space-y-2">
@@ -341,15 +250,5 @@ export function ExerciseFormSheet({
         </AlertDialogContent>
       </AlertDialog>
     </Sheet>
-  )
-}
-
-// A labelled row in the default-parameters section (A98).
-function DefaultField({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="w-24 shrink-0 text-sm text-muted-foreground">{label}</span>
-      <div className="flex-1">{children}</div>
-    </div>
   )
 }

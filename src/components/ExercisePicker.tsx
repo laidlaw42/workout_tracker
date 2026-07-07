@@ -7,6 +7,12 @@ import { SegmentedControl } from '@/components/SegmentedControl'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
 import { badgeForCategory } from '@/lib/badges'
 import { DEFAULT_HANG, HangConfigFields } from '@/components/HangConfigFields'
+import {
+  ExerciseDefaultsFields,
+  EMPTY_DEFAULTS,
+  draftToDefaults,
+  type DefaultsDraft,
+} from '@/components/ExerciseDefaultsFields'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -77,6 +83,7 @@ export function ExercisePicker({
   const [muscles, setMuscles] = useState('')
   const [tracking, setTracking] = useState<TrackingType>('reps')
   const [hangCfg, setHangCfg] = useState<HangConfig>(DEFAULT_HANG)
+  const [defDraft, setDefDraft] = useState<DefaultsDraft>(EMPTY_DEFAULTS) // A98 defaults for inline create
   const [catFilter, setCatFilter] = useState<CatFilter>('all') // universal mode (A66)
 
   // A87 — the category filter tabs are ALWAYS shown, in every context the picker
@@ -103,6 +110,7 @@ export function ExercisePicker({
     setMuscles('')
     setTracking('reps')
     setHangCfg(DEFAULT_HANG)
+    setDefDraft(EMPTY_DEFAULTS)
     setCatFilter('all')
   }
 
@@ -140,6 +148,9 @@ export function ExercisePicker({
     const isHang = category === 'hangboard'
     const trackingType: TrackingType = isHang ? 'duration' : tracking
     const hangboard = isHang ? hangCfg : undefined
+    // A98 — carry any default parameters set in the quick-create form, so the new
+    // exercise seeds its row with them just like an existing one.
+    const defaults = isHang ? undefined : draftToDefaults(trackingType, defDraft)
     try {
       const id = await upsertExercise({
         name: trimmed,
@@ -148,9 +159,20 @@ export function ExercisePicker({
         trackingType,
         tags: [],
         hangboard,
+        defaults,
       })
       finish([
-        { id, name: trimmed, category, muscleGroups, trackingType, tags: [], hangboard, createdAt: Date.now() },
+        {
+          id,
+          name: trimmed,
+          category,
+          muscleGroups,
+          trackingType,
+          tags: [],
+          hangboard,
+          defaults,
+          createdAt: Date.now(),
+        },
       ])
     } catch {
       toast.error('Could not create exercise')
@@ -246,10 +268,19 @@ export function ExercisePicker({
                 <HangConfigFields value={hangCfg} onChange={(p) => setHangCfg((c) => ({ ...c, ...p }))} />
               </div>
             ) : (
-              <div className="space-y-2">
-                <Label>Tracking</Label>
-                <SegmentedControl options={TRACKING} value={tracking} onChange={setTracking} />
-              </div>
+              <>
+                <div className="space-y-2">
+                  <Label>Tracking</Label>
+                  <SegmentedControl options={TRACKING} value={tracking} onChange={setTracking} />
+                </div>
+                {/* A98 — default parameters on the quick-create form, mirroring the
+                    full exercise editor so a newly-created exercise can carry defaults. */}
+                <ExerciseDefaultsFields
+                  tracking={tracking}
+                  value={defDraft}
+                  onChange={(patch) => setDefDraft((d) => ({ ...d, ...patch }))}
+                />
+              </>
             )}
             <div className="mt-auto flex gap-3 pt-2">
               <Button variant="outline" className="flex-1" onClick={() => setCreating(false)}>
