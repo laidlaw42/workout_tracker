@@ -404,11 +404,140 @@ async function sha256Base64Url(input: string): Promise<string> {
   return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
-// Start the OAuth authorize redirect. Stashes the PKCE verifier + which provider
-// we're connecting so the redirect handler can complete the exchange.
+// --- Google Identity Services (browser-only OAuth for Google Drive) ------------
+// A Google *web* OAuth client requires a client secret at the token-exchange step,
+// which can't live safely in a browser — so the code+PKCE flow used for the other
+// providers can't complete for Google. GIS's token client grants access tokens
+// directly in the browser (no secret, no redirect). The trade-off: it returns no
+// refresh token, so we silently re-request a token (hidden iframe, no popup) when
+// the current one expires — which works while the Google session is still valid.
+// Requires the app origin in the client's "Authorized JavaScript origins".
+
+// Scope: app-private Drive folder + email (for the connected-account label).
+const GOOGLE_GIS_SCOPE = 'https://www.googleapis.com/auth/drive.appdata email'
+
+interface GisTokenResponse {
+  access_token?: string
+  expires_in?: number
+  error?: string
+}
+interface GisTokenClient {
+  requestAccessToken: (opts?: { prompt?: string }) => void
+}
+interface GisOAuth2 {
+  initTokenClient: (cfg: {
+    client_id: string
+    scope: string
+    callback: (resp: GisTokenResponse) => void
+    error_callback?: (err: { type?: string; message?: string }) => void
+  }) => GisTokenClient
+  revoke?: (token: string, done?: () => void) => void
+}
+declare global {
+  interface Window {
+    google?: { accounts?: { oauth2?: GisOAuth2 } }
+  }
+}
+
+let gisPromise: Promise<void> | null = null
+function loadGis(): Promise<void> {
+  if (window.google?.accounts?.oauth2) return Promise.resolve()
+  if (gisPromise) return gisPromise
+  gisPromise = new Promise((resolve, reject) => {
+    const s = document.createElement('script')
+    s.src = 'https://accounts.google.com/gsi/client'
+    s.async = true
+    s.defer = true
+    s.onload = () => resolve()
+    s.onerror = () => {
+      gisPromise = null
+      reject(new Error('Could not load Google sign-in. Check your connection.'))
+    }
+    document.head.appendChild(s)
+  })
+  return gisPromise
+}
+
+// The token client is created once per client ID (recreated if the owner pastes a
+// new one). Its callback fires per requestAccessToken; we route it to whichever
+// request is currently pending.
+let gisClient: GisTokenClient | null = null
+let gisClientId = ''
+let gisPending: { resolve: (t: string) => void; reject: (e: Error) => void } | null = null
+
+function googleTokenClient(): GisTokenClient {
+  const cid = clientId('gdrive')
+  if (!cid) throw new Error("Google Drive isn't configured (missing client ID).")
+  const oauth2 = window.google?.accounts?.oauth2
+  if (!oauth2) throw new Error('Google sign-in failed to load.')
+  if (!gisClient || gisClientId !== cid) {
+    gisClientId = cid
+    gisClient = oauth2.initTokenClient({
+      client_id: cid,
+      scope: GOOGLE_GIS_SCOPE,
+      callback: (resp) => {
+        const p = gisPending
+        gisPending = null
+        if (!p) return
+        if (resp.error || !resp.access_token) {
+          p.reject(new Error('Google sign-in was cancelled or failed.'))
+          return
+        }
+        setTokens('gdrive', {
+          accessToken: resp.access_token,
+          expiresAt: Date.now() + (resp.expires_in ?? 3600) * 1000,
+          account: getTokens('gdrive')?.account,
+        })
+        p.resolve(resp.access_token)
+      },
+      error_callback: (err) => {
+        const p = gisPending
+        gisPending = null
+        p?.reject(new Error(err?.message || 'Google sign-in was cancelled.'))
+      },
+    })
+  }
+  return gisClient
+}
+
+// Request a Google access token. interactive=true shows the consent popup (needs a
+// user gesture — the Connect button); false requests silently for background use.
+async function requestGoogleToken(interactive: boolean): Promise<string> {
+  await loadGis()
+  const client = googleTokenClient()
+  return new Promise<string>((resolve, reject) => {
+    gisPending = { resolve, reject }
+    try {
+      client.requestAccessToken({ prompt: interactive ? 'consent' : '' })
+    } catch (e) {
+      gisPending = null
+      reject(e as Error)
+    }
+  })
+}
+
+// Start connecting a provider. Google uses GIS (a popup that completes in place);
+// Dropbox/OneDrive use the OAuth authorize redirect, stashing the PKCE verifier so
+// the redirect handler can complete the exchange.
 export async function beginConnect(id: OAuthProviderId): Promise<void> {
   const cid = clientId(id)
   if (!cid) throw new Error(`${providerLabel(id)} isn't configured (missing OAuth client ID).`)
+
+  if (id === 'gdrive') {
+    await requestGoogleToken(true)
+    // Best-effort connected-account label (needs the email scope granted above).
+    try {
+      const t = getTokens('gdrive')
+      if (t) {
+        const account = await OAUTH.gdrive.account(t.accessToken)
+        if (account) setTokens('gdrive', { ...t, account })
+      }
+    } catch {
+      /* account label is best-effort */
+    }
+    return
+  }
+
   const cfg = OAUTH[id]
   const verifier = randomString()
   const challenge = await sha256Base64Url(verifier)
@@ -420,9 +549,12 @@ export async function beginConnect(id: OAuthProviderId): Promise<void> {
     scope: cfg.scope,
     code_challenge: challenge,
     code_challenge_method: 'S256',
-    access_type: 'offline',
     prompt: 'consent',
   })
+  // Dropbox needs token_access_type=offline to return a refresh token (its
+  // equivalent of Google's access_type); OneDrive gets one via offline_access
+  // in its scope. Google no longer uses this path.
+  if (id === 'dropbox') params.set('token_access_type', 'offline')
   window.location.href = `${cfg.authUrl}?${params.toString()}`
 }
 
@@ -474,6 +606,16 @@ async function validToken(id: OAuthProviderId): Promise<string> {
   const t = getTokens(id)
   if (!t) throw new Error(`${providerLabel(id)} isn't connected.`)
   if (t.expiresAt - 60_000 > Date.now()) return t.accessToken
+  // Google has no refresh token (GIS): silently request a fresh access token. This
+  // succeeds without UI while the Google session is valid; otherwise the user is
+  // asked to reconnect.
+  if (id === 'gdrive') {
+    try {
+      return await requestGoogleToken(false)
+    } catch {
+      throw new Error(`${providerLabel(id)} session expired — reconnect it.`)
+    }
+  }
   if (!t.refreshToken) throw new Error(`${providerLabel(id)} session expired — reconnect it.`)
   const res = await fetch(OAUTH[id].tokenUrl, {
     method: 'POST',

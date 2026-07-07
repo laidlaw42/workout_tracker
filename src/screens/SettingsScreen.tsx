@@ -1231,6 +1231,11 @@ function BackupsSection() {
   async function connect(id: OAuthProviderId) {
     try {
       await beginConnect(id)
+      // Redirect providers (Dropbox/OneDrive) navigate away in beginConnect;
+      // reaching here means a non-redirect provider (Google via GIS) connected in
+      // place, so refresh the UI and confirm.
+      bumpConn()
+      if (isConnected(id)) toast.success(`Connected ${providerLabel(id)}`)
     } catch (e) {
       toast.error((e as Error).message)
     }
