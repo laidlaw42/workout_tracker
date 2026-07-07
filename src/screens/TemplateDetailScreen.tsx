@@ -65,7 +65,9 @@ function EstimateSection({ template }: { template: WorkoutTemplate }) {
       <div className="flex items-baseline justify-between gap-2">
         <p className="text-sm font-medium text-muted-foreground">Estimated duration (approximate)</p>
         <p className="shrink-0 text-lg font-bold tabular-nums">
-          {formatEstimateRange(estimate.totalSeconds)}
+          {/* Nothing timed (e.g. distance-only work) can't be estimated — show a
+              dash rather than a misleading "< 5 min". */}
+          {estimate.totalSeconds > 0 ? formatEstimateRange(estimate.totalSeconds) : '—'}
         </p>
       </div>
       {estimate.hasVaries && (
