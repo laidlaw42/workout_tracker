@@ -66,6 +66,16 @@ export const WEEK_START: Setting<0 | 1> = {
 export const getWeekStart = () => getSetting(WEEK_START)
 export const setWeekStart = (v: 0 | 1) => setSetting(WEEK_START, v)
 
+// Which view the planner opens on. Defaults to 'week' (the long-standing default).
+export type PlannerView = 'month' | 'week' | 'list'
+export const PLANNER_VIEW: Setting<PlannerView> = {
+  key: 'planner_view',
+  read: (r) => (r === 'month' || r === 'list' ? r : 'week'),
+  write: (v) => v,
+}
+export const getPlannerView = () => getSetting(PLANNER_VIEW)
+export const setPlannerView = (v: PlannerView) => setSetting(PLANNER_VIEW, v)
+
 // --- Weight increment (A60) -------------------------------------------------
 
 // Opt-in custom step size for the +/− buttons on active-session weight inputs

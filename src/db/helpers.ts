@@ -138,6 +138,13 @@ export async function deleteExercise(id: string): Promise<void> {
   return run('deleteExercise', () => db.exercises.delete(id))
 }
 
+// Favourite / unfavourite an exercise (heart toggle + library filter).
+export async function setExerciseFavorite(id: string, favorite: boolean): Promise<void> {
+  return run('setExerciseFavorite', async () => {
+    await db.exercises.update(id, { favorite })
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Tags (A35) — per-tag colour + default-selection metadata
 // ---------------------------------------------------------------------------
@@ -333,6 +340,13 @@ export async function upsertTemplate(
 
 export async function deleteTemplate(id: string): Promise<void> {
   return run('deleteTemplate', () => db.templates.delete(id))
+}
+
+// Favourite / unfavourite a workout template (heart toggle + library filter).
+export async function setTemplateFavorite(id: string, favorite: boolean): Promise<void> {
+  return run('setTemplateFavorite', async () => {
+    await db.templates.update(id, { favorite })
+  })
 }
 
 export async function markTemplateUsed(id: string): Promise<void> {

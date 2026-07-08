@@ -31,7 +31,7 @@ import {
   weekdayHeaders,
   weekdayShort,
 } from '@/lib/date'
-import { getWeekStart } from '@/lib/prefs'
+import { getPlannerView, getWeekStart } from '@/lib/prefs'
 import { deriveSessionType } from '@/lib/templateCategories'
 import { DISCIPLINE_BADGE, DISCIPLINE_DOT, DISCIPLINE_LABEL } from '@/lib/discipline'
 import { SegmentedControl } from '@/components/SegmentedControl'
@@ -53,8 +53,8 @@ import type { PlannedWorkout, WorkoutSession, WorkoutTemplate } from '@/types'
 
 type View = 'week' | 'month' | 'list'
 const VIEWS: { value: View; label: string }[] = [
-  { value: 'week', label: 'Week' },
   { value: 'month', label: 'Month' },
+  { value: 'week', label: 'Week' },
   { value: 'list', label: 'List' },
 ]
 
@@ -64,7 +64,7 @@ type SessionMap = Map<string, WorkoutSession[]>
 export default function PlannerScreen() {
   const navigate = useNavigate()
   const { guardStart, guardDialog } = useUnfinishedWorkoutGuard()
-  const [view, setView] = useState<View>('week')
+  const [view, setView] = useState<View>(getPlannerView)
   const [anchor, setAnchor] = useState(() => new Date())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)

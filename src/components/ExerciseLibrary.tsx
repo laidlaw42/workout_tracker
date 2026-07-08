@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ChevronRight, Dumbbell, Pencil, Play, Plus } from 'lucide-react'
+import { Dumbbell, Pencil, Play, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useTagColours } from '@/hooks/useTagColours'
 import { useUnfinishedWorkoutGuard } from '@/hooks/useUnfinishedWorkoutGuard'
@@ -9,9 +9,11 @@ import {
   getAllExercises,
   getAllTemplates,
   getDefaultTags,
+  setExerciseFavorite,
   startSessionFromExercise,
 } from '@/db/helpers'
 import { ExerciseFormSheet } from '@/components/ExerciseFormSheet'
+import { FavoriteButton, FavoriteFilterButton } from '@/components/FavoriteButton'
 import { EmptyState } from '@/components/EmptyState'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
@@ -55,6 +57,7 @@ export function ExerciseLibrary() {
   // away from the Exercises tab). Category is single-select; tags are AND-combined.
   const [catFilter, setCatFilter] = useState<CatFilter>('all')
   const [activeTags, setActiveTags] = useState<string[]>([])
+  const [favOnly, setFavOnly] = useState(false)
 
   // A59 — start a template-less session pre-loaded with just this exercise, then
   // jump straight into it. Only offered for set-based (non-distance) exercises.
@@ -87,13 +90,13 @@ export function ExerciseLibrary() {
     return [...set].sort()
   }, [byCategory])
 
-  // Tag AND-filter, then alphabetical sort.
+  // Tag AND-filter + optional favourites-only, then alphabetical sort.
   const visible = useMemo(
     () =>
       byCategory
-        .filter((ex) => activeTags.every((tag) => ex.tags.includes(tag)))
+        .filter((ex) => (!favOnly || ex.favorite) && activeTags.every((tag) => ex.tags.includes(tag)))
         .sort((a, b) => a.name.localeCompare(b.name)),
-    [byCategory, activeTags],
+    [byCategory, activeTags, favOnly],
   )
 
   function openNew() {
@@ -112,14 +115,20 @@ export function ExerciseLibrary() {
         <Plus className="size-4" /> Add new exercise
       </Button>
 
-      <SegmentedControl
-        options={CATEGORY_OPTIONS}
-        value={catFilter}
-        onChange={(v) => {
-          setCatFilter(v)
-          setActiveTags([])
-        }}
-      />
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <SegmentedControl
+            scrollable
+            options={CATEGORY_OPTIONS}
+            value={catFilter}
+            onChange={(v) => {
+              setCatFilter(v)
+              setActiveTags([])
+            }}
+          />
+        </div>
+        <FavoriteFilterButton active={favOnly} onToggle={() => setFavOnly((v) => !v)} />
+      </div>
 
       {availableTags.length > 0 && (
         <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
@@ -159,9 +168,11 @@ export function ExerciseLibrary() {
           subtitle={
             exercises.length === 0
               ? 'Add your first exercise.'
-              : activeTags.length > 0
-                ? 'No exercises match these tags.'
-                : 'No exercises in this category.'
+              : favOnly
+                ? 'No favourites here yet — tap the heart on an exercise to add one.'
+                : activeTags.length > 0
+                  ? 'No exercises match these tags.'
+                  : 'No exercises in this category.'
           }
         />
       ) : (
@@ -172,29 +183,36 @@ export function ExerciseLibrary() {
             // (A59) doesn't apply — those cards have no context menu.
             const canStart = ex.trackingType !== 'distance'
             const card = (
-              <button
-                type="button"
-                onClick={() => openEdit(ex)}
-                className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-3 text-left transition-colors active:bg-accent"
-              >
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate font-medium">{ex.name}</span>
-                    <DisciplineBadge
-                      badge={badgeForCategory(ex.category)}
-                      className="shrink-0"
-                    />
-                    <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                      {TRACKING_LABEL[ex.trackingType]}
-                    </span>
+              <div className="flex items-center rounded-xl border border-border bg-card">
+                <button
+                  type="button"
+                  onClick={() => openEdit(ex)}
+                  className="flex min-w-0 flex-1 items-center gap-3 rounded-l-xl p-3 text-left transition-colors active:bg-accent"
+                >
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate font-medium">{ex.name}</span>
+                      <DisciplineBadge
+                        badge={badgeForCategory(ex.category)}
+                        className="shrink-0"
+                      />
+                      <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                        {TRACKING_LABEL[ex.trackingType]}
+                      </span>
+                    </div>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {ex.muscleGroups.length > 0 ? ex.muscleGroups.join(', ') : 'No muscle groups'}
+                      {used > 0 && ` · in ${used} workout${used === 1 ? '' : 's'}`}
+                    </p>
                   </div>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {ex.muscleGroups.length > 0 ? ex.muscleGroups.join(', ') : 'No muscle groups'}
-                    {used > 0 && ` · in ${used} workout${used === 1 ? '' : 's'}`}
-                  </p>
-                </div>
-                <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-              </button>
+                </button>
+                <FavoriteButton
+                  favorite={!!ex.favorite}
+                  onToggle={() => void setExerciseFavorite(ex.id, !ex.favorite)}
+                  label={ex.name}
+                  className="mr-1.5"
+                />
+              </div>
             )
             if (!canStart) return <div key={ex.id}>{card}</div>
             return (

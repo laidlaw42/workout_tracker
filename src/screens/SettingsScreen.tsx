@@ -19,11 +19,14 @@ import { THEMES, THEME_PREVIEWS, applyTheme, getTheme } from '@/lib/theme'
 import {
   addCustomClimbStyle,
   getCustomClimbStyles,
+  getPlannerView,
   getTickDisplayStyle,
   getWeekStart,
   removeCustomClimbStyle,
+  setPlannerView,
   setTickDisplayStyle,
   setWeekStart,
+  type PlannerView,
 } from '@/lib/prefs'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { TagManager } from '@/components/TagManager'
@@ -64,6 +67,7 @@ export default function SettingsScreen() {
   const [newColourHex, setNewColourHex] = useState('#3b82f6')
   const [colourError, setColourError] = useState('')
   const [weekStart, setWeekStartState] = useState<'mon' | 'sun'>(getWeekStart() === 0 ? 'sun' : 'mon')
+  const [plannerView, setPlannerViewState] = useState<PlannerView>(getPlannerView)
 
   function handleAddColour() {
     const name = newColourName.trim()
@@ -160,6 +164,20 @@ export default function SettingsScreen() {
               setWeekStartState(v)
             }}
           />
+          <Label>Default view</Label>
+          <SegmentedControl
+            options={[
+              { value: 'month', label: 'Month' },
+              { value: 'week', label: 'Week' },
+              { value: 'list', label: 'List' },
+            ]}
+            value={plannerView}
+            onChange={(v) => {
+              setPlannerView(v)
+              setPlannerViewState(v)
+            }}
+          />
+          <p className="px-1 text-xs text-muted-foreground">Which view the planner opens on.</p>
         </section>
 
         <section className="space-y-2">

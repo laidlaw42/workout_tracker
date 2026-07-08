@@ -3,8 +3,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Dumbbell, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useTagColours } from '@/hooks/useTagColours'
-import { getAllTemplates, getTemplatesInCategory } from '@/db/helpers'
+import { getAllTemplates, getTemplatesInCategory, setTemplateFavorite } from '@/db/helpers'
 import { SegmentedControl } from '@/components/SegmentedControl'
+import { FavoriteFilterButton } from '@/components/FavoriteButton'
 import { TemplateCard } from '@/components/TemplateCard'
 import { ExerciseLibrary } from '@/components/ExerciseLibrary'
 import { EmptyState } from '@/components/EmptyState'
@@ -44,6 +45,7 @@ export default function LibraryScreen() {
   })
   const [view, setView] = useState<'workouts' | 'exercises'>('workouts')
   const [activeTag, setActiveTag] = useState<string | null>(null)
+  const [favOnly, setFavOnly] = useState(false)
 
   const templates = useLiveQuery(
     () => (filter === 'all' ? getAllTemplates() : getTemplatesInCategory(filter)),
@@ -56,8 +58,9 @@ export default function LibraryScreen() {
     for (const t of templates ?? []) for (const tag of t.tags) set.add(tag)
     return [...set].sort()
   }, [templates])
-  const filteredTemplates =
-    activeTag && templates ? templates.filter((t) => t.tags.includes(activeTag)) : templates
+  const filteredTemplates = templates?.filter(
+    (t) => (!activeTag || t.tags.includes(activeTag)) && (!favOnly || t.favorite),
+  )
 
   return (
     <div className="space-y-4 p-4 pt-[calc(env(safe-area-inset-top)+1rem)]">
@@ -82,14 +85,20 @@ export default function LibraryScreen() {
             <Plus className="size-4" /> Add new workout
           </Button>
 
-          <SegmentedControl
-            options={OPTIONS}
-            value={filter}
-            onChange={(v) => {
-              setFilter(v)
-              setActiveTag(null)
-            }}
-          />
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <SegmentedControl
+                scrollable
+                options={OPTIONS}
+                value={filter}
+                onChange={(v) => {
+                  setFilter(v)
+                  setActiveTag(null)
+                }}
+              />
+            </div>
+            <FavoriteFilterButton active={favOnly} onToggle={() => setFavOnly((v) => !v)} />
+          </div>
 
           {allTags.length > 0 && (
             <div className="flex flex-wrap gap-2">
@@ -123,13 +132,15 @@ export default function LibraryScreen() {
               icon={Dumbbell}
               title="No workouts here"
               subtitle={
-                activeTag
-                  ? `No workouts tagged #${activeTag}.`
-                  : filter === 'climbing'
-                    ? 'No climbing workouts yet.'
-                    : filter === 'rehab'
-                      ? 'No rehab workouts yet.'
-                      : 'Tap “Add new workout” to create one.'
+                favOnly
+                  ? 'No favourites here yet — tap the heart on a workout to add one.'
+                  : activeTag
+                    ? `No workouts tagged #${activeTag}.`
+                    : filter === 'climbing'
+                      ? 'No climbing workouts yet.'
+                      : filter === 'rehab'
+                        ? 'No rehab workouts yet.'
+                        : 'Tap “Add new workout” to create one.'
               }
             />
           ) : (
@@ -139,6 +150,7 @@ export default function LibraryScreen() {
                   key={t.id}
                   template={t}
                   onOpen={() => navigate(`/library/${t.id}`)}
+                  onToggleFavorite={() => void setTemplateFavorite(t.id, !t.favorite)}
                 />
               ))}
             </div>

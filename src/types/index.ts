@@ -81,6 +81,8 @@ export interface Exercise {
   hangboard?: HangConfig
   // Default parameters used to pre-fill a new template/session row (A98).
   defaults?: ExerciseDefaults
+  // Whether the user has favourited this exercise (heart toggle + library filter).
+  favorite?: boolean
   createdAt: number
 }
 
@@ -153,6 +155,8 @@ export interface WorkoutTemplate {
   // climbing-only fields
   climbingKind?: ClimbingKind
   hangboardSets?: HangboardSet[]
+  // Whether the user has favourited this workout (heart toggle + library filter).
+  favorite?: boolean
   lastUsedAt?: number
   createdAt: number
 }

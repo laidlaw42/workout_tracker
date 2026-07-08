@@ -1,5 +1,6 @@
 import { ChevronRight } from 'lucide-react'
 import { DisciplineBadge } from './DisciplineBadge'
+import { FavoriteButton } from './FavoriteButton'
 import { badgesForTemplate } from '@/lib/badges'
 import { templateCategories } from '@/lib/templateCategories'
 import { formatRelativeDay } from '@/lib/date'
@@ -35,34 +36,48 @@ function summarise(t: WorkoutTemplate): string {
 interface Props {
   template: WorkoutTemplate
   onOpen: () => void
+  /** When provided, a heart toggle replaces the chevron (library favourites). */
+  onToggleFavorite?: () => void
 }
 
 // A77 — tap opens the template. Deletion moved into the edit screen, so there is
 // no longer a press-and-hold-to-delete gesture here (it caused accidental
 // deletions from a misplaced long-press).
-export function TemplateCard({ template, onOpen }: Props) {
+export function TemplateCard({ template, onOpen, onToggleFavorite }: Props) {
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-3 text-left text-card-foreground transition-colors active:bg-accent"
-    >
-      <div className="min-w-0 flex-1 space-y-1">
-        <div className="flex items-center gap-2">
-          <span className="truncate font-medium">{template.name}</span>
-          {/* A94 — one pill per category the template spans. */}
-          <span className="flex shrink-0 flex-wrap gap-1">
-            {badgesForTemplate(template).map((b, i) => (
-              <DisciplineBadge key={i} badge={b} />
-            ))}
-          </span>
+    <div className="flex items-center rounded-xl border border-border bg-card text-card-foreground">
+      <button
+        type="button"
+        onClick={onOpen}
+        className="flex min-w-0 flex-1 items-center gap-3 rounded-l-xl p-3 text-left transition-colors active:bg-accent"
+      >
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="truncate font-medium">{template.name}</span>
+            {/* A94 — one pill per category the template spans. */}
+            <span className="flex shrink-0 flex-wrap gap-1">
+              {badgesForTemplate(template).map((b, i) => (
+                <DisciplineBadge key={i} badge={b} />
+              ))}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
+            <span>{summarise(template)}</span>
+            <span>· {template.lastUsedAt ? formatRelativeDay(template.lastUsedAt) : 'Never used'}</span>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
-          <span>{summarise(template)}</span>
-          <span>· {template.lastUsedAt ? formatRelativeDay(template.lastUsedAt) : 'Never used'}</span>
-        </div>
-      </div>
-      <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-    </button>
+        {!onToggleFavorite && (
+          <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        )}
+      </button>
+      {onToggleFavorite && (
+        <FavoriteButton
+          favorite={!!template.favorite}
+          onToggle={onToggleFavorite}
+          label={template.name}
+          className="mr-1.5"
+        />
+      )}
+    </div>
   )
 }
