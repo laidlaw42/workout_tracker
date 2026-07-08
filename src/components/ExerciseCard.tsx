@@ -83,7 +83,13 @@ interface Props {
   onEdit?: (updates: ExerciseEdit) => void
   /** Timed exercises: start the set countdown with the captured load/edge/intra-rest. */
   onStartCountdown?: (input: LoggedSetInput) => void
-  countdown?: { remaining: number; duration: number; precount?: boolean } | null
+  countdown?: {
+    remaining: number
+    duration: number
+    precount?: boolean
+    /** Intra-rest (Abrahang) phase label: 'Hang' during work, 'Rest' between reps. */
+    label?: string
+  } | null
 }
 
 // The body of an exercise card. The card shell (border, drag handle, long-press
@@ -205,8 +211,10 @@ export function ExerciseCard({
                 <SetCountdown
                   remaining={countdown.remaining}
                   duration={countdown.duration}
-                  label={countdown.precount ? 'Get ready' : 'Hold'}
-                  phase={countdown.precount ? 'precount' : 'hold'}
+                  label={countdown.precount ? 'Get ready' : (countdown.label ?? 'Hold')}
+                  phase={
+                    countdown.precount ? 'precount' : countdown.label === 'Rest' ? 'rest' : 'hold'
+                  }
                 />
               ) : (
                 <TimedSetRow

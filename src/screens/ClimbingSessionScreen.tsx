@@ -5,7 +5,7 @@ import { Mountain, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useSessionTimer } from '@/hooks/useSessionTimer'
 import { useWakeLock } from '@/hooks/useWakeLock'
-import { useTimedSetEngine, type WorkHang } from '@/hooks/useTimedSetEngine'
+import { useTimedSetEngine } from '@/hooks/useTimedSetEngine'
 import { getKeepAwake, getGymAreas } from '@/lib/prefs'
 import {
   checkAndSavePR,
@@ -13,7 +13,6 @@ import {
   deleteSession,
   endSession,
   getAllExercises,
-  getHangsForSession,
   getLastSetForExercise,
   getRoutesForSession,
   getSessionById,
@@ -37,7 +36,6 @@ import { SelectPill } from '@/components/SelectPill'
 import { RouteCard } from '@/components/RouteCard'
 import { LogRouteSheet } from '@/components/LogRouteSheet'
 import { ExerciseCard, type WorkExercise } from '@/components/ExerciseCard'
-import { HangCard } from '@/components/HangCard'
 import { SortableList } from '@/components/SortableList'
 import { RestTimer } from '@/components/RestTimer'
 import { ExercisePicker } from '@/components/ExercisePicker'
@@ -56,12 +54,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import type { ClimbingRoute, ClimbingStyle, Exercise, HangboardSet, LoggedSet } from '@/types'
+import type { ClimbingRoute, ClimbingStyle, Exercise, LoggedSet } from '@/types'
 
-// uid accessors for the shared work-queue transforms (exercises key by uid, hangs
-// by id).
+// uid accessor for the shared work-queue transforms (exercises key by uid).
 const exUid = (e: WorkExercise) => e.uid
-const hangUid = (h: WorkHang) => h.id
 
 // Short per-style button labels (A24).
 const STYLE_BTN_LABELS: Record<ClimbingStyle, string> = {
@@ -80,8 +76,6 @@ export default function ClimbingSessionScreen() {
     [session?.templateId],
   )
   const routes = useLiveQuery(() => getRoutesForSession(id), [id]) ?? []
-  const hangsRaw = useLiveQuery(() => getHangsForSession(id), [id])
-  const hangs = hangsRaw ?? []
   const loggedSetsRaw = useLiveQuery(() => getSetsForSession(id), [id])
   const loggedSets = loggedSetsRaw ?? []
   // For the +kg additional-weight field and the F39 empty-weight warning gating.
@@ -169,7 +163,6 @@ export default function ClimbingSessionScreen() {
   // Plan comes from the linked template (workout kind) or a repeat snapshot.
   const planExercises =
     template?.climbingKind === 'workout' ? template.exercises : session?.plannedExercises
-  const planHangs = template?.hangboardSets ?? session?.plannedHangs
   const basePlanExercises = useMemo<WorkExercise[]>(
     () =>
       [...(planExercises ?? [])]
@@ -191,21 +184,13 @@ export default function ClimbingSessionScreen() {
         })),
     [planExercises],
   )
-  const baseHangs = useMemo<WorkHang[]>(
-    () => [...(planHangs ?? [])].sort((a, b) => a.order - b.order).map((h) => ({ ...h, skipped: false })),
-    [planHangs],
-  )
 
   const [work, setWork] = useState<WorkExercise[]>([])
   const [workInited, setWorkInited] = useState(false)
-  const [hangWork, setHangWork] = useState<WorkHang[]>([])
-  const [hangWorkInited, setHangWorkInited] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [addPickerOpen, setAddPickerOpen] = useState(false)
   const [confirmRemoveUid, setConfirmRemoveUid] = useState<string | null>(null)
   const [confirmRemoveLastUid, setConfirmRemoveLastUid] = useState<string | null>(null)
-  const [confirmRemoveHangId, setConfirmRemoveHangId] = useState<string | null>(null)
-  const [confirmRemoveLastHangId, setConfirmRemoveLastHangId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!workInited && template !== undefined && basePlanExercises.length > 0 && loggedSetsRaw !== undefined) {
@@ -237,19 +222,12 @@ export default function ClimbingSessionScreen() {
       setWorkInited(true)
     }
   }, [basePlanExercises, workInited, template, loggedSetsRaw])
-  useEffect(() => {
-    if (!hangWorkInited && template !== undefined && baseHangs.length > 0) {
-      setHangWork(baseHangs)
-      setHangWorkInited(true)
-    }
-  }, [baseHangs, hangWorkInited, template])
 
   const hasExercises = (planExercises?.length ?? 0) > 0
-  const hasHangs = (planHangs?.length ?? 0) > 0
   const showExercises = hasExercises
-  const showHangs = hasHangs
-  // Routes for plain (no plan) or workout (has exercises); hangboard-only hides them.
-  const showRoutes = !hasHangs || hasExercises
+  // A climbing session always logs routes (hangboard-only sessions run on the
+  // training screen, F51); a climbing workout shows both routes and its exercises.
+  const showRoutes = true
 
   // --- Exercise logging (climbing-workout kind) ---------------------------
   const setsByExercise = useMemo(() => {
@@ -341,68 +319,19 @@ export default function ClimbingSessionScreen() {
     setAddPickerOpen(false)
   }
 
-  // --- Hang logging (hangboard) -------------------------------------------
-  const loggedForHang = (hs: HangboardSet) =>
-    hangs.filter((h) => h.hangSetId === hs.id).sort((a, b) => a.setNumber - b.setNumber)
-  const completedFor = (hs: HangboardSet) => loggedForHang(hs).length
-  const isCompleteHang = (h: WorkHang) => h.skipped || completedFor(h) >= h.sets
-  const currentHang = hangWork.find((h) => !isCompleteHang(h))
-
   // CA1 — the shared timed-set engine (same one the training screen uses): three
-  // timers, log→rest→auto-advance for exercises and hangs, and the F48
-  // persist/resume. Ready once the plan + logged data have loaded so the resume
-  // picks the right item; a route-only session has no timed phase to resume.
+  // timers, log→rest→auto-advance, and the F48 persist/resume. Ready once the plan
+  // + logged data have loaded; a route-only session has no timed phase to resume.
   const engine = useTimedSetEngine({
     sessionId: id,
     paused: clock.paused,
     resume: clock.resume,
     work,
-    hangWork,
     exById,
     loggedCountFor: (ex) => loggedForEx(ex).length,
     isComplete,
-    completedForHang: completedFor,
-    isCompleteHang,
-    ready:
-      template !== undefined &&
-      loggedSetsRaw !== undefined &&
-      hangsRaw !== undefined &&
-      !((hasExercises && !workInited) || (hasHangs && !hangWorkInited)),
+    ready: template !== undefined && loggedSetsRaw !== undefined && !(hasExercises && !workInited),
   })
-
-  function addSetToHang(hid: string) {
-    setHangWork((w) => updateById(w, hangUid, hid, (h) => ({ ...h, sets: h.sets + 1 })))
-  }
-  // Inline edit (A31) — applies to the set's remaining unlogged hangs.
-  function editHang(hid: string, updates: Partial<HangboardSet>) {
-    setHangWork((w) => patchById(w, hangUid, hid, updates))
-  }
-  function skipHang(hid: string) {
-    setHangWork((w) => patchById(w, hangUid, hid, { skipped: true }))
-    if (hid === currentHang?.id) engine.cancelTimers()
-  }
-  function reorderHangs(activeIds: string[]) {
-    setHangWork((w) => reorderKeepingComplete(w, hangUid, isCompleteHang, activeIds))
-  }
-  function doRemoveHang() {
-    if (!confirmRemoveHangId) return
-    setHangWork((w) => removeById(w, hangUid, confirmRemoveHangId))
-    setConfirmRemoveHangId(null)
-  }
-  function removeHangSet(hid: string) {
-    const h = hangWork.find((x) => x.id === hid)
-    if (!h) return
-    if (h.sets <= 1) {
-      setConfirmRemoveLastHangId(hid)
-      return
-    }
-    setHangWork((w) => updateById(w, hangUid, hid, (x) => ({ ...x, sets: x.sets - 1 })))
-  }
-  function doRemoveLastHang() {
-    if (!confirmRemoveLastHangId) return
-    setHangWork((w) => removeById(w, hangUid, confirmRemoveLastHangId))
-    setConfirmRemoveLastHangId(null)
-  }
 
   async function saveGradePRs() {
     const cleanRoutes = routes.filter((r) => isCleanTick(r.tick))
@@ -562,46 +491,6 @@ export default function ClimbingSessionScreen() {
                     isCurrent && engine.precount.activeUid === ex.uid
                       ? { remaining: engine.precount.remaining, duration: engine.precount.duration, precount: true }
                       : isCurrent && engine.countdown.activeUid === ex.uid
-                        ? { remaining: engine.countdown.remaining, duration: engine.countdown.duration }
-                        : null
-                  }
-                />
-              )}
-            />
-            <Button variant="outline" className="w-full" onClick={() => setAddPickerOpen(true)}>
-              <Plus className="size-4" /> Add exercise
-            </Button>
-          </div>
-        )}
-
-        {showHangs && (
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-muted-foreground">Hangboard</p>
-            <SortableList
-              items={hangWork}
-              getUid={(h) => h.id}
-              isComplete={isCompleteHang}
-              isDimmed={(h) => h.skipped}
-              currentUid={currentHang?.id}
-              skipLabel="Skip hang"
-              removeLabel="Remove hang"
-              onReorder={reorderHangs}
-              onSkip={skipHang}
-              onRemove={setConfirmRemoveHangId}
-              renderItem={(h, isCurrent) => (
-                <HangCard
-                  hangSet={h}
-                  loggedHangs={loggedForHang(h)}
-                  isCurrent={isCurrent}
-                  skipped={h.skipped}
-                  onAddSet={() => addSetToHang(h.id)}
-                  onRemoveSet={() => removeHangSet(h.id)}
-                  onEdit={(u) => editHang(h.id, u)}
-                  onStartCountdown={() => engine.startHang(h)}
-                  countdown={
-                    isCurrent && engine.precount.activeUid === h.id
-                      ? { remaining: engine.precount.remaining, duration: engine.precount.duration, precount: true }
-                      : isCurrent && engine.countdown.activeUid === h.id
                         ? {
                             remaining: engine.countdown.remaining,
                             duration: engine.countdown.duration,
@@ -612,6 +501,9 @@ export default function ClimbingSessionScreen() {
                 />
               )}
             />
+            <Button variant="outline" className="w-full" onClick={() => setAddPickerOpen(true)}>
+              <Plus className="size-4" /> Add exercise
+            </Button>
           </div>
         )}
 
@@ -757,23 +649,6 @@ export default function ClimbingSessionScreen() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog
-        open={confirmRemoveLastHangId !== null}
-        onOpenChange={(o) => !o && setConfirmRemoveLastHangId(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove the last set?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will remove the exercise from the workout.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep it</AlertDialogCancel>
-            <AlertDialogAction onClick={doRemoveLastHang}>Remove</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <AlertDialog
         open={confirmRemoveUid !== null}
@@ -787,22 +662,6 @@ export default function ClimbingSessionScreen() {
           <AlertDialogFooter>
             <AlertDialogCancel>Keep it</AlertDialogCancel>
             <AlertDialogAction onClick={doRemoveExercise}>Remove</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog
-        open={confirmRemoveHangId !== null}
-        onOpenChange={(o) => !o && setConfirmRemoveHangId(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove this hang set?</AlertDialogTitle>
-            <AlertDialogDescription>Logged hangs will be kept.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Keep it</AlertDialogCancel>
-            <AlertDialogAction onClick={doRemoveHang}>Remove</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
