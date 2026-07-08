@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Option<T extends string> {
@@ -13,9 +14,9 @@ interface Props<T extends string> {
   className?: string
   /** Let the segments keep their natural width and scroll horizontally instead
    *  of squeezing to equal widths — for filters with many/long labels that would
-   *  otherwise overflow (e.g. the six exercise categories). Fades the edge that
-   *  has hidden segments so it reads as scrollable, and keeps the active segment
-   *  in view. */
+   *  otherwise overflow (e.g. the six exercise categories). Shows a chevron on
+   *  each edge that has hidden segments (tap to scroll) and keeps the active
+   *  segment in view. */
   scrollable?: boolean
 }
 
@@ -27,7 +28,7 @@ export function SegmentedControl<T extends string>({
   scrollable = false,
 }: Props<T>) {
   const scrollRef = useRef<HTMLDivElement>(null)
-  // Which edges have off-screen segments (drives the fade hints).
+  // Which edges have off-screen segments (drives the chevron hints).
   const [more, setMore] = useState({ left: false, right: false })
 
   useEffect(() => {
@@ -56,6 +57,11 @@ export function SegmentedControl<T extends string>({
       ?.querySelector<HTMLElement>('[data-active="true"]')
       ?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
   }, [scrollable, value])
+
+  const page = (dir: 1 | -1) => {
+    const el = scrollRef.current
+    if (el) el.scrollBy({ left: dir * el.clientWidth * 0.75, behavior: 'smooth' })
+  }
 
   const buttons = options.map((o) => (
     <button
@@ -86,13 +92,28 @@ export function SegmentedControl<T extends string>({
       <div ref={scrollRef} className="flex gap-1 overflow-x-auto scrollbar-none p-1">
         {buttons}
       </div>
-      {/* Edge fades: only shown when segments are hidden that way, so the control
-          reads as scrollable. They fade into the track colour and let taps through. */}
+      {/* Edge chevrons: shown only when segments are hidden that way, so the
+          control reads as scrollable. Tap to page; the gradient gives the icon a
+          solid backdrop over the pills. */}
       {more.left && (
-        <div className="pointer-events-none absolute inset-y-1 left-0 w-7 rounded-l-lg bg-gradient-to-r from-muted to-transparent" />
+        <button
+          type="button"
+          aria-label="Scroll left"
+          onClick={() => page(-1)}
+          className="absolute inset-y-0 left-0 flex w-9 items-center justify-start rounded-l-lg bg-gradient-to-r from-muted via-muted to-transparent pl-1 text-foreground"
+        >
+          <ChevronLeft className="size-4" />
+        </button>
       )}
       {more.right && (
-        <div className="pointer-events-none absolute inset-y-1 right-0 w-7 rounded-r-lg bg-gradient-to-l from-muted to-transparent" />
+        <button
+          type="button"
+          aria-label="Scroll right"
+          onClick={() => page(1)}
+          className="absolute inset-y-0 right-0 flex w-9 items-center justify-end rounded-r-lg bg-gradient-to-l from-muted via-muted to-transparent pr-1 text-foreground"
+        >
+          <ChevronRight className="size-4" />
+        </button>
       )}
     </div>
   )
