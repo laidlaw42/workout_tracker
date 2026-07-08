@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { deleteExercise, updateExercise, upsertExercise } from '@/db/helpers'
-import { deriveExerciseParams } from '@/lib/migrations'
 import { SegmentedControl } from '@/components/SegmentedControl'
-import { DEFAULT_HANG, HangConfigFields } from '@/components/HangConfigFields'
 import {
   ExerciseDefaultsFields,
   EMPTY_DEFAULTS,
@@ -40,7 +38,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import type { Exercise, ExerciseCategory, HangConfig, TrackingType } from '@/types'
+import type { Exercise, ExerciseCategory, TrackingType } from '@/types'
 
 interface Props {
   open: boolean
@@ -73,7 +71,6 @@ export function ExerciseFormSheet({
   const [category, setCategory] = useState<ExerciseCategory>('strength')
   const [muscles, setMuscles] = useState('')
   const [tracking, setTracking] = useState<TrackingType>('reps')
-  const [hangCfg, setHangCfg] = useState<HangConfig>(DEFAULT_HANG)
   const [tags, setTags] = useState<string[]>([])
   const [confirmDelete, setConfirmDelete] = useState(false)
   // A98 — optional default parameters (held as a string draft; blank = unset →
@@ -91,7 +88,6 @@ export function ExerciseFormSheet({
     setCategory(exercise?.category ?? 'strength')
     setMuscles(exercise?.muscleGroups.join(', ') ?? '')
     setTracking(exercise?.trackingType ?? 'reps')
-    setHangCfg(exercise?.hangboard ?? DEFAULT_HANG)
     setTags(exercise?.tags ?? defaultTags)
     setDefDraft(defaultsToDraft(exercise?.defaults))
     setCfgDraft(configToDraft(exercise))
@@ -104,21 +100,14 @@ export function ExerciseFormSheet({
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean)
-    // Hangboard exercises are always duration-tracked and carry their hang
-    // protocol defaults; switching away from hangboard clears the config.
-    const isHang = category === 'hangboard'
-    const trackingType: TrackingType = isHang ? 'duration' : tracking
-    const hangboard = isHang ? hangCfg : undefined
-    // A98 — default parameters (non-hangboard); the shared builder keeps only the
-    // fields relevant to the tracking type and returns undefined when nothing is
-    // set, so an exercise with no defaults stays clean and uses the add fallbacks.
-    const defaults = isHang ? undefined : draftToDefaults(trackingType, defDraft)
-    // F51 — the tracking config. A hangboard exercise still carries its hang
-    // protocol (until Stage 3 unifies storage); derive its config so its six flags
-    // stay correct. Everything else takes the user's Tracking-options draft.
-    const config = isHang
-      ? deriveExerciseParams({ category: 'hangboard', trackingType: 'duration', hangboard: hangCfg })
-      : draftToConfig(trackingType, cfgDraft)
+    const trackingType: TrackingType = tracking
+    // A98 — default parameters; the shared builder keeps only the fields relevant to
+    // the tracking type and returns undefined when nothing is set, so an exercise
+    // with no defaults stays clean and uses the add fallbacks.
+    const defaults = draftToDefaults(trackingType, defDraft)
+    // F51 — the tracking config from the user's Tracking-options draft (every
+    // category, hangboard included; a grip is a standard duration exercise).
+    const config = draftToConfig(trackingType, cfgDraft)
     try {
       let id: string
       if (exercise) {
@@ -128,7 +117,6 @@ export function ExerciseFormSheet({
           muscleGroups,
           trackingType,
           tags,
-          hangboard,
           defaults,
           ...config,
         })
@@ -140,7 +128,6 @@ export function ExerciseFormSheet({
           muscleGroups,
           trackingType,
           tags,
-          hangboard,
           defaults,
           ...config,
         })
@@ -199,33 +186,24 @@ export function ExerciseFormSheet({
               onChange={(e) => setMuscles(e.target.value)}
             />
           </div>
-          {category === 'hangboard' ? (
-            <div className="space-y-2">
-              <Label>Hang defaults</Label>
-              <HangConfigFields value={hangCfg} onChange={(p) => setHangCfg((c) => ({ ...c, ...p }))} />
-            </div>
-          ) : (
-            <>
-              <div className="space-y-2">
-                <Label>Tracking</Label>
-                <SegmentedControl options={TRACKING_TYPES} value={tracking} onChange={setTracking} />
-              </div>
-              {/* F51 — the tracking configuration: which metrics the set row shows.
-                  No field is locked or inferred from category/name. */}
-              <TrackingOptionsFields
-                tracking={tracking}
-                value={cfgDraft}
-                onChange={(patch) => setCfgDraft((c) => ({ ...c, ...patch }))}
-              />
-              {/* A98 — default parameters, keyed to the tracking type. Pre-fill a
-                  new template/session row; blank falls back to the standard defaults. */}
-              <ExerciseDefaultsFields
-                tracking={tracking}
-                value={defDraft}
-                onChange={(patch) => setDefDraft((d) => ({ ...d, ...patch }))}
-              />
-            </>
-          )}
+          <div className="space-y-2">
+            <Label>Tracking</Label>
+            <SegmentedControl options={TRACKING_TYPES} value={tracking} onChange={setTracking} />
+          </div>
+          {/* F51 — the tracking configuration: which metrics the set row shows. No
+              field is locked or inferred from category/name (hangboard included). */}
+          <TrackingOptionsFields
+            tracking={tracking}
+            value={cfgDraft}
+            onChange={(patch) => setCfgDraft((c) => ({ ...c, ...patch }))}
+          />
+          {/* A98 — default parameters, keyed to the tracking type. Pre-fill a new
+              template/session row; blank falls back to the standard defaults. */}
+          <ExerciseDefaultsFields
+            tracking={tracking}
+            value={defDraft}
+            onChange={(patch) => setDefDraft((d) => ({ ...d, ...patch }))}
+          />
           <div className="space-y-2">
             <Label>Tags</Label>
             <TagInput value={tags} onChange={setTags} />

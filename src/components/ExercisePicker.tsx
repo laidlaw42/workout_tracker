@@ -3,11 +3,11 @@ import { toast } from 'sonner'
 import { Check, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { getAllExercises, setExerciseFavorite, upsertExercise } from '@/db/helpers'
+import { deriveExerciseParams } from '@/lib/migrations'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { FavoriteButton, FavoriteFilterButton } from '@/components/FavoriteButton'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
 import { badgeForCategory } from '@/lib/badges'
-import { DEFAULT_HANG, HangConfigFields } from '@/components/HangConfigFields'
 import {
   ExerciseDefaultsFields,
   EMPTY_DEFAULTS,
@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
 import { TRACKING_TYPES } from '@/lib/trackingTypes'
-import type { Exercise, ExerciseCategory, HangConfig, TrackingType } from '@/types'
+import type { Exercise, ExerciseCategory, TrackingType } from '@/types'
 
 interface Props {
   open: boolean
@@ -79,7 +79,6 @@ export function ExercisePicker({
   const [category, setCategory] = useState<ExerciseCategory>(defaultCategory)
   const [muscles, setMuscles] = useState('')
   const [tracking, setTracking] = useState<TrackingType>('reps')
-  const [hangCfg, setHangCfg] = useState<HangConfig>(DEFAULT_HANG)
   const [defDraft, setDefDraft] = useState<DefaultsDraft>(EMPTY_DEFAULTS) // A98 defaults for inline create
   const [catFilter, setCatFilter] = useState<CatFilter>('all') // universal mode (A66)
   const [favOnly, setFavOnly] = useState(false)
@@ -107,7 +106,6 @@ export function ExercisePicker({
     setCategory(defaultCategory)
     setMuscles('')
     setTracking('reps')
-    setHangCfg(DEFAULT_HANG)
     setDefDraft(EMPTY_DEFAULTS)
     setCatFilter('all')
     setFavOnly(false)
@@ -142,14 +140,14 @@ export function ExercisePicker({
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean)
-    // Hangboard exercises are always duration-tracked and carry a default hang
-    // protocol so they seed a HangboardSet when added to a session/template.
-    const isHang = category === 'hangboard'
-    const trackingType: TrackingType = isHang ? 'duration' : tracking
-    const hangboard = isHang ? hangCfg : undefined
+    const trackingType: TrackingType = tracking
     // A98 — carry any default parameters set in the quick-create form, so the new
     // exercise seeds its row with them just like an existing one.
-    const defaults = isHang ? undefined : draftToDefaults(trackingType, defDraft)
+    const defaults = draftToDefaults(trackingType, defDraft)
+    // F51 — sensible tracking config from the category/tracking for a quick create
+    // (the full editor exposes the individual toggles); a hangboard grip gets load
+    // + edge depth. Consistent with the v9 derivation.
+    const config = deriveExerciseParams({ category, trackingType })
     try {
       const id = await upsertExercise({
         name: trimmed,
@@ -157,8 +155,8 @@ export function ExercisePicker({
         muscleGroups,
         trackingType,
         tags: [],
-        hangboard,
         defaults,
+        ...config,
       })
       finish([
         {
@@ -168,8 +166,8 @@ export function ExercisePicker({
           muscleGroups,
           trackingType,
           tags: [],
-          hangboard,
           defaults,
+          ...config,
           createdAt: Date.now(),
         },
       ])
@@ -268,26 +266,17 @@ export function ExercisePicker({
                 placeholder="comma separated, e.g. quads, glutes"
               />
             </div>
-            {category === 'hangboard' ? (
-              <div className="space-y-2">
-                <Label>Hang defaults</Label>
-                <HangConfigFields value={hangCfg} onChange={(p) => setHangCfg((c) => ({ ...c, ...p }))} />
-              </div>
-            ) : (
-              <>
-                <div className="space-y-2">
-                  <Label>Tracking</Label>
-                  <SegmentedControl options={TRACKING_TYPES} value={tracking} onChange={setTracking} />
-                </div>
-                {/* A98 — default parameters on the quick-create form, mirroring the
-                    full exercise editor so a newly-created exercise can carry defaults. */}
-                <ExerciseDefaultsFields
-                  tracking={tracking}
-                  value={defDraft}
-                  onChange={(patch) => setDefDraft((d) => ({ ...d, ...patch }))}
-                />
-              </>
-            )}
+            <div className="space-y-2">
+              <Label>Tracking</Label>
+              <SegmentedControl options={TRACKING_TYPES} value={tracking} onChange={setTracking} />
+            </div>
+            {/* A98 — default parameters on the quick-create form, mirroring the full
+                exercise editor so a newly-created exercise can carry defaults. */}
+            <ExerciseDefaultsFields
+              tracking={tracking}
+              value={defDraft}
+              onChange={(patch) => setDefDraft((d) => ({ ...d, ...patch }))}
+            />
             <div className="mt-auto flex gap-3 pt-2">
               <Button variant="outline" className="flex-1" onClick={() => setCreating(false)}>
                 Back

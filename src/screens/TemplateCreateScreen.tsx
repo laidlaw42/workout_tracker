@@ -17,7 +17,6 @@ import { generateId } from '@/lib/id'
 import { buildToStoredCategories, type WorkoutCategory } from '@/lib/templateCategories'
 import { templateExerciseFromExercise } from '@/lib/exerciseDefaults'
 import { ExercisePicker } from '@/components/ExercisePicker'
-import { HangboardSetsEditor } from '@/components/HangboardSetsEditor'
 import { IntervalsEditor } from '@/components/IntervalsEditor'
 import { TemplateExerciseRow, type TemplateRow } from '@/components/TemplateExerciseRow'
 import { CategoryMultiSelect } from '@/components/CategoryMultiSelect'
@@ -42,7 +41,6 @@ import type {
   CardioActivityType,
   Exercise,
   ExerciseCategory,
-  HangboardSet,
   IntervalBlock,
 } from '@/types'
 
@@ -70,7 +68,6 @@ export default function TemplateCreateScreen() {
   const [tags, setTags] = useState<string[]>([])
   const [tagsSeeded, setTagsSeeded] = useState(false)
   const [rows, setRows] = useState<TemplateRow[]>([])
-  const [hangSets, setHangSets] = useState<HangboardSet[]>([])
   const [activity, setActivity] = useState<CardioActivityType>('run')
   const [durationMin, setDurationMin] = useState('')
   const [distanceKm, setDistanceKm] = useState('')
@@ -133,27 +130,16 @@ export default function TemplateCreateScreen() {
     setDirty(true)
   }
 
-  // Hangboard exercises become hang rows seeded from their protocol; everything
-  // else becomes an exercise row (F43 / mirrors TemplateEditScreen.addExercises).
+  // F51 — every exercise (hangboard grips included) becomes an exercise row.
   function addExercises(exs: Exercise[]) {
-    const hangboardExs = exs.filter((e) => e.category === 'hangboard' && e.hangboard)
-    const regularExs = exs.filter((e) => !(e.category === 'hangboard' && e.hangboard))
-    if (regularExs.length) {
-      // A98 — seed each row from the exercise's saved defaults (fallback 3 × 10 · 90s).
-      setRows((rs) => [
-        ...rs,
-        ...regularExs.map((ex, i) => ({
-          uid: generateId(),
-          ...templateExerciseFromExercise(ex, rs.length + i),
-        })),
-      ])
-    }
-    if (hangboardExs.length) {
-      setHangSets((hs) => [
-        ...hs,
-        ...hangboardExs.map((ex, i) => ({ id: generateId(), order: hs.length + i, ...ex.hangboard! })),
-      ])
-    }
+    // A98 — seed each row from the exercise's saved defaults (fallback 3 × 10 · 90s).
+    setRows((rs) => [
+      ...rs,
+      ...exs.map((ex, i) => ({
+        uid: generateId(),
+        ...templateExerciseFromExercise(ex, rs.length + i),
+      })),
+    ])
     setDirty(true)
   }
 
@@ -176,6 +162,10 @@ export default function TemplateCreateScreen() {
               defaultWeight: r.defaultWeight,
               defaultDistanceKm: r.defaultDistanceKm,
               defaultRestSeconds: r.defaultRestSeconds,
+              // F51 — preserve hangboard row params so a hang row round-trips.
+              defaultEdgeDepthMm: r.defaultEdgeDepthMm,
+              defaultIntraRestSeconds: r.defaultIntraRestSeconds,
+              defaultAbrahangReps: r.defaultAbrahangReps,
               notes: r.notes,
             }))
           : [],
@@ -183,8 +173,6 @@ export default function TemplateCreateScreen() {
         targetDurationSeconds: showCardio && durationMin.trim() ? Number(durationMin) * 60 : undefined,
         targetDistanceKm: showCardio && distanceKm.trim() ? Number(distanceKm) : undefined,
         intervals: showCardio && intervals.length > 0 ? intervals : undefined,
-        hangboardSets:
-          showHangboard && hangSets.length ? hangSets.map((h, i) => ({ ...h, order: i })) : undefined,
       })
       navigate(`/library/${id}`)
     } catch {
@@ -201,7 +189,7 @@ export default function TemplateCreateScreen() {
     navigate('/library')
   }
 
-  const isEmpty = rows.length === 0 && hangSets.length === 0
+  const isEmpty = rows.length === 0
 
   return (
     <div className="min-h-dvh pb-24">
@@ -350,23 +338,6 @@ export default function TemplateCreateScreen() {
           </div>
         )}
 
-        {showHangboard && (
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-muted-foreground">Hangboard</p>
-            {hangSets.length === 0 && (
-              <p className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
-                No hangs yet — add grip/edge/duration sets below.
-              </p>
-            )}
-            <HangboardSetsEditor
-              value={hangSets}
-              onChange={(v) => {
-                setHangSets(v)
-                setDirty(true)
-              }}
-            />
-          </div>
-        )}
       </div>
 
       <ExercisePicker

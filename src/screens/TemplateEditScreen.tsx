@@ -17,7 +17,6 @@ import { generateId } from '@/lib/id'
 import { templateExerciseFromExercise } from '@/lib/exerciseDefaults'
 import { ExercisePicker } from '@/components/ExercisePicker'
 import { IntervalsEditor } from '@/components/IntervalsEditor'
-import { HangboardSetsEditor } from '@/components/HangboardSetsEditor'
 import { TemplateExerciseRow, type TemplateRow } from '@/components/TemplateExerciseRow'
 import { CategoryMultiSelect } from '@/components/CategoryMultiSelect'
 import { PageHeader } from '@/components/PageHeader'
@@ -45,7 +44,6 @@ import type {
   CardioActivityType,
   Exercise,
   ExerciseCategory,
-  HangboardSet,
   IntervalBlock,
 } from '@/types'
 
@@ -77,7 +75,6 @@ export default function TemplateEditScreen() {
   const [durationMin, setDurationMin] = useState('')
   const [distanceKm, setDistanceKm] = useState('')
   const [intervals, setIntervals] = useState<IntervalBlock[]>([])
-  const [hangSets, setHangSets] = useState<HangboardSet[]>([])
   const [inited, setInited] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
@@ -100,7 +97,6 @@ export default function TemplateEditScreen() {
       )
       setDistanceKm(template.targetDistanceKm != null ? String(template.targetDistanceKm) : '')
       setIntervals(template.intervals ?? [])
-      setHangSets(template.hangboardSets ?? [])
       setInited(true)
     }
   }, [template, inited])
@@ -128,43 +124,26 @@ export default function TemplateEditScreen() {
     setDirty(true)
   }
 
-  // A73/F43 — hangboard exercises become hang rows seeded from their protocol
-  // config; everything else becomes an exercise row (duration-tracked exercises
-  // get a default hold time rather than reps).
+  // F51 — every exercise (hangboard grips included) becomes an exercise row;
+  // duration-tracked exercises get a default hold time rather than reps.
   function addExercises(exs: Exercise[]) {
-    const hangboardExs = exs.filter((e) => e.category === 'hangboard' && e.hangboard)
-    const regularExs = exs.filter((e) => !(e.category === 'hangboard' && e.hangboard))
-    if (regularExs.length) {
-      // A98 — seed each row from the exercise's saved defaults (falling back to
-      // the standard 3 × 10 · 90s when none are set).
-      setRows((rs) => [
-        ...rs,
-        ...regularExs.map((ex, i) => ({
-          uid: generateId(),
-          ...templateExerciseFromExercise(ex, rs.length + i),
-        })),
-      ])
-    }
-    if (hangboardExs.length) {
-      setHangSets((hs) => [
-        ...hs,
-        ...hangboardExs.map((ex, i) => ({
-          id: generateId(),
-          order: hs.length + i,
-          ...ex.hangboard!,
-        })),
-      ])
-    }
+    // A98 — seed each row from the exercise's saved defaults (falling back to the
+    // standard 3 × 10 · 90s when none are set).
+    setRows((rs) => [
+      ...rs,
+      ...exs.map((ex, i) => ({
+        uid: generateId(),
+        ...templateExerciseFromExercise(ex, rs.length + i),
+      })),
+    ])
     setDirty(true)
   }
 
   function save() {
     if (!template || categories.length === 0) return
-    // Deselecting Hangboard (or Climbing) drops the hangboard sets / climbingKind —
-    // confirm first so protocol data isn't lost silently.
-    const willDropHangs = (template.hangboardSets?.length ?? 0) > 0 && !showHangboard
+    // Deselecting Climbing drops the climbingKind — confirm first.
     const willDropClimbingKind = !!template.climbingKind && !categories.includes('climbing')
-    if (willDropHangs || willDropClimbingKind) {
+    if (willDropClimbingKind) {
       setConfirmDropClimbing(true)
       return
     }
@@ -191,6 +170,10 @@ export default function TemplateEditScreen() {
               defaultWeight: r.defaultWeight,
               defaultDistanceKm: r.defaultDistanceKm,
               defaultRestSeconds: r.defaultRestSeconds,
+              // F51 — preserve hangboard row params so a hang row round-trips.
+              defaultEdgeDepthMm: r.defaultEdgeDepthMm,
+              defaultIntraRestSeconds: r.defaultIntraRestSeconds,
+              defaultAbrahangReps: r.defaultAbrahangReps,
               notes: r.notes,
             }))
           : [],
@@ -202,7 +185,6 @@ export default function TemplateEditScreen() {
         // climbingKind is preserved only for climbing templates (drives the
         // climbing session screen); undefined otherwise.
         climbingKind: categories.includes('climbing') ? template.climbingKind : undefined,
-        hangboardSets: showHangboard ? hangSets.map((h, i) => ({ ...h, order: i })) : undefined,
         lastUsedAt: template.lastUsedAt,
       })
       toast.success('Saved')
@@ -398,23 +380,6 @@ export default function TemplateEditScreen() {
           </div>
         )}
 
-        {showHangboard && (
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-muted-foreground">Hangboard</p>
-            {hangSets.length === 0 && (
-              <p className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
-                No hangs yet — add grip/edge/duration sets below.
-              </p>
-            )}
-            <HangboardSetsEditor
-              value={hangSets}
-              onChange={(v) => {
-                setHangSets(v)
-                setDirty(true)
-              }}
-            />
-          </div>
-        )}
 
         {/* A77 — deletion lives at the bottom of the edit screen, reached only
             after deliberately entering edit mode. */}
