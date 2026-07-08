@@ -55,7 +55,8 @@ export type PRType = 'weight' | 'reps' | 'pace' | 'distance' | 'grade' | 'durati
 // fields are meaningful follows the exercise's trackingType (reps → reps/weight;
 // duration → durationSeconds; distance → distanceKm); all are optional and the
 // add flow falls back to the hardcoded defaults (3 sets · 10 reps · 90s rest)
-// for any that are unset. Hangboard exercises use `hangboard` (HangConfig) instead.
+// for any that are unset. F51 — a hangboard grip is a duration exercise, so it
+// carries a hold duration + rest here plus its own edge depth.
 export interface ExerciseDefaults {
   sets?: number
   reps?: number
@@ -63,6 +64,8 @@ export interface ExerciseDefaults {
   durationSeconds?: number
   distanceKm?: number
   restSeconds?: number
+  // F51 — hangboard grips: the edge depth (mm) pre-filled on a new hang row.
+  edgeDepthMm?: number
 }
 
 // F51 — the label shown on an exercise's weight/load input.

@@ -312,6 +312,7 @@ export default function ClimbingSessionScreen() {
           weight: r.weightKg,
           distanceKm: r.distanceKm,
           restSeconds: r.restSeconds,
+          edgeDepthMm: r.edgeDepthMm, // F51 — hangboard grip's default edge
           skipped: false,
         }
       }),

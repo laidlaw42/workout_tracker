@@ -38,6 +38,7 @@ describe('hangGripExercise', () => {
       supportsNegativeLoad: true,
       hasIntraRest: true,
       hasEdgeDepth: true,
+      defaults: { sets: 6, durationSeconds: 7, restSeconds: 180, edgeDepthMm: 20 },
       createdAt: 123,
     })
   })

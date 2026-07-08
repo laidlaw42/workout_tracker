@@ -55,6 +55,15 @@ describe('resolveExerciseDefaults — saved values', () => {
     expect(r.durationSeconds).toBe(12)
     expect(r.reps).toBeUndefined()
   })
+  it('carries a hangboard grip edge depth (holds only)', () => {
+    const r = resolveExerciseDefaults(
+      exercise('duration', { sets: 6, durationSeconds: 7, restSeconds: 180, edgeDepthMm: 20 }),
+    )
+    expect(r).toMatchObject({ sets: 6, durationSeconds: 7, restSeconds: 180, edgeDepthMm: 20 })
+  })
+  it('drops an edge depth on a non-duration exercise', () => {
+    expect(resolveExerciseDefaults(exercise('reps', { edgeDepthMm: 20 })).edgeDepthMm).toBeUndefined()
+  })
 })
 
 describe('templateExerciseFromExercise', () => {
@@ -73,6 +82,14 @@ describe('templateExerciseFromExercise', () => {
       defaultWeight: 60,
       defaultDistanceKm: undefined,
       defaultRestSeconds: 200,
+      defaultEdgeDepthMm: undefined,
     })
+  })
+  it('carries a hangboard grip edge depth onto the row', () => {
+    const t = templateExerciseFromExercise(
+      exercise('duration', { sets: 6, durationSeconds: 7, restSeconds: 180, edgeDepthMm: 20 }),
+      0,
+    )
+    expect(t).toMatchObject({ defaultDuration: 7, defaultRestSeconds: 180, defaultEdgeDepthMm: 20 })
   })
 })

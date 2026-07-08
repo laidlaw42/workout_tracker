@@ -1,4 +1,22 @@
-import type { Exercise, HangboardSet, LoggedHang, LoggedSet, TemplateExercise } from '@/types'
+import type {
+  Exercise,
+  ExerciseDefaults,
+  HangboardSet,
+  LoggedHang,
+  LoggedSet,
+  TemplateExercise,
+} from '@/types'
+
+// F51 — the science-backed starting protocol pre-filled when a grip is added to a
+// workout: a sub-maximal repeater — 7s hold × 6 sets, 180s rest, on a 20mm edge.
+// Matches the reference hangboard guidance (repeaters rest 180s; max hangs, which
+// the user dials up per grip, rest ~300s); tuned per grip in the row.
+export const HANG_GRIP_DEFAULTS: ExerciseDefaults = {
+  sets: 6,
+  durationSeconds: 7,
+  restSeconds: 180,
+  edgeDepthMm: 20,
+}
 
 // F51 — grip-as-exercise. In the unified model a hangboard "exercise" is a grip
 // position (Half crimp, Open hand, …); the protocol (hang duration, load, edge,
@@ -36,6 +54,7 @@ export function hangGripExercise(grip: string, now: number): Exercise {
     supportsNegativeLoad: true,
     hasIntraRest: true,
     hasEdgeDepth: true,
+    defaults: { ...HANG_GRIP_DEFAULTS },
     createdAt: now,
   }
 }

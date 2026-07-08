@@ -19,6 +19,7 @@ export interface ResolvedExerciseDefaults {
   weightKg?: number
   distanceKm?: number
   restSeconds: number
+  edgeDepthMm?: number
 }
 
 // Resolve an exercise's per-add default parameters (A98): its saved `defaults`
@@ -35,6 +36,9 @@ export function resolveExerciseDefaults(ex: Exercise): ResolvedExerciseDefaults 
     weightKg: timed || distance ? undefined : d?.weightKg,
     distanceKm: distance ? d?.distanceKm : undefined,
     restSeconds: d?.restSeconds ?? FALLBACK.restSeconds,
+    // F51 — hangboard grips carry an edge depth (holds only); no fallback, so a
+    // plain duration exercise stays edge-less.
+    edgeDepthMm: timed ? d?.edgeDepthMm : undefined,
   }
 }
 
@@ -51,5 +55,6 @@ export function templateExerciseFromExercise(ex: Exercise, order: number): Templ
     defaultWeight: r.weightKg,
     defaultDistanceKm: r.distanceKm,
     defaultRestSeconds: r.restSeconds,
+    defaultEdgeDepthMm: r.edgeDepthMm, // F51 — pre-fills the hang row's edge
   }
 }

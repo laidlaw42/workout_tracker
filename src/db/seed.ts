@@ -1,6 +1,6 @@
 import { db } from './db'
 import { deriveExerciseParams } from '@/lib/migrations'
-import { hangExerciseId, hangGripExercise } from '@/lib/hangboard'
+import { HANG_GRIP_DEFAULTS, hangExerciseId, hangGripExercise } from '@/lib/hangboard'
 import { GRIP_TYPES } from '@/lib/climbing'
 import type {
   Exercise,
@@ -699,6 +699,17 @@ export async function seedIfNeeded(): Promise<void> {
         if (rec.tags === undefined) rec.tags = []
       })
       await db.meta.put({ key: 'exerciseTagsBackfilled', value: true })
+    }
+
+    // F51 — grip exercises predating this change were seeded/migrated without any
+    // `defaults`, so adding one fresh fell back to the generic 30s/90s. Give every
+    // hangboard grip that still has no defaults the science-backed hang protocol
+    // (7s · 6 sets · 180s · 20mm edge); grips the user already tuned are untouched.
+    if (!(await getMeta<boolean>('hangGripDefaultsBackfilled'))) {
+      await db.exercises.toCollection().modify((e) => {
+        if (e.category === 'hangboard' && !e.defaults) e.defaults = { ...HANG_GRIP_DEFAULTS }
+      })
+      await db.meta.put({ key: 'hangGripDefaultsBackfilled', value: true })
     }
 
     // (The pre-F51 supportsAdditionalWeight backfill was retired: the v9 Dexie

@@ -15,6 +15,7 @@ export interface DefaultsDraft {
   duration: string
   distance: string
   rest: string
+  edge: string
 }
 
 export const EMPTY_DEFAULTS: DefaultsDraft = {
@@ -24,6 +25,7 @@ export const EMPTY_DEFAULTS: DefaultsDraft = {
   duration: '',
   distance: '',
   rest: '',
+  edge: '',
 }
 
 // Seed a draft from a saved ExerciseDefaults record.
@@ -36,6 +38,7 @@ export function defaultsToDraft(d?: ExerciseDefaults): DefaultsDraft {
     duration: s(d?.durationSeconds),
     distance: s(d?.distanceKm),
     rest: s(d?.restSeconds),
+    edge: s(d?.edgeDepthMm),
   }
 }
 
@@ -57,6 +60,8 @@ export function draftToDefaults(
     weightKg: tracking === 'reps' ? num(d.weight) : undefined,
     durationSeconds: tracking === 'duration' ? num(d.duration) : undefined,
     distanceKm: tracking === 'distance' ? num(d.distance) : undefined,
+    // Edge only shows for hangboard grips; blank elsewhere, so it drops out.
+    edgeDepthMm: tracking === 'duration' ? num(d.edge) : undefined,
   }
   return Object.values(draft).some((v) => v != null) ? draft : undefined
 }
@@ -65,9 +70,11 @@ interface Props {
   tracking: TrackingType
   value: DefaultsDraft
   onChange: (patch: Partial<DefaultsDraft>) => void
+  /** Show the edge-depth default (hangboard grips — duration + edge tracking). */
+  edge?: boolean
 }
 
-export function ExerciseDefaultsFields({ tracking, value, onChange }: Props) {
+export function ExerciseDefaultsFields({ tracking, value, onChange, edge = false }: Props) {
   return (
     <div className="space-y-2">
       <Label>Default parameters</Label>
@@ -116,6 +123,17 @@ export function ExerciseDefaultsFields({ tracking, value, onChange }: Props) {
               ariaLabel="default duration"
               min={1}
               placeholder="30"
+            />
+          </Field>
+        )}
+        {tracking === 'duration' && edge && (
+          <Field label="Edge (mm)">
+            <NumberStepper
+              value={value.edge}
+              onChange={(v) => onChange({ edge: v })}
+              ariaLabel="default edge depth"
+              min={1}
+              placeholder="20"
             />
           </Field>
         )}

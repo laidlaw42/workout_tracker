@@ -208,6 +208,7 @@ export function ExerciseFormSheet({
             tracking={tracking}
             value={defDraft}
             onChange={(patch) => setDefDraft((d) => ({ ...d, ...patch }))}
+            edge={cfgDraft.hasEdgeDepth}
           />
           <div className="space-y-2">
             <Label>Tags</Label>
