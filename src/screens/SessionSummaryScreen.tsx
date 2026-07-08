@@ -6,7 +6,6 @@ import { getConfettiEnabled } from '@/lib/prefs'
 import { getTheme, THEME_PREVIEWS } from '@/lib/theme'
 import {
   getCardioForSession,
-  getHangsForSession,
   getPRsForSession,
   getRoutesForSession,
   getSessionById,
@@ -31,7 +30,7 @@ import { assertNever } from '@/lib/assert'
 import { tickIndicator } from '@/lib/tickTypes'
 import { useTickDisplayStyle } from '@/hooks/useTickSymbol'
 import { cn } from '@/lib/utils'
-import type { ClimbingRoute, LoggedCardio, LoggedHang, LoggedSet, PersonalRecord } from '@/types'
+import type { ClimbingRoute, LoggedCardio, LoggedSet, PersonalRecord } from '@/types'
 
 // canvas-confetti only parses hex colours; theme previews may be oklch (the
 // default dark/light themes). Resolve any CSS colour to sRGB hex by painting a
@@ -80,7 +79,6 @@ export default function SessionSummaryScreen() {
   const sets = useLiveQuery(() => getSetsForSession(id), [id]) ?? []
   const cardio = useLiveQuery(() => getCardioForSession(id), [id])
   const routes = useLiveQuery(() => getRoutesForSession(id), [id]) ?? []
-  const hangs = useLiveQuery(() => getHangsForSession(id), [id]) ?? []
   const prs = useLiveQuery(() => getPRsForSession(id), [id]) ?? []
 
   // Fire the celebration once, when the session first loads (A41) — unless the
@@ -114,7 +112,7 @@ export default function SessionSummaryScreen() {
     session,
     deriveSessionKind(session, {
       routes,
-      hasHang: hangs.length > 0,
+      hasHang: false,
       hasSet: sets.length > 0,
       cardioActivity: cardio?.activityType,
     }),
@@ -146,10 +144,10 @@ export default function SessionSummaryScreen() {
         )}
 
         {session.type === 'strength' && <StrengthSummary sets={sets} />}
-        {session.type === 'mixed' && <MixedSummary sets={sets} hangs={hangs} />}
+        {session.type === 'mixed' && <MixedSummary sets={sets} />}
         {session.type === 'cardio' && <CardioSummary cardio={cardio} />}
         {session.type === 'climbing' && (
-          <ClimbingSummary routes={routes} hangCount={hangs.length} setCount={sets.length} />
+          <ClimbingSummary routes={routes} setCount={sets.length} />
         )}
       </div>
 
@@ -218,17 +216,14 @@ function StrengthSummary({ sets }: { sets: LoggedSet[] }) {
 
 // A66 — a mixed session's exercises span types, so summarise by exercise/set
 // count rather than strength volume (which is meaningless across cardio/holds).
-function MixedSummary({ sets, hangs }: { sets: LoggedSet[]; hangs: LoggedHang[] }) {
+function MixedSummary({ sets }: { sets: LoggedSet[] }) {
   const byExercise = new Map<string, number>()
   for (const s of sets) byExercise.set(s.exerciseName, (byExercise.get(s.exerciseName) ?? 0) + 1)
-  const byGrip = new Map<string, number>()
-  for (const h of hangs) byGrip.set(h.gripType, (byGrip.get(h.gripType) ?? 0) + 1)
   return (
     <div className="space-y-4">
-      <div className={cn('grid gap-2', hangs.length > 0 ? 'grid-cols-3' : 'grid-cols-2')}>
+      <div className="grid grid-cols-2 gap-2">
         <Stat label="Exercises" value={byExercise.size} />
         <Stat label="Sets" value={sets.length} />
-        {hangs.length > 0 && <Stat label="Hangs" value={hangs.length} />}
       </div>
       {byExercise.size > 0 && (
         <div className="space-y-1">
@@ -237,19 +232,6 @@ function MixedSummary({ sets, hangs }: { sets: LoggedSet[]; hangs: LoggedHang[] 
               <span className="truncate">{name}</span>
               <span className="text-muted-foreground">
                 {count} set{count === 1 ? '' : 's'}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-      {byGrip.size > 0 && (
-        <div className="space-y-1">
-          <p className="text-sm font-medium text-muted-foreground">Hangboard</p>
-          {[...byGrip.entries()].map(([grip, count]) => (
-            <div key={grip} className="flex justify-between rounded-lg bg-card px-3 py-2 text-sm">
-              <span className="truncate">{grip}</span>
-              <span className="text-muted-foreground">
-                {count} hang{count === 1 ? '' : 's'}
               </span>
             </div>
           ))}
@@ -288,11 +270,9 @@ function CardioSummary({ cardio }: { cardio: LoggedCardio | undefined }) {
 
 function ClimbingSummary({
   routes,
-  hangCount,
   setCount,
 }: {
   routes: ClimbingRoute[]
-  hangCount: number
   setCount: number
 }) {
   const tickStyle = useTickDisplayStyle()
@@ -302,7 +282,6 @@ function ClimbingSummary({
   for (const r of routes) tickCounts.set(r.tick, (tickCounts.get(r.tick) ?? 0) + 1)
 
   const stats: { label: string; value: ReactNode }[] = []
-  if (hangCount > 0) stats.push({ label: 'Hangs', value: hangCount })
   if (setCount > 0) stats.push({ label: 'Sets', value: setCount })
   if (routes.length > 0 || stats.length === 0) stats.push({ label: 'Routes', value: routes.length })
   // Total metres climbed (A44) — only when at least one route logged a height.

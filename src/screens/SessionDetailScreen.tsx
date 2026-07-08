@@ -5,7 +5,6 @@ import { Check, MapPin, Pencil, Play, Plus, Repeat, Save, Trash2 } from 'lucide-
 import { useLiveQuery } from '@/hooks/useDb'
 import { useUnfinishedWorkoutGuard } from '@/hooks/useUnfinishedWorkoutGuard'
 import {
-  addHang,
   addSet,
   createTemplateFromSession,
   deleteRoute,
@@ -13,7 +12,6 @@ import {
   deleteSet,
   getAllExercises,
   getCardioForSession,
-  getHangsForSession,
   getRoutesForSession,
   getSessionById,
   getSetsForSession,
@@ -27,7 +25,6 @@ import {
 } from '@/db/helpers'
 import { setWeightLabel } from '@/lib/bodyweight'
 import { ExercisePicker } from '@/components/ExercisePicker'
-import { LoggedHangList } from '@/components/LoggedHangList'
 import { LogRouteSheet } from '@/components/LogRouteSheet'
 import { SessionLocationPills } from '@/components/SessionLocationPills'
 import { PageHeader } from '@/components/PageHeader'
@@ -65,14 +62,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { formatPace, formatWorkoutLength, workoutDurationSeconds } from '@/lib/formatDuration'
-import type {
-  ClimbingRoute,
-  ClimbingStyle,
-  Exercise,
-  LoggedCardio,
-  LoggedHang,
-  LoggedSet,
-} from '@/types'
+import type { ClimbingRoute, ClimbingStyle, Exercise, LoggedCardio, LoggedSet } from '@/types'
 
 function fullDate(ts: number): string {
   return new Date(ts).toLocaleDateString(undefined, {
@@ -92,7 +82,6 @@ export default function SessionDetailScreen() {
   const sets = useLiveQuery(() => getSetsForSession(id), [id]) ?? []
   const cardio = useLiveQuery(() => getCardioForSession(id), [id])
   const routes = useLiveQuery(() => getRoutesForSession(id), [id]) ?? []
-  const hangs = useLiveQuery(() => getHangsForSession(id), [id]) ?? []
   // Exercise metadata (A66) — used to render each mixed-session exercise's sets
   // in the right variant (reps / hold / cardio).
   const exercises = useLiveQuery(() => getAllExercises(), []) ?? []
@@ -163,32 +152,14 @@ export default function SessionDetailScreen() {
 
   async function handleAddExercises(exs: Exercise[]) {
     for (const ex of exs) {
-      // A73/F43 — a hangboard exercise logs a hang, not a blank strength set, so
-      // it lands in the Hangboard section carrying its protocol (grip/edge/…).
-      if (ex.category === 'hangboard' && ex.hangboard) {
-        const hb = ex.hangboard
-        await addHang({
-          sessionId: id,
-          gripType: hb.gripType,
-          edgeDepthMm: hb.edgeDepthMm,
-          setNumber: 1,
-          targetDurationSeconds: hb.durationSeconds,
-          weightKg: hb.weightKg,
-          hangType: hb.hangType,
-          abrahangReps: hb.abrahangReps,
-          skipped: false,
-          loggedAt: Date.now(),
-        })
-      } else {
-        await addSet({
-          sessionId: id,
-          exerciseId: ex.id,
-          exerciseName: ex.name,
-          setNumber: 1,
-          skipped: false,
-          loggedAt: Date.now(),
-        })
-      }
+      await addSet({
+        sessionId: id,
+        exerciseId: ex.id,
+        exerciseName: ex.name,
+        setNumber: 1,
+        skipped: false,
+        loggedAt: Date.now(),
+      })
     }
   }
 
@@ -249,7 +220,7 @@ export default function SessionDetailScreen() {
     session,
     deriveSessionKind(session, {
       routes,
-      hasHang: hangs.length > 0,
+      hasHang: false,
       hasSet: sets.length > 0,
       cardioActivity: cardio?.activityType,
     }),
@@ -286,7 +257,7 @@ export default function SessionDetailScreen() {
     (session.type === 'strength' ||
       session.type === 'mixed' ||
       session.type === 'cardio' ||
-      (session.type === 'climbing' && (sets.length > 0 || hangs.length > 0)))
+      (session.type === 'climbing' && sets.length > 0))
 
   return (
     <div className="min-h-dvh pb-6">
@@ -421,7 +392,6 @@ export default function SessionDetailScreen() {
         {session.type === 'mixed' && (
           <MixedDetail
             sets={sets}
-            hangs={hangs}
             exById={exById}
             editing={editing}
             onAddExercise={() => setPickerOpen(true)}
@@ -431,7 +401,6 @@ export default function SessionDetailScreen() {
         {session.type === 'climbing' && (
           <ClimbingDetail
             routes={routes}
-            hangs={hangs}
             sets={sets}
             editing={editing}
             venue={venue}
@@ -719,19 +688,17 @@ function mixedSetLabel(s: LoggedSet, ex?: Exercise): string {
 
 function MixedDetail({
   sets,
-  hangs,
   exById,
   editing,
   onAddExercise,
 }: {
   sets: LoggedSet[]
-  hangs: LoggedHang[]
   exById: Map<string, Exercise>
   editing: boolean
   onAddExercise: () => void
 }) {
   const groups = groupByExercise(sets)
-  if (sets.length === 0 && hangs.length === 0 && !editing) {
+  if (sets.length === 0 && !editing) {
     return <p className="text-sm text-muted-foreground">No exercises were logged.</p>
   }
   return (
@@ -747,7 +714,6 @@ function MixedDetail({
           ))}
         </div>
       ))}
-      <LoggedHangList hangs={hangs} />
       {editing && (
         <Button variant="outline" className="w-full" onClick={onAddExercise}>
           <Plus className="size-4" /> Add exercise
@@ -856,7 +822,6 @@ const DETAIL_STYLE_LABELS: Record<ClimbingStyle, string> = {
 
 function ClimbingDetail({
   routes,
-  hangs,
   sets,
   editing,
   venue,
@@ -868,7 +833,6 @@ function ClimbingDetail({
   onDeleteRoute,
 }: {
   routes: ClimbingRoute[]
-  hangs: LoggedHang[]
   sets: LoggedSet[]
   editing: boolean
   venue?: 'gym' | 'crag' | 'board'
@@ -888,7 +852,6 @@ function ClimbingDetail({
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-2">
         <Stat label="Routes" value={routes.length} />
-        {hangs.length > 0 && <Stat label="Hangs" value={hangs.length} />}
         {sets.length > 0 && <Stat label="Sets" value={sets.length} />}
       </div>
 
@@ -927,8 +890,6 @@ function ClimbingDetail({
           </div>
         )
       )}
-
-      <LoggedHangList hangs={hangs} />
 
       {hasRoutes && (
         <div className="space-y-2">
