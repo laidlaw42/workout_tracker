@@ -5,10 +5,10 @@ import { HBarChart } from '@/components/charts/HBarChart'
 import { useLiveQuery } from '@/hooks/useDb'
 import {
   getAllExercises,
-  getAllHangs,
   getAllRoutes,
   getCardioByActivity,
   getExerciseIdsWithSets,
+  getHangboardSets,
   getPRsForExercise,
   getSetsForExercise,
 } from '@/db/helpers'
@@ -26,7 +26,7 @@ import { dayKey } from '@/lib/date'
 import { formatPace } from '@/lib/formatDuration'
 import { CLIMB_CHARACTER_LABEL, isCleanTick, vGradeFromIndex, vGradeIndex } from '@/lib/climbing'
 import { gradeToColor, vGradeToColor } from '@/lib/gradeColors'
-import type { CardioActivityType, ClimbingRoute, LoggedHang, LoggedSet } from '@/types'
+import type { CardioActivityType, ClimbingRoute, LoggedSet } from '@/types'
 
 export default function ProgressScreen() {
   return (
@@ -500,16 +500,16 @@ function ClimbingTab() {
 // --- Hangboard --------------------------------------------------------------
 
 function bestHangPerDay(
-  hangs: LoggedHang[],
+  sets: LoggedSet[],
   metric: 'weight' | 'duration',
 ): { date: string; value: number }[] {
   const byDay = new Map<string, { ts: number; value: number }>()
-  for (const h of hangs) {
-    const value = metric === 'weight' ? h.weightKg : (h.actualDurationSeconds ?? h.targetDurationSeconds)
+  for (const s of sets) {
+    const value = metric === 'weight' ? s.additionalWeightKg : s.durationSeconds
     if (value == null) continue
-    const key = dayKey(h.loggedAt)
+    const key = dayKey(s.loggedAt)
     const cur = byDay.get(key)
-    if (!cur || value > cur.value) byDay.set(key, { ts: h.loggedAt, value })
+    if (!cur || value > cur.value) byDay.set(key, { ts: s.loggedAt, value })
   }
   return [...byDay.values()]
     .sort((a, b) => a.ts - b.ts)
@@ -520,15 +520,16 @@ function bestHangPerDay(
 }
 
 function HangboardView() {
-  const hangs = useLiveQuery(() => getAllHangs(), []) ?? []
-  const grips = useMemo(() => [...new Set(hangs.map((h) => h.gripType))].sort(), [hangs])
+  // F51 — hangs are logged sets for grip-as-exercise; group by grip (exerciseName).
+  const sets = useLiveQuery(() => getHangboardSets(), []) ?? []
+  const grips = useMemo(() => [...new Set(sets.map((s) => s.exerciseName))].sort(), [sets])
   const [grip, setGrip] = useState('')
   const [metric, setMetric] = useState<'weight' | 'duration'>('weight')
   const prs =
     useLiveQuery(() => (grip ? getPRsForExercise(grip) : Promise.resolve([])), [grip]) ?? []
   const hangPRs = prs.filter((p) => p.prType === 'weight' || p.prType === 'duration')
   const data = bestHangPerDay(
-    hangs.filter((h) => h.gripType === grip),
+    sets.filter((s) => s.exerciseName === grip),
     metric,
   )
   const unit = metric === 'weight' ? 'kg' : 's'

@@ -1033,6 +1033,17 @@ export async function getAllHangs(): Promise<LoggedHang[]> {
   return run('getAllHangs', () => db.hangs.toArray())
 }
 
+// F51 — hangboard progress reads logged sets for hangboard-category exercises
+// (grip-as-exercise), replacing the LoggedHang table.
+export async function getHangboardSets(): Promise<LoggedSet[]> {
+  return run('getHangboardSets', async () => {
+    const hangIds = new Set(
+      (await db.exercises.where('category').equals('hangboard').toArray()).map((e) => e.id),
+    )
+    return (await db.sets.toArray()).filter((s) => hangIds.has(s.exerciseId) && !s.skipped)
+  })
+}
+
 // Classify a batch of sessions by their logged content, so cards can show the
 // right subtype emoji (route style / hangboard / climbing workout / cardio
 // activity). Loads only the tables relevant to the sessions passed in.
