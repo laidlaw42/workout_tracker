@@ -141,7 +141,7 @@ A new PR is detected when:
 - **Pace PR**: `avgPaceSecondsPerKm < previousBestPace` (lower is better)
 - **Distance PR**: `distanceKm > previousBestDistance`
 - **Grade PR (climbing)**: a clean tick (see `CLEAN_TICKS`) at a grade higher than any previous clean tick **for the same `climbingStyle`** — only standard V/Ewbanks-graded routes count; gym-grade routes are excluded (their 0–35 scale isn't comparable)
-- **Bodyweight-loadable exercises** (`supportsAdditionalWeight`): the weight PR compares `additionalWeightKg` alone (bodyweight isn't tracked in v1)
+- **Bodyweight-loadable exercises** (`supportsAdditionalWeight`): `additionalWeightKg` is a signed load — **+** added (weighted pull-up/dip) or **−** assisted (band/machine/foot). The weight PR compares the added load alone and only fires on positive load (assistance is a progression *toward* bodyweight, not a PR); bodyweight isn't tracked in v1
 - **Hangboard** (per grip type, keyed by `exerciseName` = grip): a **weight** PR for heaviest added load (`weightKg > 0`) and a **duration** PR for longest hang — `checkAndSavePR` is called after each logged hang
 
 Grade PRs are stored keyed by `climbingStyle` (not exercise): `value` is the numeric grade — V-grade sort index (VB = -1 … V17 = 17) with `unit: 'vgrade'` for bouldering, or the Ewbanks number with `unit: 'ewbanks'` for top_rope/lead. Bouldering and roped PRs are therefore never compared against each other.

@@ -1,4 +1,6 @@
 import { GRIP_TYPES } from '@/lib/climbing'
+import { getWeightStep } from '@/lib/prefs'
+import { NumberStepper } from '@/components/NumberStepper'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { Input } from '@/components/ui/input'
 import {
@@ -99,14 +101,15 @@ export function HangConfigFields({ value: h, onChange: patch }: Props) {
         />
         <label className="flex flex-col gap-1">
           <span className="text-xs text-muted-foreground">Weight ± (kg)</span>
-          <Input
-            inputMode="numeric"
-            className="h-9"
-            value={h.weightKg}
-            onChange={(e) => {
-              const raw = e.target.value.replace(/[^0-9-]/g, '')
-              patch({ weightKg: raw === '' || raw === '-' ? 0 : Number(raw) })
-            }}
+          {/* No `min`, so the −/+ stepper (and typing) allow assisted hangs below
+              zero — feet on the ground, a pulley, or a resistance band. */}
+          <NumberStepper
+            value={String(h.weightKg)}
+            ariaLabel="hang weight"
+            step={getWeightStep()}
+            inputMode="decimal"
+            inputClassName="h-9"
+            onChange={(v) => patch({ weightKg: v.trim() === '' || v.trim() === '-' ? 0 : Number(v) })}
           />
         </label>
       </div>

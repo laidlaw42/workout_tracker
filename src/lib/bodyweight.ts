@@ -21,3 +21,15 @@ export function setBodyweight(kg: number | null): void {
     /* ignore storage errors */
   }
 }
+
+// Weight label for a logged (or in-progress) set, shared by the session card,
+// the strength history table, and the mixed-session detail. A bodyweight move
+// carrying an external load reads relative to bodyweight — added ("BW +10 kg")
+// or assisted with a band/machine/foot ("BW -20 kg", A99); a plain barbell move
+// reads as its bar weight ("60 kg"); an unloaded set reads "BW".
+export function setWeightLabel(s: { weightKg?: number; additionalWeightKg?: number }): string {
+  if (s.additionalWeightKg != null && s.additionalWeightKg !== 0) {
+    return `BW ${s.additionalWeightKg > 0 ? '+' : ''}${s.additionalWeightKg} kg`
+  }
+  return s.weightKg != null ? `${s.weightKg} kg` : 'BW'
+}

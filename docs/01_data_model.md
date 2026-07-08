@@ -176,7 +176,7 @@ export interface LoggedSet {
   targetReps?: number
   actualReps?: number
   weightKg?: number
-  additionalWeightKg?: number       // extra load on a bodyweight movement (pull-up, dip, …)
+  additionalWeightKg?: number       // load on a bodyweight movement (pull-up, dip, …): + added, − assisted
   restTakenSeconds?: number
   durationSeconds?: number          // for timed exercises
   distanceKm?: number               // for a cardio exercise logged in a mixed session (A66)

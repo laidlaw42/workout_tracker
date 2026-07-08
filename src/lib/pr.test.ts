@@ -30,4 +30,9 @@ describe('weightPrValue', () => {
     expect(weightPrValue(true, { additionalWeightKg: 0 })).toBeUndefined()
     expect(weightPrValue(true, { additionalWeightKg: undefined, weightKg: 100 })).toBeUndefined()
   })
+  it('assisted (negative) load never sets a weight PR', () => {
+    // An assisted rep is a progression *toward* bodyweight, not a strength PR.
+    expect(weightPrValue(true, { additionalWeightKg: -20 })).toBeUndefined()
+    expect(weightPrValue(true, { additionalWeightKg: -5, weightKg: 999 })).toBeUndefined()
+  })
 })

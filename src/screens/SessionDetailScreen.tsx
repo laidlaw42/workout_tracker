@@ -25,6 +25,7 @@ import {
   updateSession,
   updateSet,
 } from '@/db/helpers'
+import { setWeightLabel } from '@/lib/bodyweight'
 import { ExercisePicker } from '@/components/ExercisePicker'
 import { LoggedHangList } from '@/components/LoggedHangList'
 import { LogRouteSheet } from '@/components/LogRouteSheet'
@@ -641,7 +642,7 @@ function StrengthDetail({
                   {exSets.map((s) => (
                     <tr key={s.id} className="border-t border-border">
                       <td className="py-1.5">{s.setNumber}</td>
-                      <td className="py-1.5">{s.weightKg != null ? `${s.weightKg} kg` : 'BW'}</td>
+                      <td className="py-1.5">{setWeightLabel(s)}</td>
                       <td className="py-1.5">{s.actualReps ?? '—'}</td>
                     </tr>
                   ))}
@@ -711,12 +712,7 @@ function mixedSetLabel(s: LoggedSet, ex?: Exercise): string {
   if (ex?.trackingType === 'duration' || (s.durationSeconds != null && s.actualReps == null)) {
     return `${s.durationSeconds ?? 0}s`
   }
-  const w = s.additionalWeightKg
-    ? `BW +${s.additionalWeightKg} kg`
-    : s.weightKg != null
-      ? `${s.weightKg} kg`
-      : 'BW'
-  return `${w} × ${s.actualReps ?? '—'}`
+  return `${setWeightLabel(s)} × ${s.actualReps ?? '—'}`
 }
 
 function MixedDetail({

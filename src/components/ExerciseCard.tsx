@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowLeftRight, Check, Minus, Pencil, Plus } from 'lucide-react'
-import { getBodyweight } from '@/lib/bodyweight'
+import { getBodyweight, setWeightLabel } from '@/lib/bodyweight'
 import { getWeightStep } from '@/lib/prefs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -149,13 +149,7 @@ export function ExerciseCard({
                   ? `${Math.round((s.durationSeconds ?? 0) / 60)} min${s.distanceKm != null ? ` · ${s.distanceKm} km` : ''}`
                   : s.durationSeconds != null
                     ? `${s.durationSeconds}s`
-                    : `${
-                        s.additionalWeightKg
-                          ? `BW +${s.additionalWeightKg} kg`
-                          : s.weightKg != null
-                            ? `${s.weightKg} kg`
-                            : 'BW'
-                      } × ${s.actualReps ?? '—'}`}
+                    : `${setWeightLabel(s)} × ${s.actualReps ?? '—'}`}
               </span>
             </div>
           ))}
@@ -382,7 +376,12 @@ function SetRow({
   const wNum = weight.trim() === '' ? null : Number(weight)
   const aNum = addl.trim() === '' ? null : Number(addl)
   const weightPct = bw != null && wNum != null && Number.isFinite(wNum) && wNum > 0 ? Math.round((wNum / bw) * 100) : null
-  const addlPct = bw != null && aNum != null && Number.isFinite(aNum) && aNum > 0 ? Math.round(((bw + aNum) / bw) * 100) : null
+  // Assisted (negative) load counts too: net effort is (bodyweight + load) as a %
+  // of bodyweight, so a −20 kg assist on a 70 kg climber reads ~71%.
+  const addlPct =
+    bw != null && aNum != null && Number.isFinite(aNum) && aNum !== 0 && bw + aNum > 0
+      ? Math.round(((bw + aNum) / bw) * 100)
+      : null
 
   function doLog() {
     setWarnWeight(false)
@@ -391,7 +390,7 @@ function SetRow({
     const r = reps.trim() === '' ? undefined : Number(reps)
     onLog({
       weightKg: w != null && !Number.isNaN(w) ? w : undefined,
-      additionalWeightKg: a != null && !Number.isNaN(a) && a > 0 ? a : undefined,
+      additionalWeightKg: a != null && !Number.isNaN(a) && a !== 0 ? a : undefined,
       actualReps: r != null && !Number.isNaN(r) ? r : undefined,
     })
     setWeight(seedWeight())
@@ -461,12 +460,13 @@ function SetRow({
         </div>
       )}
       {supportsAdditionalWeight && (
-        <SetField label="Additional (kg)">
+        // Signed: + for added load (weighted pull-up/dip), − for assisted
+        // (band/machine/foot). No `min`, so the stepper and field allow negatives.
+        <SetField label="Load ± (kg)">
           <NumberStepper
             value={addl}
             ariaLabel="additional weight"
             step={weightStep}
-            min={0}
             inputMode="decimal"
             placeholder="0"
             onChange={markDirty(setAddl)}
