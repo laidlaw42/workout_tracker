@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate, useNavigationType, useSearchParams } from 'react-router-dom'
 import { Dumbbell, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useTagColours } from '@/hooks/useTagColours'
@@ -41,23 +41,50 @@ function matchesFilter(t: WorkoutTemplate, f: Filter): boolean {
   return templateCategories(t).includes(f)
 }
 
+// Remembers the Library's filter / tab / scroll across navigation, so tapping into
+// a workout and pressing back restores what you were looking at instead of resetting
+// to All + top. Module-level: survives unmount within the SPA session (a full reload
+// clears it). Scroll is only restored on a back navigation (POP), not a fresh visit.
+const libState = {
+  view: 'workouts' as 'workouts' | 'exercises',
+  filter: 'all' as Filter,
+  activeTag: null as string | null,
+  favOnly: false,
+  scrollY: 0,
+}
+
 export default function LibraryScreen() {
   const navigate = useNavigate()
+  const navType = useNavigationType() // 'POP' on a back/forward navigation
   const [params] = useSearchParams()
   const initial = params.get('type')
-  const [filter, setFilter] = useState<Filter>(() => {
-    // A95 — Mixed is no longer a tab, so a legacy ?type=mixed link falls back to All.
-    return initial === 'strength' ||
-      initial === 'cardio' ||
-      initial === 'climbing' ||
-      initial === 'hangboard' ||
-      initial === 'rehab'
-      ? initial
-      : 'all'
-  })
-  const [view, setView] = useState<'workouts' | 'exercises'>('workouts')
-  const [activeTag, setActiveTag] = useState<string | null>(null)
-  const [favOnly, setFavOnly] = useState(false)
+  // A quick-start link (?type=…, always a fresh PUSH) sets the filter + Workouts
+  // tab; otherwise restore the remembered filter/tab (e.g. returning from a
+  // workout). A95 — a legacy ?type=mixed falls back to All.
+  const fromParam =
+    initial === 'strength' ||
+    initial === 'cardio' ||
+    initial === 'climbing' ||
+    initial === 'hangboard' ||
+    initial === 'rehab'
+      ? (initial as Filter)
+      : null
+  const [filter, setFilter] = useState<Filter>(() => fromParam ?? libState.filter)
+  const [view, setView] = useState<'workouts' | 'exercises'>(() =>
+    fromParam ? 'workouts' : libState.view,
+  )
+  const [activeTag, setActiveTag] = useState<string | null>(() => libState.activeTag)
+  const [favOnly, setFavOnly] = useState(() => libState.favOnly)
+
+  // Remember the UI state so a later back navigation restores it.
+  useEffect(() => {
+    libState.view = view
+    libState.filter = filter
+    libState.activeTag = activeTag
+    libState.favOnly = favOnly
+  }, [view, filter, activeTag, favOnly])
+  // Save the scroll position when leaving the screen (tapping into a workout).
+  useEffect(() => () => void (libState.scrollY = window.scrollY), [])
 
   const allTemplates = useLiveQuery(() => getAllTemplates(), [])
   const tagColour = useTagColours()
@@ -79,6 +106,16 @@ export default function LibraryScreen() {
       : inCategory.filter(
           (t) => (!activeTag || t.tags.includes(activeTag)) && (!favOnly || t.favorite),
         )
+
+  // Restore the scroll position on a back navigation, once the list has data so
+  // the page is tall enough for the offset to land (a fresh visit stays at top).
+  const restoredRef = useRef(false)
+  useLayoutEffect(() => {
+    if (restoredRef.current || navType !== 'POP') return
+    if (view === 'workouts' && filteredTemplates === undefined) return
+    restoredRef.current = true
+    if (libState.scrollY > 0) window.scrollTo(0, libState.scrollY)
+  }, [navType, view, filteredTemplates])
 
   return (
     <div className="space-y-4 p-4 pt-[calc(env(safe-area-inset-top)+1rem)]">
