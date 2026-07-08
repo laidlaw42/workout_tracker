@@ -162,11 +162,11 @@ Plans live in the `plannedWorkouts` table; finishing a session best-effort links
 
 **Purpose:** Log a climbing session (`type: 'climbing'`). Two flavours from one screen:
 - **Plain** (gym/crag/board quick-start): route logging only.
-- **Climbing-workout** template (or a repeat session): a strength-style Exercises section (with the `RestTimer` between sets) **plus** optional hangs (`HangCard`s, tracked per `hangSetId`) and routes.
+- **Climbing-workout** template (or a repeat session): a strength-style Exercises section (with the `RestTimer` between sets) **plus** routes. Hangs are ordinary duration exercises in that section (F51 — grip-as-exercise), rendered by `ExerciseCard`; there is no separate hang card.
 
-Hangboard-only training sessions are typed `'mixed'` and log on the training screen (A73), not here — the shared `useTimedSetEngine` hook drives the set/hang timers on both.
+Hangboard-only training sessions are typed `'mixed'` and log on the training screen (A73), not here — the shared `useTimedSetEngine` hook drives the set timers (incl. the Abrahang intra-rest runner) on both.
 
-The `WorkoutSession` (`type: 'climbing'`) already exists before this screen loads. Routes/hangs link to it via `sessionId`; there is no separate climbing-session record. Optional `gym`/`crag`/`board` are edited on the session itself. The elapsed timer runs for both flavours.
+The `WorkoutSession` (`type: 'climbing'`) already exists before this screen loads. Routes link to it via `sessionId`; exercises/hangs log as `LoggedSet`s. There is no separate climbing-session record. Optional `gym`/`crag`/`board` are edited on the session itself. The elapsed timer runs for both flavours.
 
 **Layout:**
 1. Header: "Climbing session", elapsed timer, "Finish" button

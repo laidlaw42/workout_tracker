@@ -13,7 +13,7 @@ export type WallAngle = 'slab' | 'vertical' | 'overhang'  // legacy; superseded 
 export type ClimbCharacter = 'slab' | 'vertical' | 'overhang' | 'roof' | 'cave' | 'crack'  // A45
 export type TrackingType = 'reps' | 'duration' | 'distance'
 // Discipline bucket an exercise belongs to (A36); 'rehab' is discipline-agnostic (A42);
-// 'hangboard' (A73) exercises carry a hangboard protocol and log as LoggedHang.
+// 'hangboard' (A73) exercises are grips (F51); a hang is a duration set (LoggedSet).
 export type ExerciseCategory = 'strength' | 'cardio' | 'climbing' | 'rehab' | 'hangboard'
 // A94 — the disciplines a template can span (`categories`, multi-select). NOT
 // DisciplineType: there is no 'mixed' category (a multi-category template *is* the
@@ -56,13 +56,31 @@ export interface Exercise {
   trackingType: TrackingType
   tags: string[]                    // free-form, lower-cased on save
   notes?: string
-  supportsAdditionalWeight?: boolean // bodyweight move that can carry extra load (pull-up, dip, …) → set logging shows a "+kg" field
-  hangboard?: HangConfig            // A73 — hangboard exercises carry a default protocol; seeds a HangboardSet when added
+  // F51 — per-exercise tracking config; set-row field visibility is a pure function
+  // of these (never inferred from name/category). Derived on migration (v9) from the
+  // old supportsAdditionalWeight flag; the exercise form exposes them as toggles.
+  hasWeight?: boolean               // show a weight/load input on the set row
+  weightLabel?: 'weight' | 'added_load' | 'load'  // its label
+  isBodyweight?: boolean            // load % is (BW + load)/BW; load stored in additionalWeightKg
+  supportsNegativeLoad?: boolean    // allow negative (assisted) load
+  hasIntraRest?: boolean            // work/rest cycles within a set (Abrahang); shows reps + intra-rest inputs
+  hasEdgeDepth?: boolean            // show an edge-depth (mm) input (hangboard grips)
+  hangboard?: HangConfig            // @deprecated pre-F51 hangboard protocol; unused (grip-as-exercise)
   defaults?: ExerciseDefaults       // A98 — pre-fill values when adding to a template/session
   favorite?: boolean                // heart toggle + library favourites filter
   createdAt: number                 // timestamp ms
 }
 ```
+
+> **F51 — hangboard is unified.** A hangboard "exercise" is a **grip** (Half crimp,
+> Open hand, …, id `ex_hang_*`); the protocol (hang duration, load, edge, sets, and
+> for Abrahang the reps + intra-rest) lives on the template row / logged set, not the
+> exercise. A hang is a standard **duration** exercise rendered by the ordinary set
+> row (`ExerciseCard`) with edge/intra-rest fields enabled by config, and logged as a
+> **`LoggedSet`** — not a `LoggedHang`. Per-grip PRs flow through the standard
+> `exerciseName`-keyed PR path. `HangboardSet`, `LoggedHang`, `WorkoutTemplate.hangboardSets`,
+> `Exercise.hangboard`, and `plannedHangs` are retained only for the v10/v11 migration
+> and backup rollback.
 
 ### Workout templates
 
@@ -77,6 +95,10 @@ export interface TemplateExercise {
   defaultWeight?: number            // kg
   defaultDistanceKm?: number        // target distance for a distance-tracked row (A98)
   defaultRestSeconds: number
+  // F51 — hangboard row params (a hang is a duration row with these set)
+  defaultEdgeDepthMm?: number
+  defaultIntraRestSeconds?: number  // Abrahang: rest between reps within a set
+  defaultAbrahangReps?: number      // Abrahang: reps within a set
   notes?: string
 }
 
@@ -96,13 +118,15 @@ export interface WorkoutTemplate {
   intervals?: IntervalBlock[]
   // climbing-only fields
   climbingKind?: ClimbingKind       // 'hangboard' | 'workout'
-  hangboardSets?: HangboardSet[]
+  hangboardSets?: HangboardSet[]    // @deprecated pre-F51; folded into `exercises` as grip rows (v10)
   favorite?: boolean                // heart toggle + library favourites filter
   lastUsedAt?: number
   createdAt: number
 }
 
-// A hangboard protocol row (one grip position × N hangs).
+// @deprecated pre-F51 hangboard protocol row. Retained only so the v10/v11
+// migration and backup rollback can read legacy records; new content uses grip
+// exercise rows (see the F51 note above).
 export interface HangboardSet {
   id: string
   gripType: string                  // e.g. 'Half crimp'
@@ -178,8 +202,12 @@ export interface LoggedSet {
   weightKg?: number
   additionalWeightKg?: number       // load on a bodyweight movement (pull-up, dip, …): + added, − assisted
   restTakenSeconds?: number
-  durationSeconds?: number          // for timed exercises
+  durationSeconds?: number          // for timed exercises (incl. a hang's hold time)
   distanceKm?: number               // for a cardio exercise logged in a mixed session (A66)
+  // F51 — hangboard fields on a logged hang (a duration set)
+  edgeDepthMm?: number
+  intraRestSeconds?: number         // Abrahang: rest between reps within the set
+  abrahangReps?: number             // Abrahang: reps within the set
   skipped: boolean
   swappedFrom?: string              // original exerciseName if swapped
   loggedAt: number
@@ -256,7 +284,10 @@ export interface PersonalRecord {
 
 > Grade PRs are keyed by `climbingStyle` (bouldering uses `vgrade`, top_rope/lead use `ewbanks`), since V-grades and Ewbanks numbers are not comparable to each other.
 
-### Logged hangs (hangboard)
+### Logged hangs (hangboard) — @deprecated (F51)
+
+Retained only for the v11 migration (→ `LoggedSet`) and backup rollback; hangs are
+logged as `LoggedSet`s now (grip-as-exercise). No code writes or reads this table.
 
 ```ts
 export interface LoggedHang {
@@ -359,6 +390,16 @@ export class WorkoutDB extends Dexie {
     // v8 (A94/F46) moves templates from a single `type` to `categories: []` (derived
     // from content, incl. 'climbing' for hangboard); drops the `type` index.
     this.version(8).stores({ templates: '&id, lastUsedAt' }).upgrade(/* derive categories */)
+    // F51 — hangboard unification:
+    // v9 replaces Exercise.supportsAdditionalWeight with the six tracking-config
+    //    fields (deriveExerciseParams), shared with the import path.
+    // v10 folds each template's hangboardSets into `exercises` as grip rows,
+    //    creating grip exercises (ex_hang_*), then drops hangboardSets.
+    // v11 converts LoggedHang → LoggedSet (grip-as-exercise). The hangs table is
+    //    kept intact for rollback; nothing reads it after the flip.
+    this.version(9).upgrade(/* derive tracking config */)
+    this.version(10).upgrade(/* templates: hangboardSets → grip rows */)
+    this.version(11).upgrade(/* LoggedHang → LoggedSet */)
   }
 }
 
@@ -442,12 +483,8 @@ export async function deleteRoute(id: string): Promise<void>
 export async function getRoutesForSession(sessionId: string): Promise<ClimbingRoute[]>
 export async function getAllRoutes(): Promise<ClimbingRoute[]>  // Progress grade pyramid
 
-// Hangboard hangs (climbing templates: hangboard + climbing-workout kinds)
-export async function addHang(h: Omit<LoggedHang, 'id'>): Promise<string>
-export async function updateHang(id: string, updates: Partial<LoggedHang>): Promise<void>
-export async function deleteHang(id: string): Promise<void>
-export async function getHangsForSession(sessionId: string): Promise<LoggedHang[]>
-export async function getAllHangs(): Promise<LoggedHang[]>  // Progress hangboard charts
+// Hangboard (F51 — grip-as-exercise, logged as sets)
+export async function getHangboardSets(): Promise<LoggedSet[]>  // hangboard-category sets, for the Progress Hangboard tab
 
 // PRs
 export async function checkAndSavePR(candidate: Omit<PersonalRecord, 'id'>): Promise<boolean>
