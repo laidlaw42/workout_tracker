@@ -17,7 +17,7 @@ import type {
 // time: new built-ins are added on upgrade, user-deleted ones are not
 // resurrected, and user-created templates (uuid ids) are never touched.
 
-const BUILTIN_SET_VERSION = 9 // F51 — hangboard templates rebuilt as grip-exercise rows
+const BUILTIN_SET_VERSION = 10 // F51 — Repeaters template fixed to a true 7/3×6 repeater
 
 // Built-in strength templates removed in A54 — deleted once from existing
 // libraries (keyed by the meta flag below) and absent from the seed arrays so
@@ -405,14 +405,18 @@ interface HangboardSeed {
 
 const HANGBOARD: HangboardSeed[] = [
   {
+    // Repeaters — the classic 7s-on / 3s-off × 6-rep cadence (driven by the
+    // abrahang runner; 'sub_max' would play a single sustained hang and miss the
+    // repeater rhythm). A quick three-grip session; "Sub-max Repeaters" below runs
+    // the full six positions. 180s between sets.
     id: 'tpl_hangboard_repeaters',
     name: 'Repeaters',
     tags: ['hangboard', 'endurance'],
-    hangType: 'sub_max',
+    hangType: 'abrahang',
     hangs: [
-      { grip: 'Half crimp', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 6, restSeconds: HANGBOARD_REPEATER_REST },
-      { grip: 'Open hand', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 6, restSeconds: HANGBOARD_REPEATER_REST },
-      { grip: 'Front three', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 6, restSeconds: HANGBOARD_REPEATER_REST },
+      { grip: 'Half crimp', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_REPEATER_REST, abrahangReps: 6, intraRestSeconds: 3 },
+      { grip: 'Open hand', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_REPEATER_REST, abrahangReps: 6, intraRestSeconds: 3 },
+      { grip: 'Front three', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_REPEATER_REST, abrahangReps: 6, intraRestSeconds: 3 },
     ],
   },
   {

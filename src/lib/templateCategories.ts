@@ -4,6 +4,7 @@
 // that somehow escaped migration) and derive a single session DisciplineType when
 // a session is started from a template.
 
+import { isHangExerciseId } from '@/lib/hangboard'
 import type { DisciplineType, TemplateCategory, WorkoutTemplate } from '@/types'
 
 // A UI-only build category. 'hangboard' isn't a stored TemplateCategory (a
@@ -31,14 +32,28 @@ export function buildToStoredCategories(build: WorkoutCategory[]): TemplateCateg
   return out
 }
 
-// A "hangboard-only" workout is nothing but hang sets (no exercises) — it reads
-// as Hangboard (its own library tab + badge). A template mixing hangs with
-// climbing/strength exercises stays under its real categories. Single source of
-// truth for the library filter and the card badge, so they never disagree.
+// F51 — a hang is a grip exercise (ex_hang_*), so "does this template contain
+// hangs?" is "does it reference any grip exercise?". Legacy pre-migration records
+// carried a separate hangboardSets array instead.
+export function templateHasHangs(
+  t: Pick<WorkoutTemplate, 'hangboardSets' | 'exercises'>,
+): boolean {
+  return (
+    (t.exercises ?? []).some((e) => isHangExerciseId(e.exerciseId)) ||
+    (t.hangboardSets?.length ?? 0) > 0
+  )
+}
+
+// A "hangboard-only" workout is nothing but grips — it reads as Hangboard (its own
+// library tab + badge). A template mixing hangs with climbing/strength exercises
+// stays under its real categories. Single source of truth for the library filter
+// and the card badge, so they never disagree.
 export function isHangboardOnlyTemplate(
   t: Pick<WorkoutTemplate, 'hangboardSets' | 'exercises'>,
 ): boolean {
-  return (t.hangboardSets?.length ?? 0) > 0 && (t.exercises?.length ?? 0) === 0
+  const exs = t.exercises ?? []
+  if (exs.length > 0) return exs.every((e) => isHangExerciseId(e.exerciseId))
+  return (t.hangboardSets?.length ?? 0) > 0 // legacy pre-F51 record
 }
 
 // Reconstruct the build categories (with 'hangboard') when editing a template: a
@@ -47,11 +62,9 @@ export function isHangboardOnlyTemplate(
 export function storedToBuildCategories(
   t: Pick<WorkoutTemplate, 'categories' | 'type' | 'hangboardSets' | 'exercises'>,
 ): WorkoutCategory[] {
-  const hasHangs = (t.hangboardSets?.length ?? 0) > 0
-  const hasExercises = (t.exercises?.length ?? 0) > 0
-  if (hasHangs && !hasExercises) return ['hangboard']
+  if (isHangboardOnlyTemplate(t)) return ['hangboard']
   const build: WorkoutCategory[] = [...templateCategories(t)]
-  if (hasHangs) build.push('hangboard')
+  if (templateHasHangs(t)) build.push('hangboard')
   return build
 }
 
@@ -82,10 +95,10 @@ export function templateCategories(t: CategoryReadable): TemplateCategory[] {
 //   - strength and/or rehab only (no hangs) → 'strength'
 //   - everything else (multiple disciplines, or any hangboard sets) → 'mixed'
 export function deriveSessionType(
-  t: Pick<WorkoutTemplate, 'categories' | 'type' | 'hangboardSets' | 'climbingKind'>,
+  t: Pick<WorkoutTemplate, 'categories' | 'type' | 'hangboardSets' | 'exercises' | 'climbingKind'>,
 ): DisciplineType {
   const cats = templateCategories(t)
-  const hasHangs = (t.hangboardSets?.length ?? 0) > 0
+  const hasHangs = templateHasHangs(t)
   const single = cats.length === 1 ? cats[0] : null
   // climbingKind is only set on templates saved from a climbing session — those
   // open the climbing screen so routes can be logged (it also handles hangs).

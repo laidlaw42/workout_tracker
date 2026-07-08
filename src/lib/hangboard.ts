@@ -36,6 +36,13 @@ export function hangExerciseId(grip: string): string {
   return `ex_hang_${slug || 'grip'}`
 }
 
+// Whether an exercise id is a grip (hang) exercise. F51 replaced the template's
+// hangboardSets with grip-exercise rows, so "does this workout contain hangs?" is
+// now "does it reference a grip exercise?" — keyed off the stable ex_hang_ prefix.
+export function isHangExerciseId(id: string | undefined): boolean {
+  return !!id && id.startsWith('ex_hang_')
+}
+
 // Build the Exercise record for a grip. A hang is a duration movement loaded
 // relative to bodyweight (isBodyweight → % = (BW+load)/BW, assisted allowed), on a
 // measured edge, and able to run an intra-rest (Abrahang/repeater) protocol — a

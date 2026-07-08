@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { CLIMB_STYLE_ICONS } from '@/lib/climbing'
 import { assertNever } from '@/lib/assert'
-import { isHangboardOnlyTemplate, templateCategories } from '@/lib/templateCategories'
+import { isHangboardOnlyTemplate, templateCategories, templateHasHangs } from '@/lib/templateCategories'
 import type {
   CardioActivityType,
   ClimbingRoute,
@@ -174,7 +174,7 @@ export function badgesForTemplate(t: WorkoutTemplate): Badge[] {
   const badges = CATEGORY_BADGE_ORDER.filter((c) => cats.includes(c)).map((c) =>
     templateCategoryBadge(t, c),
   )
-  if ((t.hangboardSets?.length ?? 0) > 0) badges.push(HANGBOARD(TONE.hangboard))
+  if (templateHasHangs(t)) badges.push(HANGBOARD(TONE.hangboard))
   return badges
 }
 

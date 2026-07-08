@@ -116,6 +116,23 @@ describe('badgesForTemplate', () => {
     ])
   })
 
+  it('F51 — a workout of only grip exercises reads as Hangboard', () => {
+    expect(
+      labels(tpl({ categories: ['climbing'], exercises: [{ exerciseId: 'ex_hang_half_crimp' }] as never })),
+    ).toEqual(['Hangboard'])
+  })
+
+  it('F51 — climbing exercise + grip exercise shows both Climbing and Hangboard', () => {
+    expect(
+      labels(
+        tpl({
+          categories: ['climbing'],
+          exercises: [{ exerciseId: 'ex_route' }, { exerciseId: 'ex_hang_open_hand' }] as never,
+        }),
+      ),
+    ).toEqual(['Climbing', 'Hangboard'])
+  })
+
   it('a mix of climbing exercises + hangs shows both Climbing and Hangboard', () => {
     expect(
       labels(
