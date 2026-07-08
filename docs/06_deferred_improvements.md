@@ -112,26 +112,46 @@ exclusive, guarded at runtime with `!= null`.
 **Why.** A discriminated union would make "reps XOR duration XOR distance" a type
 invariant.
 
-**Blocker.** The discriminant (`trackingType`) lives on the `Exercise`, not on
-`TemplateExercise`/`LoggedSet`. A union would require adding `trackingType` to
-those records (a data-model change + backfill migration) and restructuring every
-consumer. Not warranted for the current benefit; revisit if a new tracking type
-lands (pairs naturally with EX1).
+**Blocker.** Assessed 2026-07-08 and deliberately **not** done — the cost
+outweighs the benefit on three counts:
+
+1. **`LoggedSet` doesn't fit a 3-way union.** A weighted rep set carries
+   `actualReps` *and* `weightKg`; a cardio bout carries `durationSeconds` *and*
+   `distanceKm`; holds carry `durationSeconds` — plus `targetReps` /
+   `restTakenSeconds` / `skipped` / `swappedFrom` cross-cut all of them. It's a
+   multi-dimensional record, not "reps XOR duration XOR distance."
+2. **`TemplateExercise` would need a denormalised discriminant.** The authoritative
+   `trackingType` lives on `Exercise`; copying it onto every `TemplateExercise`
+   creates a drift hazard (edit an exercise's type and the template copies go
+   stale, cf. the DM1 PR-rename cascade) and needs a backfill **migration** — the
+   highest-consequence code in the app.
+3. **The invariant is already upheld by construction.** `templateExerciseFromExercise`
+   sets exactly one `default*` field from `trackingType`, and every reader already
+   has the `Exercise` on hand, so the runtime `!= null` guards are benign.
+
+Revisit only if a new tracking type lands (pairs naturally with EX1), which would
+change the cost/benefit.
 
 ---
 
-## D2 — reduce/replace recharts  📌
+## D2 — reduce/replace recharts  ✅
 
-**What.** `recharts` (~380 KB) dominates the lazy-loaded Progress chunk.
+**What.** `recharts` (~380 KB) dominated the lazy-loaded Progress chunk.
 
 **Why.** Bundle size; the app is otherwise small.
 
 **Change.** The Progress charts are a handful of simple line/bar charts —
-hand-rolled responsive SVG (or a lighter lib such as `uplot`) would cut the
-chunk substantially. Already lazy-loaded, so not urgent for an installed PWA.
+hand-rolled responsive SVG cut the chunk substantially.
 
-**Risk.** Medium — a full chart rewrite; defer unless bundle size becomes a
-priority.
+**Done.** `src/components/charts/` — `scale.ts` (pure, unit-tested tick/scale
+maths), `LineChart.tsx` (single-series line, used 5×) and `HBarChart.tsx`
+(horizontal grade pyramid), themed via the same CSS variables recharts used and
+responsive via a ResizeObserver width hook, each with a press/hover tooltip.
+`ProgressScreen` rewired; recharts uninstalled. ProgressScreen chunk **382 KB →
+21 KB** (6.6 KB gzip). Verified in the preview (both chart types, axes, colours,
+gold outlines, tooltips) — clean.
+
+**Risk.** Medium — a full chart rewrite; done on a branch, verified, merged.
 
 ---
 
