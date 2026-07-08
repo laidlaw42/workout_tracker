@@ -2,7 +2,7 @@ import { NumberStepper } from '@/components/NumberStepper'
 import { getWeightStep } from '@/lib/prefs'
 import { METRIC_LABEL, METRIC_ORDER, exerciseMetrics } from '@/lib/metrics'
 import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
+import { Switch } from '@/components/ui/switch'
 import type { Exercise, ExerciseDefaults, ExerciseMetric } from '@/types'
 
 // The "Parameters" section of the exercise editor: one toggle per metric (Sets …
@@ -105,66 +105,34 @@ export function MetricsFields({ value, onChange }: Props) {
       <p className="text-xs text-muted-foreground">
         Toggle the metrics this exercise tracks; set a default for each.
       </p>
-      <div className="space-y-3 rounded-lg border border-border p-3">
+      <div className="space-y-2">
         {METRIC_ORDER.map((m) => {
           const { on, value: v } = value[m]
           const ui = metricUi(m)
           return (
-            <div key={m} className="space-y-2">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm font-medium">{METRIC_LABEL[m]}</span>
-                <Switch
-                  checked={on}
-                  ariaLabel={METRIC_LABEL[m]}
-                  onChange={(c) => set(m, { on: c })}
-                />
-              </div>
+            <div
+              key={m}
+              className="flex items-center gap-3 rounded-xl border border-border bg-card px-3 py-2"
+            >
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">{METRIC_LABEL[m]}</span>
               {on && (
-                <NumberStepper
-                  value={v}
-                  ariaLabel={`default ${m}`}
-                  min={ui.min}
-                  step={ui.step}
-                  inputMode={ui.inputMode}
-                  placeholder={ui.placeholder}
-                  onChange={(nv) => set(m, { value: nv })}
-                />
+                <div className="w-36 shrink-0">
+                  <NumberStepper
+                    value={v}
+                    ariaLabel={`default ${m}`}
+                    min={ui.min}
+                    step={ui.step}
+                    inputMode={ui.inputMode}
+                    placeholder={ui.placeholder}
+                    onChange={(nv) => set(m, { value: nv })}
+                  />
+                </div>
               )}
+              <Switch checked={on} ariaLabel={METRIC_LABEL[m]} onChange={(c) => set(m, { on: c })} />
             </div>
           )
         })}
       </div>
     </div>
-  )
-}
-
-function Switch({
-  checked,
-  ariaLabel,
-  onChange,
-}: {
-  checked: boolean
-  ariaLabel: string
-  onChange: (checked: boolean) => void
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={ariaLabel}
-      onClick={() => onChange(!checked)}
-      className={cn(
-        'relative h-6 w-11 shrink-0 rounded-full transition-colors',
-        checked ? 'bg-primary' : 'bg-muted',
-      )}
-    >
-      <span
-        className={cn(
-          'absolute left-0.5 top-0.5 size-5 rounded-full bg-background shadow transition-transform',
-          checked ? 'translate-x-5' : 'translate-x-0',
-        )}
-      />
-    </button>
   )
 }

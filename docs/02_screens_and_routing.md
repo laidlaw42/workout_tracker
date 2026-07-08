@@ -62,16 +62,15 @@ Plans live in the `plannedWorkouts` table; finishing a session best-effort links
 **Purpose:** Browse and manage workout templates (strength, cardio, and climbing).
 
 **Shows:**
-- Filter tabs: All / Strength / Cardio / Climbing (+ tag chips)
-- Split into **Workouts** and **Exercises** tabs; exercises have their own CRUD manager
-- Template cards: name, type badge, exercise count or activity, last used date
-- Climbing quick-starts (Gym / Crag plain sessions) on the Climbing filter
-- "New" button (header): opens a dialog for name + kind (strength / cardio / hangboard / climbing-workout), creates an empty template, and opens its editor
+- Split into **Workouts** and **Exercises** tabs; each has a **search box** (name match) and its own CRUD manager
+- Colour-coded category filter tabs (All / Cardio / Climbing / Hangboard / Rehab / Strength; climbing = tan, hangboard = green) + tag chips
+- Template cards: name, category badges, exercise count or activity, last used — plus an **ⓘ info** button (name + description) and an instant **▶ Play** button (starts the workout, guarded if one is unfinished)
+- Exercise cards: name, category badge, muscle groups + usage — plus the same **ⓘ info** and (for set-based exercises) a **▶ Play** button ("start as workout")
 
 **Actions:**
-- Tap card → TemplateDetailScreen
-- New → create-workout dialog → TemplateEditScreen
-- Long-press card → delete confirmation
+- Tap workout card → TemplateDetailScreen; tap exercise card → editor sheet
+- Play → start the workout / exercise straight into a session
+- "Add new workout" → TemplateCreateScreen; "Add new exercise" → editor sheet
 
 ---
 
@@ -96,11 +95,18 @@ Plans live in the `plannedWorkouts` table; finishing a session best-effort links
 **Purpose:** Create or modify a template. Strength templates edit the exercise list; cardio templates edit activity, targets, and intervals.
 
 **Shows (strength):**
-- Editable template name field
+- Editable category (required), name, **Description**, and tags fields
 - Drag-reorderable exercise list (each row: name, sets, reps, rest — all editable inline)
 - "Add exercise" button → opens exercise picker sheet
 - Delete button on each row
 - "Save" (header) and back = Cancel (with discard confirm)
+
+> The **exercise editor** (`ExerciseFormSheet`, shared by the Library and the picker's
+> "Add new exercise") is: Category (required, colour-coded, at the top) · Name ·
+> Description · Muscle groups · Tags, then a **Parameters** section — one toggle +
+> default stepper per metric (Sets · Reps · Duration · Distance · Rest · Edge ·
+> Weight · Load), in a box each. The enabled toggles are the exercise's `metrics`.
+> Saving a session as a template (`SessionDetailScreen`) also takes a Description.
 
 **Shows (cardio):**
 - Editable name, activity (Run / Ride / Row / Other)
@@ -164,7 +170,7 @@ Plans live in the `plannedWorkouts` table; finishing a session best-effort links
 - **Plain** (gym/crag/board quick-start): route logging only.
 - **Climbing-workout** template (or a repeat session): a strength-style Exercises section (with the `RestTimer` between sets) **plus** routes. Hangs are ordinary duration exercises in that section (F51 — grip-as-exercise), rendered by `ExerciseCard`; there is no separate hang card.
 
-Hangboard-only training sessions are typed `'mixed'` and log on the training screen (A73), not here — the shared `useTimedSetEngine` hook drives the set timers (incl. the Abrahang intra-rest runner) on both.
+Hangboard-only training sessions are typed `'mixed'` and log on the training screen (A73), not here — the shared `useTimedSetEngine` hook drives the set/rest timers on both. (Intra-rest / Abrahang cycles were removed; a hang is a plain multi-set duration hold.)
 
 The `WorkoutSession` (`type: 'climbing'`) already exists before this screen loads. Routes link to it via `sessionId`; exercises/hangs log as `LoggedSet`s. There is no separate climbing-session record. Optional `gym`/`crag`/`board` are edited on the session itself. The elapsed timer runs for both flavours.
 

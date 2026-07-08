@@ -57,11 +57,17 @@ export function hangGripExercise(grip: string, now: number): Exercise {
     category: 'hangboard',
     muscleGroups: ['forearms'],
     tags: [],
+    notes: gripDescription(grip),
     metrics: HANG_METRICS,
     ...metricsToConfig(HANG_METRICS),
     defaults: { ...HANG_GRIP_DEFAULTS },
     createdAt: now,
   }
+}
+
+// A generic description for a grip exercise (its editor Description + backfill).
+export function gripDescription(grip: string): string {
+  return `${grip} — a hangboard grip position, trained with timed hangs on an edge.`
 }
 
 // v10 (F51) — a template's HangboardSet becomes a standard duration TemplateExercise

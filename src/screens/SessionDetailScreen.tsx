@@ -99,6 +99,7 @@ export default function SessionDetailScreen() {
   // A61 — "Save as template" dialog state.
   const [saveTemplateOpen, setSaveTemplateOpen] = useState(false)
   const [templateName, setTemplateName] = useState('')
+  const [templateNotes, setTemplateNotes] = useState('')
   const [templateTags, setTemplateTags] = useState<string[]>([])
   // A68 — inline rename of the session title.
   const [renaming, setRenaming] = useState(false)
@@ -123,13 +124,16 @@ export default function SessionDetailScreen() {
   function openSaveTemplate() {
     if (!session) return
     setTemplateName(session.templateName)
+    setTemplateNotes('')
     setTemplateTags([])
     setSaveTemplateOpen(true)
   }
 
   async function saveAsTemplate() {
     try {
-      await createTemplateFromSession(id, templateName.trim() || session!.templateName, templateTags)
+      await createTemplateFromSession(id, templateName.trim() || session!.templateName, templateTags, {
+        notes: templateNotes.trim() || undefined,
+      })
       setSaveTemplateOpen(false)
       toast.success('Template saved')
     } catch {
@@ -509,6 +513,16 @@ export default function SessionDetailScreen() {
                 id="new-template-name"
                 value={templateName}
                 onChange={(e) => setTemplateName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="new-template-desc">Description</Label>
+              <Textarea
+                id="new-template-desc"
+                value={templateNotes}
+                placeholder="optional — what this workout is for, how to run it"
+                rows={2}
+                onChange={(e) => setTemplateNotes(e.target.value)}
               />
             </div>
             <div className="space-y-1.5">

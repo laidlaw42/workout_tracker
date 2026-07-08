@@ -648,6 +648,7 @@ export async function createTemplateFromSession(
   sourceId: string,
   name: string,
   tags: string[],
+  opts?: { notes?: string },
 ): Promise<string> {
   return run('createTemplateFromSession', async () => {
     const src = await db.sessions.get(sourceId)
@@ -657,6 +658,7 @@ export async function createTemplateFromSession(
       name: templateName,
       categories: [], // A94 — derived from the reconstructed content below
       tags,
+      notes: opts?.notes,
       exercises: [],
     }
     if (src.type === 'strength' || src.type === 'mixed') {

@@ -29,6 +29,7 @@ import {
 } from '@/lib/templateCategories'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import {
   AlertDialog,
@@ -69,6 +70,7 @@ export default function TemplateEditScreen() {
 
   const [name, setName] = useState('')
   const [categories, setCategories] = useState<WorkoutCategory[]>([])
+  const [notes, setNotes] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [rows, setRows] = useState<Row[]>([])
   const [activity, setActivity] = useState<CardioActivityType>('run')
@@ -87,6 +89,7 @@ export default function TemplateEditScreen() {
     if (template && !inited) {
       setName(template.name)
       setCategories(storedToBuildCategories(template))
+      setNotes(template.notes ?? '')
       setTags(template.tags)
       setRows(template.exercises.map((e) => ({ ...e, uid: generateId() })))
       setActivity(template.cardioActivity ?? 'run')
@@ -158,6 +161,7 @@ export default function TemplateEditScreen() {
         id: template.id,
         name: name.trim() || template.name,
         categories: buildToStoredCategories(categories),
+        notes: notes.trim() || undefined,
         tags,
         exercises: showExercises
           ? rows.map((r, i) => ({
@@ -266,6 +270,20 @@ export default function TemplateEditScreen() {
             value={name}
             onChange={(e) => {
               setName(e.target.value)
+              setDirty(true)
+            }}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="tmpl-desc">Description</Label>
+          <Textarea
+            id="tmpl-desc"
+            value={notes}
+            placeholder="optional — what this workout is for, how to run it"
+            rows={2}
+            onChange={(e) => {
+              setNotes(e.target.value)
               setDirty(true)
             }}
           />

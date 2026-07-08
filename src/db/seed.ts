@@ -1,6 +1,6 @@
 import { db } from './db'
 import { deriveExerciseParams } from '@/lib/migrations'
-import { HANG_GRIP_DEFAULTS, hangExerciseId, hangGripExercise } from '@/lib/hangboard'
+import { HANG_GRIP_DEFAULTS, gripDescription, hangExerciseId, hangGripExercise } from '@/lib/hangboard'
 import { GRIP_TYPES } from '@/lib/climbing'
 import type {
   Exercise,
@@ -125,6 +125,7 @@ function seedToExercise(e: ExerciseSeed, now: number): Exercise {
     muscleGroups: e.muscleGroups,
     trackingType: e.trackingType,
     tags: [],
+    notes: EXERCISE_DESCRIPTIONS[e.id],
     createdAt: now,
     hangboard: e.hangboard,
     ...deriveExerciseParams({ ...e, category }),
@@ -220,8 +221,92 @@ const EXERCISES: ExerciseSeed[] = [
   { id: 'ex_windshield_wiper', name: 'Windshield wipers', muscleGroups: ['core'], trackingType: 'reps', category: 'climbing' },
   // Hangboard grip exercises (F51 — grip-as-exercise) are not listed here: they are
   // built from GRIP_TYPES via hangGripExercise and seeded separately, since their
-  // config (load, edge, intra-rest capable) is explicit rather than derived.
+  // config (load, edge) is explicit rather than derived.
 ]
+
+// One-line description (the exercise's `notes`) for each built-in exercise. Shown in
+// the editor's Description field and backfilled onto existing libraries. Grip
+// exercises get a generic description from hangGripExercise instead.
+const EXERCISE_DESCRIPTIONS: Record<string, string> = {
+  // Lower body
+  ex_squat: 'Barbell back squat — the foundational lower-body strength lift.',
+  ex_front_squat: 'Barbell on the front rack; more upright and quad/core-dominant than the back squat.',
+  ex_deadlift: 'Hinge and pull a loaded barbell from the floor — full posterior-chain strength.',
+  ex_romanian_deadlift: 'Stiff-legged hip hinge lowering the bar to mid-shin; hamstrings and glutes.',
+  // Push
+  ex_bench_press: 'Barbell press from the chest on a bench — the primary horizontal push.',
+  ex_incline_db_press: 'Dumbbell press on an incline, emphasising the upper chest and shoulders.',
+  ex_chest_dip: 'Press between parallel bars with a forward lean for chest emphasis; add load to progress.',
+  ex_ring_dip: 'Dip on gymnastic rings — the instability adds a strong stabiliser demand.',
+  ex_overhead_press: 'Standing barbell press from the shoulders to overhead.',
+  ex_db_shoulder_press: 'Dumbbell press overhead; independent arms even out imbalances.',
+  // Pull
+  ex_pull_up: 'Overhand-grip pull to chin over the bar. Add weight or use assistance to scale.',
+  ex_chin_up: 'Underhand-grip pull-up with more biceps involvement.',
+  ex_lat_pulldown: 'Cable pulldown to the chest — a scalable vertical pull.',
+  ex_seated_row: 'Cable row to the torso, driving the elbows back for mid-back thickness.',
+  ex_barbell_row: 'Bent-over barbell row — a heavy horizontal pull for the back.',
+  ex_face_pull: 'Cable pull to the face with high elbows; rear delts and shoulder health.',
+  // Core
+  ex_plank: 'Hold a rigid straight-body position on the forearms — timed anti-extension core.',
+  ex_hanging_leg_raise: 'Hang from a bar and raise the legs to hip height or higher.',
+  // Cardio
+  ex_run: 'Running — logged by distance and time.',
+  ex_ride: 'Cycling — logged by distance and time.',
+  ex_row: 'Rowing (erg or water) — logged by distance and time.',
+  // Rehab / prehab
+  ex_rice_bucket: 'Dig, squeeze and rotate the hands in a rice bucket for forearm and finger recovery.',
+  ex_pronation_supination: 'Rotate the forearm palm-up to palm-down, often with a light hammer.',
+  ex_shoulder_cars: 'Controlled articular rotations — take the shoulder slowly through its full range.',
+  ex_hip_90_90: 'Seated 90/90 hip position, rotating between sides to open the hips.',
+  ex_dead_hang: 'Passive hang from a bar to decompress the shoulders and build grip endurance.',
+  // Strength accessories
+  ex_single_arm_db_row: 'One-arm dumbbell row braced on a bench; works each side independently.',
+  ex_cable_rear_delt_fly: 'Cable reverse fly targeting the rear delts.',
+  ex_hammer_curl: 'Neutral-grip curl hitting the biceps and forearm (brachioradialis).',
+  ex_bulgarian_split_squat: 'Rear-foot-elevated split squat — single-leg quad and glute strength.',
+  ex_walking_lunge: 'Step forward into alternating lunges for unilateral leg volume.',
+  ex_db_row: 'Bent-over dumbbell row for the back.',
+  ex_push_up: 'Bodyweight horizontal push; scalable chest and triceps work.',
+  // Additional rehab / prehab
+  ex_banded_internal_rotation: 'Band internal rotation of the shoulder for rotator-cuff balance.',
+  ex_wrist_flexor_stretch: 'Extend the wrist and fingers to stretch the underside of the forearm.',
+  ex_wrist_extensor_stretch: 'Flex the wrist to stretch the top of the forearm.',
+  ex_wrist_roller_flexion: 'Roll a weighted cord up with a palms-up wrist action.',
+  ex_wrist_roller_extension: 'Roll a weighted cord up with a palms-down wrist action.',
+  ex_doorway_chest_stretch: 'Forearm on a doorframe, step through to stretch the chest and front shoulder.',
+  ex_thoracic_ext_foam_roller: 'Extend the upper back over a foam roller to mobilise the thoracic spine.',
+  ex_scapular_wall_slide: 'Slide the arms up a wall keeping contact — trains scapular upward rotation.',
+  ex_pallof_press: 'Press a band or cable straight out and resist rotation — anti-rotation core.',
+  ex_single_leg_rdl_rehab: 'Light single-leg Romanian deadlift for balance and hamstring control.',
+  // Climbing-specific strength & conditioning
+  ex_campus_move: 'Explosive up-and-down moves on campus rungs — advanced contact strength.',
+  ex_system_board_move: 'Repeatable moves on a symmetric system/training board.',
+  ex_antagonist_press_flat: 'Flat pressing to balance the pulling-heavy climbing load.',
+  ex_antagonist_press_incline: 'Incline pressing for the shoulders as antagonist work.',
+  ex_wrist_curl: 'Palms-up wrist curl for the finger flexors and forearm.',
+  ex_reverse_wrist_curl_climbing: 'Palms-down wrist curl for the extensors — elbow-health balance.',
+  ex_finger_extension_band: 'Open the fingers against a rubber band to balance the flexors.',
+  ex_rotator_cuff_external_rotation: 'External rotation with a band or dumbbell for cuff strength.',
+  ex_scapular_pull_up: 'From a dead hang, pull the shoulder blades down without bending the elbows.',
+  ex_hollow_body_hold: 'Hold a dished, tensioned body position — the base climbing core shape.',
+  ex_front_lever_progression: 'Work toward a horizontal front lever with tucked/advanced progressions.',
+  ex_back_lever_progression: 'Work toward a horizontal back lever with tucked/advanced progressions.',
+  ex_l_sit: 'Support the body with the legs held out straight — compression and core.',
+  ex_plank_reach: 'Plank while reaching one arm forward, adding an anti-rotation demand.',
+  ex_single_arm_hang_assisted: 'One-arm hang with the other hand assisting — builds toward a full one-armer.',
+  ex_two_arm_lock_off: 'Hold a bent-arm position on the bar; add or remove load to scale.',
+  ex_one_arm_lock_off: 'Hold a one-arm bent-elbow position — advanced pulling strength.',
+  ex_typewriter_pull_up: 'Pull up, then shift side to side along the bar.',
+  ex_archer_pull_up: 'Pull toward one hand while the other arm stays straight.',
+  ex_edge_lift: 'Lift a loaded block/edge with a static grip — low-injury finger strength.',
+  ex_one_arm_edge_lift: 'Single-hand edge/block lift for maximal finger strength.',
+  ex_pinch_block: 'Lift a loaded pinch block to train thumb and pinch strength.',
+  ex_offset_pull_up: 'Pull-up with the hands at different heights, biasing one arm.',
+  ex_frenchies: 'Pull-up ladder pausing at lock-off positions each rep.',
+  ex_toes_to_bar: 'Hang and bring the toes up to the bar — dynamic core and grip.',
+  ex_windshield_wiper: 'Legs raised, rotate side to side like a wiper — rotational core.',
+}
 
 const EXERCISE_NAME = new Map(EXERCISES.map((e) => [e.id, e.name]))
 
@@ -665,6 +750,19 @@ export async function seedIfNeeded(): Promise<void> {
         if (e.category === 'hangboard' && !e.defaults) e.defaults = { ...HANG_GRIP_DEFAULTS }
       })
       await db.meta.put({ key: 'hangGripDefaultsBackfilled', value: true })
+    }
+
+    // Backfill the Description (notes) on built-in exercises that predate it — from
+    // the seed descriptions, or a generic one for grips. User notes are untouched.
+    if (!(await getMeta<boolean>('exerciseDescriptionsBackfilled'))) {
+      await db.exercises.toCollection().modify((e) => {
+        if (e.notes && e.notes.trim()) return
+        const desc =
+          EXERCISE_DESCRIPTIONS[e.id] ??
+          (e.category === 'hangboard' ? gripDescription(e.name) : undefined)
+        if (desc) e.notes = desc
+      })
+      await db.meta.put({ key: 'exerciseDescriptionsBackfilled', value: true })
     }
 
     // (The pre-F51 supportsAdditionalWeight backfill was retired: the v9 Dexie

@@ -9,6 +9,7 @@ import {
   type MetricsDraft,
 } from '@/components/MetricsFields'
 import { metricsToConfig } from '@/lib/metrics'
+import { categoryTabClasses } from '@/lib/badges'
 import { TagInput } from '@/components/TagInput'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -40,7 +41,8 @@ interface Props {
   usageCount?: number
   /** Tags pre-applied to a new exercise (A35). Ignored when editing. */
   defaultTags?: string[]
-  /** Category / name pre-filled for a new exercise (e.g. the picker's scope + search). */
+  /** Category / name pre-filled for a new exercise (e.g. the picker's scope + search).
+   *  Category is required — omit it and the user must pick one before saving. */
   defaultCategory?: ExerciseCategory
   defaultName?: string
   onSaved?: (id: string) => void
@@ -61,14 +63,15 @@ export function ExerciseFormSheet({
   exercise,
   usageCount = 0,
   defaultTags = [],
-  defaultCategory = 'strength',
+  defaultCategory,
   defaultName = '',
   onSaved,
 }: Props) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [muscles, setMuscles] = useState('')
-  const [category, setCategory] = useState<ExerciseCategory>('strength')
+  // '' = unset (required for a new exercise); the picker may pre-fill from its scope.
+  const [category, setCategory] = useState<ExerciseCategory | ''>('')
   const [tags, setTags] = useState<string[]>([])
   const [confirmDelete, setConfirmDelete] = useState(false)
   // The Parameters draft: which metrics the exercise tracks + their defaults.
@@ -82,14 +85,14 @@ export function ExerciseFormSheet({
     setName(exercise?.name ?? defaultName)
     setDescription(exercise?.notes ?? '')
     setMuscles(exercise?.muscleGroups.join(', ') ?? '')
-    setCategory(exercise?.category ?? defaultCategory)
+    setCategory(exercise?.category ?? defaultCategory ?? '')
     setTags(exercise?.tags ?? defaultTags)
     setMetrics(exerciseToMetricsDraft(exercise))
   }, [open, exercise])
 
   async function save() {
     const trimmed = name.trim()
-    if (!trimmed) return
+    if (!trimmed || !category) return
     const muscleGroups = muscles
       .split(',')
       .map((s) => s.trim())
@@ -149,6 +152,19 @@ export function ExerciseFormSheet({
 
         <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
           <div className="space-y-2">
+            <Label>Category</Label>
+            <SegmentedControl
+              scrollable
+              options={CATEGORIES}
+              value={category as ExerciseCategory}
+              tone={categoryTabClasses}
+              onChange={setCategory}
+            />
+            {!category && (
+              <p className="text-xs text-muted-foreground">Pick a category to continue.</p>
+            )}
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="ex-form-name">Name</Label>
             <Input
               id="ex-form-name"
@@ -177,10 +193,6 @@ export function ExerciseFormSheet({
             />
           </div>
           <div className="space-y-2">
-            <Label>Category</Label>
-            <SegmentedControl options={CATEGORIES} value={category} onChange={setCategory} />
-          </div>
-          <div className="space-y-2">
             <Label>Tags</Label>
             <TagInput value={tags} onChange={setTags} />
           </div>
@@ -201,7 +213,7 @@ export function ExerciseFormSheet({
           <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button className="flex-1" onClick={save} disabled={!name.trim()}>
+          <Button className="flex-1" onClick={save} disabled={!name.trim() || !category}>
             Save
           </Button>
         </div>

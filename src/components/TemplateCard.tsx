@@ -1,6 +1,7 @@
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Play } from 'lucide-react'
 import { DisciplineBadge } from './DisciplineBadge'
 import { FavoriteButton } from './FavoriteButton'
+import { InfoButton } from './InfoButton'
 import { badgesForTemplate } from '@/lib/badges'
 import { templateCategories } from '@/lib/templateCategories'
 import { formatRelativeDay } from '@/lib/date'
@@ -36,6 +37,8 @@ function summarise(t: WorkoutTemplate): string {
 interface Props {
   template: WorkoutTemplate
   onOpen: () => void
+  /** Start the workout straight away (Play button). Omit to hide it. */
+  onStart?: () => void
   /** When provided, a heart toggle replaces the chevron (library favourites). */
   onToggleFavorite?: () => void
 }
@@ -43,7 +46,7 @@ interface Props {
 // A77 — tap opens the template. Deletion moved into the edit screen, so there is
 // no longer a press-and-hold-to-delete gesture here (it caused accidental
 // deletions from a misplaced long-press).
-export function TemplateCard({ template, onOpen, onToggleFavorite }: Props) {
+export function TemplateCard({ template, onOpen, onStart, onToggleFavorite }: Props) {
   return (
     <div className="flex items-center rounded-xl border border-border bg-card text-card-foreground">
       <button
@@ -66,10 +69,21 @@ export function TemplateCard({ template, onOpen, onToggleFavorite }: Props) {
             <span>· {template.lastUsedAt ? formatRelativeDay(template.lastUsedAt) : 'Never used'}</span>
           </div>
         </div>
-        {!onToggleFavorite && (
+        {!onToggleFavorite && !onStart && (
           <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         )}
       </button>
+      <InfoButton title={template.name} description={template.notes} />
+      {onStart && (
+        <button
+          type="button"
+          aria-label={`Start ${template.name}`}
+          onClick={onStart}
+          className="flex size-9 shrink-0 items-center justify-center rounded-md text-primary transition-colors active:bg-accent"
+        >
+          <Play className="size-4" />
+        </button>
+      )}
       {onToggleFavorite && (
         <FavoriteButton
           favorite={!!template.favorite}

@@ -13,6 +13,7 @@ import {
   startSessionFromExercise,
 } from '@/db/helpers'
 import { ExerciseFormSheet } from '@/components/ExerciseFormSheet'
+import { InfoButton } from '@/components/InfoButton'
 import { FavoriteButton, FavoriteFilterButton } from '@/components/FavoriteButton'
 import { EmptyState } from '@/components/EmptyState'
 import { SegmentedControl } from '@/components/SegmentedControl'
@@ -25,6 +26,7 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { TRACKING_LABEL } from '@/lib/trackingTypes'
@@ -58,6 +60,7 @@ export function ExerciseLibrary() {
   const [catFilter, setCatFilter] = useState<CatFilter>('all')
   const [activeTags, setActiveTags] = useState<string[]>([])
   const [favOnly, setFavOnly] = useState(false)
+  const [query, setQuery] = useState('')
 
   // A59 — start a template-less session pre-loaded with just this exercise, then
   // jump straight into it. Only offered for set-based (non-distance) exercises.
@@ -90,14 +93,18 @@ export function ExerciseLibrary() {
     return [...set].sort()
   }, [byCategory])
 
-  // Tag AND-filter + optional favourites-only, then alphabetical sort.
-  const visible = useMemo(
-    () =>
-      byCategory
-        .filter((ex) => (!favOnly || ex.favorite) && activeTags.every((tag) => ex.tags.includes(tag)))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [byCategory, activeTags, favOnly],
-  )
+  // Tag AND-filter + optional favourites-only + name search, then alphabetical sort.
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return byCategory
+      .filter(
+        (ex) =>
+          (!favOnly || ex.favorite) &&
+          activeTags.every((tag) => ex.tags.includes(tag)) &&
+          (!q || ex.name.toLowerCase().includes(q)),
+      )
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [byCategory, activeTags, favOnly, query])
 
   function openNew() {
     setEditing(null)
@@ -114,6 +121,13 @@ export function ExerciseLibrary() {
       <Button variant="outline" className="w-full" onClick={openNew}>
         <Plus className="size-4" /> Add new exercise
       </Button>
+
+      <Input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search exercises…"
+        aria-label="Search exercises"
+      />
 
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
@@ -169,11 +183,13 @@ export function ExerciseLibrary() {
           subtitle={
             exercises.length === 0
               ? 'Add your first exercise.'
-              : favOnly
-                ? 'No favourites here yet — tap the heart on an exercise to add one.'
-                : activeTags.length > 0
-                  ? 'No exercises match these tags.'
-                  : 'No exercises in this category.'
+              : query.trim()
+                ? `No exercises match “${query.trim()}”.`
+                : favOnly
+                  ? 'No favourites here yet — tap the heart on an exercise to add one.'
+                  : activeTags.length > 0
+                    ? 'No exercises match these tags.'
+                    : 'No exercises in this category.'
           }
         />
       ) : (
@@ -207,6 +223,7 @@ export function ExerciseLibrary() {
                     </p>
                   </div>
                 </button>
+                <InfoButton title={ex.name} description={ex.notes} />
                 {canStart && (
                   <button
                     type="button"

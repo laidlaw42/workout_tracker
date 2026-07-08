@@ -26,6 +26,7 @@ import { TagInput } from '@/components/TagInput'
 import { EmptyState } from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import {
   AlertDialog,
@@ -65,6 +66,7 @@ export default function TemplateCreateScreen() {
 
   const [categories, setCategories] = useState<WorkoutCategory[]>([])
   const [name, setName] = useState('')
+  const [notes, setNotes] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [tagsSeeded, setTagsSeeded] = useState(false)
   const [rows, setRows] = useState<TemplateRow[]>([])
@@ -153,6 +155,7 @@ export default function TemplateCreateScreen() {
         name: trimmed,
         categories: buildToStoredCategories(categories),
         tags,
+        notes: notes.trim() || undefined,
         exercises: showExercises
           ? rows.map((r, i) => ({
               exerciseId: r.exerciseId,
@@ -219,6 +222,20 @@ export default function TemplateCreateScreen() {
             placeholder="e.g. Upper B"
             onChange={(e) => {
               setName(e.target.value)
+              setDirty(true)
+            }}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="new-desc">Description</Label>
+          <Textarea
+            id="new-desc"
+            value={notes}
+            placeholder="optional — what this workout is for, how to run it"
+            rows={2}
+            onChange={(e) => {
+              setNotes(e.target.value)
               setDirty(true)
             }}
           />

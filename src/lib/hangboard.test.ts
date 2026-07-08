@@ -31,6 +31,7 @@ describe('hangGripExercise', () => {
       category: 'hangboard',
       muscleGroups: ['forearms'],
       tags: [],
+      notes: 'Open hand — a hangboard grip position, trained with timed hangs on an edge.',
       metrics: ['sets', 'duration', 'rest', 'edge', 'load'],
       trackingType: 'duration',
       hasWeight: true,

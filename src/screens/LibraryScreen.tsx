@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useNavigationType, useSearchParams } from 'react-router-dom'
+import { toast } from 'sonner'
 import { Dumbbell, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useTagColours } from '@/hooks/useTagColours'
-import { getAllTemplates, setTemplateFavorite } from '@/db/helpers'
+import { useUnfinishedWorkoutGuard } from '@/hooks/useUnfinishedWorkoutGuard'
+import { getAllTemplates, setTemplateFavorite, startSessionFromTemplate } from '@/db/helpers'
 import { isHangboardOnlyTemplate, templateCategories } from '@/lib/templateCategories'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { categoryTabClasses } from '@/lib/badges'
@@ -13,6 +15,7 @@ import { ExerciseLibrary } from '@/components/ExerciseLibrary'
 import { EmptyState } from '@/components/EmptyState'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { TemplateCategory, WorkoutTemplate } from '@/types'
 
@@ -75,6 +78,7 @@ export default function LibraryScreen() {
   )
   const [activeTag, setActiveTag] = useState<string | null>(() => libState.activeTag)
   const [favOnly, setFavOnly] = useState(() => libState.favOnly)
+  const [query, setQuery] = useState('')
 
   // Remember the UI state so a later back navigation restores it.
   useEffect(() => {
@@ -88,6 +92,22 @@ export default function LibraryScreen() {
 
   const allTemplates = useLiveQuery(() => getAllTemplates(), [])
   const tagColour = useTagColours()
+  const { guardStart, guardDialog } = useUnfinishedWorkoutGuard()
+
+  // Instant Play on a workout card — start the session and jump straight in (the
+  // guard prompts first if another workout is unfinished).
+  async function startWorkout(id: string) {
+    try {
+      const res = await startSessionFromTemplate(id)
+      if (!res) {
+        toast.error('Could not start workout')
+        return
+      }
+      navigate(`/session/${res.type}/${res.sessionId}`)
+    } catch {
+      toast.error('Could not start workout')
+    }
+  }
 
   // Category slice first (client-side, so the computed Hangboard filter works);
   // the tag pills only show tags present in this slice.
@@ -100,11 +120,15 @@ export default function LibraryScreen() {
     for (const t of inCategory) for (const tag of t.tags) set.add(tag)
     return [...set].sort()
   }, [inCategory])
+  const q = query.trim().toLowerCase()
   const filteredTemplates =
     allTemplates === undefined
       ? undefined
       : inCategory.filter(
-          (t) => (!activeTag || t.tags.includes(activeTag)) && (!favOnly || t.favorite),
+          (t) =>
+            (!activeTag || t.tags.includes(activeTag)) &&
+            (!favOnly || t.favorite) &&
+            (!q || t.name.toLowerCase().includes(q)),
         )
 
   // Restore the scroll position on a back navigation, once the list has data so
@@ -139,6 +163,13 @@ export default function LibraryScreen() {
           <Button variant="outline" className="w-full" onClick={() => navigate('/library/new')}>
             <Plus className="size-4" /> Add new workout
           </Button>
+
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search workouts…"
+            aria-label="Search workouts"
+          />
 
           <div className="flex items-center gap-2">
             <div className="min-w-0 flex-1">
@@ -188,7 +219,9 @@ export default function LibraryScreen() {
               icon={Dumbbell}
               title="No workouts here"
               subtitle={
-                favOnly
+                q
+                  ? `No workouts match “${query.trim()}”.`
+                  : favOnly
                   ? 'No favourites here yet — tap the heart on a workout to add one.'
                   : activeTag
                     ? `No workouts tagged #${activeTag}.`
@@ -208,6 +241,7 @@ export default function LibraryScreen() {
                   key={t.id}
                   template={t}
                   onOpen={() => navigate(`/library/${t.id}`)}
+                  onStart={() => guardStart(() => startWorkout(t.id))}
                   onToggleFavorite={() => void setTemplateFavorite(t.id, !t.favorite)}
                 />
               ))}
@@ -215,6 +249,7 @@ export default function LibraryScreen() {
           )}
         </>
       )}
+      {guardDialog}
     </div>
   )
 }

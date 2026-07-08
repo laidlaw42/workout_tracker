@@ -176,6 +176,7 @@ export interface WorkoutTemplate {
    *  cleared; kept optional only so legacy/backup records still read defensively. */
   type?: DisciplineType
   tags: string[]
+  notes?: string // free-text description (shown in the editor + the card's info panel)
   exercises: TemplateExercise[]
   // cardio-only fields
   cardioActivity?: CardioActivityType

@@ -37,34 +37,46 @@ export type PRType = 'weight' | 'reps' | 'pace' | 'distance' | 'grade' | 'durati
 
 ```ts
 // A98 — optional per-exercise default parameters; pre-fill the template/working-set
-// fields as the exercise is added. Which fields matter follows trackingType; unset
-// ones fall back to hardcoded defaults (3 sets · 10 reps · 90s rest).
+// fields as the exercise is added. One field per metric (below); unset ones fall
+// back to hardcoded defaults (3 sets · 10 reps · 90s rest).
 export interface ExerciseDefaults {
   sets?: number
   reps?: number
-  weightKg?: number
+  weightKg?: number                 // the Weight metric — an absolute load
+  loadKg?: number                   // the Load metric — bodyweight-relative, signed
   durationSeconds?: number
   distanceKm?: number
   restSeconds?: number
+  edgeDepthMm?: number              // the Edge metric (hangboard grips)
 }
+
+// The independent metrics an exercise can track. The editor shows a toggle +
+// default per metric; the set row surfaces exactly the enabled ones.
+export type ExerciseMetric =
+  | 'sets' | 'reps' | 'duration' | 'distance' | 'rest' | 'edge' | 'weight' | 'load'
 
 export interface Exercise {
   id: string                        // uuid or stable slug (ex_*) for built-ins
   name: string
   category: ExerciseCategory        // A36 — discipline bucket (incl. 'rehab', 'hangboard')
   muscleGroups: string[]            // e.g. ['chest', 'triceps']
-  trackingType: TrackingType
+  trackingType: TrackingType        // derived from `metrics` (distance > duration > reps)
   tags: string[]                    // free-form, lower-cased on save
-  notes?: string
-  // F51 — per-exercise tracking config; set-row field visibility is a pure function
-  // of these (never inferred from name/category). Derived on migration (v9) from the
-  // old supportsAdditionalWeight flag; the exercise form exposes them as toggles.
-  hasWeight?: boolean               // show a weight/load input on the set row
-  weightLabel?: 'weight' | 'added_load' | 'load'  // its label
+  notes?: string                    // free-text description (editor "Description" + card info)
+  // The metrics this exercise tracks — the source of truth for the editor's
+  // Parameters section and set-row field visibility. trackingType and the flags
+  // below are DERIVED from these on save (lib/metrics.ts); a pre-metrics record
+  // derives them from the flags instead.
+  metrics?: ExerciseMetric[]
+  // Derived-from-metrics config the set row / PR / progress code reads (kept in
+  // sync on save): hasWeight = weight||load; isBodyweight/supportsNegativeLoad =
+  // load (bodyweight-relative, signed); weightLabel = load ? 'load' : 'weight';
+  // hasEdgeDepth = edge.
+  hasWeight?: boolean
+  weightLabel?: 'weight' | 'added_load' | 'load'
   isBodyweight?: boolean            // load % is (BW + load)/BW; load stored in additionalWeightKg
-  supportsNegativeLoad?: boolean    // allow negative (assisted) load
-  hasIntraRest?: boolean            // work/rest cycles within a set (Abrahang); shows reps + intra-rest inputs
-  hasEdgeDepth?: boolean            // show an edge-depth (mm) input (hangboard grips)
+  supportsNegativeLoad?: boolean
+  hasEdgeDepth?: boolean
   hangboard?: HangConfig            // @deprecated pre-F51 hangboard protocol; unused (grip-as-exercise)
   defaults?: ExerciseDefaults       // A98 — pre-fill values when adding to a template/session
   favorite?: boolean                // heart toggle + library favourites filter
@@ -72,15 +84,23 @@ export interface Exercise {
 }
 ```
 
+> **Metric model.** An exercise tracks any independent combination of Sets · Reps ·
+> Duration · Distance · Rest · Edge · Weight · Load (each a toggle + default in the
+> editor's Parameters section). There is no separate "tracking type" selector — the
+> stored `trackingType` and the weight/edge flags are derived from the enabled
+> metrics. Intra-rest (Abrahang) work/rest cycles were removed: a hang is simply a
+> multi-set duration hold. **Weight** is an absolute load (≥ 0, strength PR);
+> **Load** is bodyweight-relative and signed (assisted −/added +, stored in
+> `additionalWeightKg`, shown as % of bodyweight).
+
 > **F51 — hangboard is unified.** A hangboard "exercise" is a **grip** (Half crimp,
-> Open hand, …, id `ex_hang_*`); the protocol (hang duration, load, edge, sets, and
-> for Abrahang the reps + intra-rest) lives on the template row / logged set, not the
-> exercise. A hang is a standard **duration** exercise rendered by the ordinary set
-> row (`ExerciseCard`) with edge/intra-rest fields enabled by config, and logged as a
-> **`LoggedSet`** — not a `LoggedHang`. Per-grip PRs flow through the standard
-> `exerciseName`-keyed PR path. `HangboardSet`, `LoggedHang`, `WorkoutTemplate.hangboardSets`,
-> `Exercise.hangboard`, and `plannedHangs` are retained only for the v10/v11 migration
-> and backup rollback.
+> Open hand, …, id `ex_hang_*`); the protocol (hold duration, load, edge, sets) lives
+> on the template row / logged set, not the exercise. A hang is a standard
+> **duration** exercise (metrics: sets · duration · rest · edge · load) rendered by
+> the ordinary set row (`ExerciseCard`) and logged as a **`LoggedSet`** — not a
+> `LoggedHang`. Per-grip PRs flow through the standard `exerciseName`-keyed PR path.
+> `HangboardSet`, `LoggedHang`, `WorkoutTemplate.hangboardSets`, `Exercise.hangboard`,
+> and `plannedHangs` are retained only for the v10/v11 migration and backup rollback.
 
 ### Workout templates
 
@@ -95,10 +115,7 @@ export interface TemplateExercise {
   defaultWeight?: number            // kg
   defaultDistanceKm?: number        // target distance for a distance-tracked row (A98)
   defaultRestSeconds: number
-  // F51 — hangboard row params (a hang is a duration row with these set)
-  defaultEdgeDepthMm?: number
-  defaultIntraRestSeconds?: number  // Abrahang: rest between reps within a set
-  defaultAbrahangReps?: number      // Abrahang: reps within a set
+  defaultEdgeDepthMm?: number       // F51 — edge (mm) for a hang row (Edge metric)
   notes?: string
 }
 
@@ -110,6 +127,7 @@ export interface WorkoutTemplate {
   categories: TemplateCategory[]
   type?: DisciplineType             // @deprecated pre-F46 single discipline; migrated into `categories` (v8), kept only for legacy/backup reads
   tags: string[]                    // e.g. ['push', 'legs']
+  notes?: string                    // free-text description (editor + card info panel)
   exercises: TemplateExercise[]     // ordered array
   // cardio-only fields
   cardioActivity?: CardioActivityType
@@ -206,8 +224,8 @@ export interface LoggedSet {
   distanceKm?: number               // for a cardio exercise logged in a mixed session (A66)
   // F51 — hangboard fields on a logged hang (a duration set)
   edgeDepthMm?: number
-  intraRestSeconds?: number         // Abrahang: rest between reps within the set
-  abrahangReps?: number             // Abrahang: reps within the set
+  intraRestSeconds?: number         // @deprecated intra-rest removed; retained on historical rows only
+  abrahangReps?: number             // @deprecated intra-rest removed; retained on historical rows only
   skipped: boolean
   swappedFrom?: string              // original exerciseName if swapped
   loggedAt: number

@@ -18,9 +18,9 @@ import {
   DEFAULT_WEIGHT_STEP,
 } from '@/lib/prefs'
 import { HoldButton } from '@/components/HoldButton'
-import { cn } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 
 // The "Session" and "Workout" preference groups: auto-advance / timer sounds /
 // keep-awake toggles, the exercise pre-count stepper, the weight-increment
@@ -177,27 +177,7 @@ function SettingSwitch({
           <p className="text-sm font-medium">{label}</p>
           <p className="text-xs text-muted-foreground">{description}</p>
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={checked}
-          aria-label={label}
-          onClick={() => onChange(!checked)}
-          className={cn(
-            'relative h-6 w-11 shrink-0 rounded-full transition-colors',
-            checked ? 'bg-primary' : 'bg-muted',
-          )}
-        >
-          <span
-            className={cn(
-              // Anchor at left-0.5 (2px) and slide with translate; without an
-              // explicit left the abspos thumb resolved to the right edge and
-              // overhung the track.
-              'absolute left-0.5 top-0.5 size-5 rounded-full bg-background shadow transition-transform',
-              checked ? 'translate-x-5' : 'translate-x-0',
-            )}
-          />
-        </button>
+        <Switch checked={checked} ariaLabel={label} onChange={onChange} />
       </div>
       {children}
     </div>
