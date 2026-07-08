@@ -31,14 +31,18 @@ const OPTIONS: { value: Filter; label: string }[] = [
   { value: 'strength', label: 'Strength' },
 ]
 
-const isHangboardTemplate = (t: WorkoutTemplate) => (t.hangboardSets?.length ?? 0) > 0
+// A "hangboard-only" workout is nothing but hang sets (no exercises). A template
+// that mixes hangs with climbing/strength exercises (e.g. "Strength and Fingers")
+// is NOT hangboard-only — it stays under its real categories (Climbing, …).
+const isHangboardOnly = (t: WorkoutTemplate) =>
+  (t.hangboardSets?.length ?? 0) > 0 && (t.exercises?.length ?? 0) === 0
 
-// Hangboard workouts (hangboardSets) get their own tab, so the Climbing tab shows
-// only route/climbing-training workouts — disjoint, mirroring the Exercises tabs.
+// Hangboard-only workouts get their own tab, so the Climbing tab shows route /
+// climbing-training / mixed workouts — disjoint, mirroring the Exercises tabs.
 function matchesFilter(t: WorkoutTemplate, f: Filter): boolean {
   if (f === 'all') return true
-  if (f === 'hangboard') return isHangboardTemplate(t)
-  if (f === 'climbing') return templateCategories(t).includes('climbing') && !isHangboardTemplate(t)
+  if (f === 'hangboard') return isHangboardOnly(t)
+  if (f === 'climbing') return templateCategories(t).includes('climbing') && !isHangboardOnly(t)
   return templateCategories(t).includes(f)
 }
 
