@@ -92,7 +92,9 @@ export default function TemplateCreateScreen() {
   // discipline; cardio fields for cardio; hang sets for Hangboard (its own pill now).
   const showExercises =
     categories.length === 0 ||
-    categories.some((c) => c === 'strength' || c === 'climbing' || c === 'rehab')
+    categories.some(
+      (c) => c === 'strength' || c === 'climbing' || c === 'rehab' || c === 'hangboard',
+    )
   const showCardio = categories.includes('cardio')
   const showHangboard = categories.includes('hangboard')
   // Picker scope = the selected exercise categories; Hangboard also offers hang

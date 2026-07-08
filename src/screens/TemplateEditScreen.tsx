@@ -220,7 +220,9 @@ export default function TemplateEditScreen() {
   // A94 — which content sections apply, derived from the (editable) build
   // categories. Exercises for any exercise discipline; cardio fields for cardio;
   // hang sets for Hangboard (its own pill now).
-  const showExercises = categories.some((c) => c === 'strength' || c === 'climbing' || c === 'rehab')
+  const showExercises = categories.some(
+    (c) => c === 'strength' || c === 'climbing' || c === 'rehab' || c === 'hangboard',
+  )
   const showCardio = categories.includes('cardio')
   const showHangboard = categories.includes('hangboard')
   // The picker shows the selected exercise disciplines; Hangboard also offers hang
