@@ -1,6 +1,6 @@
 # Agent Conventions
 
-Standing instructions for Claude when working on this project. Apply these across every phase without being told.
+Standing instructions for Claude when working on this project. Apply these on every task without being told.
 
 ---
 
@@ -66,9 +66,9 @@ Examples:
 - Do not leave console.log statements in committed code
 - Do not add placeholder comments like `// TODO: implement this` — implement it or omit the stub
 
-## Reporting at end of each phase
+## Reporting at end of a task
 
-After completing a phase, provide a brief summary:
+After completing a task, provide a brief summary:
 1. Files created or modified (with paths)
 2. Any decisions made that deviated from the spec (and why)
 3. Anything the reviewer should manually verify on-device

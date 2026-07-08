@@ -160,12 +160,14 @@ Weights are stored and displayed in **kg only** in v1 — there is no unit conve
 
 UI preferences live in `localStorage`; all workout data lives in IndexedDB (Dexie). Keys:
 
-- `theme` — theme id; `user_name` — home-greeting name
-- `auto_advance_timed`, `timer_sounds`, `keep_awake` — session toggles (default on; only `'0'` disables)
-- `week_start` — `0` Sunday / `1` Monday (default Monday)
+- `theme` — theme id (new installs default to `forest-light`); `user_name` — home-greeting name; `bodyweight` — for the %-of-bodyweight display
+- `auto_advance_timed`, `timer_sounds`, `keep_awake`, `confettiEnabled` — session toggles (default on; only `'0'` disables)
+- `week_start` — `0` Sunday / `1` Monday (default Monday); `planner_view` — planner default view `month`/`week`/`list` (default `week`)
 - `precountSeconds` — "Get ready" pre-count before timed exercises (0–10, default 5; 0 = off)
+- `weightIncrementEnabled` / `weightIncrement` — custom +/− step on session weight inputs; `tickDisplayStyle` — route tick indicators `emojis` (default) / `symbols`
 - `saved_gyms` / `saved_crags` / `saved_boards` — remembered location names, MRU JSON arrays capped at 10
-- `gym_grade_ranges` — per-gym grade ranges, keyed by gym name: `{ [gym]: { bouldering|top_rope|lead: { min, max } } }`
+- `gym_grade_ranges` — per-gym grade ranges, keyed by gym name: `{ [gym]: { bouldering|top_rope|lead: { min, max } } }`; `gym_areas` — per-gym named areas
+- `custom_route_colours`, `custom_climb_styles` — user-added route colours / climb-style tags
 
 Seed provenance is tracked in the Dexie `meta` table (`seededExerciseIds`, `seededTemplateIds`, `builtinRefreshVersion`, `legacyMigrated`), **not** a `localStorage` flag — `seedIfNeeded()` runs on every launch and is idempotent/additive. Clearing all data wipes `meta` (and removes a legacy `db_seeded` key defensively), so the built-in library re-seeds on the next launch. Replace-import restores into the same tables; merge-import only adds ids not already present and re-runs PR detection.
 
@@ -216,4 +218,4 @@ And `index.html` needs the matching restore script in `<head>`, **before** the a
 </script>
 ```
 
-React Router's `<BrowserRouter basename={import.meta.env.BASE_URL}>` (Phase 1) then resolves the restored path correctly.
+React Router's `<BrowserRouter basename={import.meta.env.BASE_URL}>` then resolves the restored path correctly.

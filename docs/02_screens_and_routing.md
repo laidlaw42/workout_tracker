@@ -160,12 +160,13 @@ Plans live in the `plannedWorkouts` table; finishing a session best-effort links
 
 ### ClimbingSessionScreen `/session/climbing/:id`
 
-**Purpose:** Log a climbing session. Handles three flavours from one screen:
-- **Plain** (gym/crag quick-start): route logging only.
-- **Hangboard** template: a Hangboard section of `HangCard`s (progress tracked per `hangSetId`); routes hidden.
-- **Climbing-workout** template (or a repeat session): a strength-style Exercises section (with the `RestTimer` between sets and the Edit-workout modify sheet) **plus** hangs and/or routes.
+**Purpose:** Log a climbing session (`type: 'climbing'`). Two flavours from one screen:
+- **Plain** (gym/crag/board quick-start): route logging only.
+- **Climbing-workout** template (or a repeat session): a strength-style Exercises section (with the `RestTimer` between sets) **plus** optional hangs (`HangCard`s, tracked per `hangSetId`) and routes.
 
-The `WorkoutSession` (`type: 'climbing'`) already exists before this screen loads. Routes/hangs link to it via `sessionId`; there is no separate climbing-session record. Optional `gym`/`crag` are edited on the session itself. The elapsed timer runs for every flavour.
+Hangboard-only training sessions are typed `'mixed'` and log on the training screen (A73), not here — the shared `useTimedSetEngine` hook drives the set/hang timers on both.
+
+The `WorkoutSession` (`type: 'climbing'`) already exists before this screen loads. Routes/hangs link to it via `sessionId`; there is no separate climbing-session record. Optional `gym`/`crag`/`board` are edited on the session itself. The elapsed timer runs for both flavours.
 
 **Layout:**
 1. Header: "Climbing session", elapsed timer, "Finish" button
@@ -257,9 +258,11 @@ The `WorkoutSession` (`type: 'climbing'`) already exists before this screen load
 **Tabs:**
 1. **Strength** — exercise picker → line chart of best weight over time + PR history (queried by `exerciseId` via `getSetsForExercise`, not by name)
 2. **Cardio** — activity picker → pace over time, distance over time
-3. **Climbing** — grade pyramid (bar chart, sends per grade, V and Ewbanks separately), hardest grade per month
+3. **Hangboard** — grip picker → best added-weight / hang-time over time + PR history
+4. **Climbing** — grade pyramid (bar chart, sends per grade, V and Ewbanks separately) + character/style breakdowns + metres-climbed trend
+5. **Rehab** — exercise picker → recovery-work trend (longest hold / top weight / total reps)
 
-**Chart library:** Recharts (already in shadcn ecosystem, works well on mobile).
+**Charts:** hand-rolled responsive SVG in `src/components/charts/` (`LineChart`, `HBarChart`) — themed via CSS variables, no chart-library dependency (D2).
 
 ---
 

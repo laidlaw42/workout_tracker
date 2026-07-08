@@ -5,10 +5,20 @@
 ### Shared
 
 ```ts
-export type DisciplineType = 'strength' | 'cardio' | 'climbing'
+// 'mixed' (A66) — a build-from-scratch session spanning more than one discipline.
+export type DisciplineType = 'strength' | 'cardio' | 'climbing' | 'mixed'
 export type CardioActivityType = 'run' | 'ride' | 'row' | 'other'
 export type ClimbingStyle = 'bouldering' | 'top_rope' | 'lead'
-export type WallAngle = 'slab' | 'vertical' | 'overhang'
+export type WallAngle = 'slab' | 'vertical' | 'overhang'  // legacy; superseded by ClimbCharacter (A45)
+export type ClimbCharacter = 'slab' | 'vertical' | 'overhang' | 'roof' | 'cave' | 'crack'  // A45
+export type TrackingType = 'reps' | 'duration' | 'distance'
+// Discipline bucket an exercise belongs to (A36); 'rehab' is discipline-agnostic (A42);
+// 'hangboard' (A73) exercises carry a hangboard protocol and log as LoggedHang.
+export type ExerciseCategory = 'strength' | 'cardio' | 'climbing' | 'rehab' | 'hangboard'
+// A94 — the disciplines a template can span (`categories`, multi-select). NOT
+// DisciplineType: there is no 'mixed' category (a multi-category template *is* the
+// mixed case) and 'rehab' is a first-class option.
+export type TemplateCategory = 'strength' | 'cardio' | 'climbing' | 'rehab'
 
 // theCrag tick types — bouldering subset
 export type BoulderTick = 'onsight' | 'flash' | 'send' | 'working' | 'repeat' | 'dab'
@@ -19,19 +29,37 @@ export type RopedTick = 'onsight' | 'flash' | 'clean' | 'redpoint' | 'pink_point
 export type ClimbingTick = BoulderTick | RopedTick
 
 export type ClimbingKind = 'hangboard' | 'workout'  // climbing template flavours
+export type HangType = 'sub_max' | 'max_hang' | 'abrahang'  // A37 hangboard protocol type
+export type PRType = 'weight' | 'reps' | 'pace' | 'distance' | 'grade' | 'duration'
 ```
 
 ### Exercise library
 
 ```ts
+// A98 — optional per-exercise default parameters; pre-fill the template/working-set
+// fields as the exercise is added. Which fields matter follows trackingType; unset
+// ones fall back to hardcoded defaults (3 sets · 10 reps · 90s rest).
+export interface ExerciseDefaults {
+  sets?: number
+  reps?: number
+  weightKg?: number
+  durationSeconds?: number
+  distanceKm?: number
+  restSeconds?: number
+}
+
 export interface Exercise {
   id: string                        // uuid or stable slug (ex_*) for built-ins
   name: string
+  category: ExerciseCategory        // A36 — discipline bucket (incl. 'rehab', 'hangboard')
   muscleGroups: string[]            // e.g. ['chest', 'triceps']
-  trackingType: 'reps' | 'duration' | 'distance'
+  trackingType: TrackingType
   tags: string[]                    // free-form, lower-cased on save
   notes?: string
   supportsAdditionalWeight?: boolean // bodyweight move that can carry extra load (pull-up, dip, …) → set logging shows a "+kg" field
+  hangboard?: HangConfig            // A73 — hangboard exercises carry a default protocol; seeds a HangboardSet when added
+  defaults?: ExerciseDefaults       // A98 — pre-fill values when adding to a template/session
+  favorite?: boolean                // heart toggle + library favourites filter
   createdAt: number                 // timestamp ms
 }
 ```
@@ -44,9 +72,10 @@ export interface TemplateExercise {
   exerciseName: string              // denormalised for display speed
   order: number                     // 0-indexed sort order
   defaultSets: number
-  defaultReps?: number              // null for duration/distance exercises
+  defaultReps?: number              // undefined for duration/distance exercises
   defaultDuration?: number          // seconds
   defaultWeight?: number            // kg
+  defaultDistanceKm?: number        // target distance for a distance-tracked row (A98)
   defaultRestSeconds: number
   notes?: string
 }
@@ -54,7 +83,10 @@ export interface TemplateExercise {
 export interface WorkoutTemplate {
   id: string                        // uuid or stable slug (tpl_*) for built-ins
   name: string                      // e.g. 'Upper A'
-  type: DisciplineType              // 'strength' | 'cardio' | 'climbing'
+  // A94/F46 — the disciplines this template spans; it shows under each in the
+  // Library. Source of truth for the ExercisePicker scope + card badges.
+  categories: TemplateCategory[]
+  type?: DisciplineType             // @deprecated pre-F46 single discipline; migrated into `categories` (v8), kept only for legacy/backup reads
   tags: string[]                    // e.g. ['push', 'legs']
   exercises: TemplateExercise[]     // ordered array
   // cardio-only fields
@@ -65,6 +97,7 @@ export interface WorkoutTemplate {
   // climbing-only fields
   climbingKind?: ClimbingKind       // 'hangboard' | 'workout'
   hangboardSets?: HangboardSet[]
+  favorite?: boolean                // heart toggle + library favourites filter
   lastUsedAt?: number
   createdAt: number
 }
@@ -73,13 +106,20 @@ export interface WorkoutTemplate {
 export interface HangboardSet {
   id: string
   gripType: string                  // e.g. 'Half crimp'
+  hangType: HangType                // A37 — defaults to 'sub_max' for legacy rows
   edgeDepthMm: number
-  durationSeconds: number           // hang duration
+  durationSeconds: number           // hang duration (for abrahang: work per rep)
   weightKg: number                  // + added / - assisted
   sets: number                      // number of hangs
-  restSeconds: number               // 180 repeaters / 300 max hangs (see 05_reference)
+  restSeconds: number               // inter-set rest; 180 repeaters / 300 max hangs (see 05_reference)
+  abrahangReps?: number             // A37 — reps per set (default 6)
+  intraRestSeconds?: number         // A37 — short intra-set rest between abrahang reps (default 3s)
   order: number
 }
+
+// The tunable part of a hangboard protocol without its per-instance id/order —
+// used as an exercise's default hang config (Exercise.hangboard).
+export type HangConfig = Omit<HangboardSet, 'id' | 'order'>
 
 // An interval block = one round-group. Its steps run in order, repeated `repeat`
 // times, which cleanly expresses interleaved sets like 8×(2min hard / 1min easy).
@@ -101,25 +141,26 @@ export interface IntervalBlock {
 export interface WorkoutSession {
   id: string                        // uuid
   templateId?: string               // undefined for freestyle / climbing sessions
-  templateName: string              // snapshot at session start
-  type: DisciplineType
+  templateName: string              // snapshot at session start (also the editable title, A68)
+  titleRenamed?: boolean            // A68 — user renamed the title; show it over the venue name
+  type: DisciplineType              // incl. 'mixed' (A66)
   startedAt: number
   endedAt?: number
   modifiedFromTemplate: boolean
   notes?: string
   // climbing-only metadata (kept on the session — no separate climbing table)
-  climbingVenue?: 'gym' | 'crag' | 'home'  // quick-start venue discriminator; undefined for template/repeat sessions
+  climbingVenue?: 'gym' | 'crag' | 'board'  // quick-start venue discriminator; undefined for template/repeat ('board' was formerly 'home', F30)
   gym?: string
   crag?: string
-  board?: string                    // Home board name (may be '') — distinguishes a Home session from gym/crag
+  board?: string                    // set (possibly '') for a board session; distinguishes it from gym/crag
   // Plan snapshot for a "repeat" session (created from a past session, not a
-  // template) and for mid-session cardio edits. Session screens read these when
-  // there is no linked template.
+  // template). Session screens read these when there is no linked template.
   plannedExercises?: TemplateExercise[]
   plannedHangs?: HangboardSet[]
   plannedIntervals?: IntervalBlock[]
   plannedActivity?: CardioActivityType
   pausedDuration?: number            // total ms the timer was paused; lets an unfinished session (A34) resume its clock after a relaunch
+  lastActiveAt?: number              // A48 — ~10s heartbeat while a session screen is mounted; prefers a live session over an orphaned unfinished record
 }
 ```
 
@@ -138,6 +179,7 @@ export interface LoggedSet {
   additionalWeightKg?: number       // extra load on a bodyweight movement (pull-up, dip, …)
   restTakenSeconds?: number
   durationSeconds?: number          // for timed exercises
+  distanceKm?: number               // for a cardio exercise logged in a mixed session (A66)
   skipped: boolean
   swappedFrom?: string              // original exerciseName if swapped
   loggedAt: number
@@ -179,10 +221,15 @@ export interface ClimbingRoute {
   ewbanksGrade?: number             // e.g. 18, 25, 33
   gymGrade?: number                 // gym-specific 0–35 scale (never conflated with vGrade/ewbanksGrade)
   feltLikeGrade?: string            // optional "felt like" grade, stored as its display string
-  wallAngle?: WallAngle             // enum for gym/crag
-  wallAngleDegrees?: number         // Home board: -45 (slab) .. 0 (vertical) .. +90 (overhang)
+  wallAngle?: WallAngle             // legacy enum; superseded by climbCharacter (A45), cleared when a route is saved
+  climbCharacter?: ClimbCharacter   // A45 — physical character of the climb
+  climbStyles?: string[]            // A47 — freeform style descriptors (crimpy, pumpy, …)
+  wallAngleDegrees?: number         // board: -45 (slab) .. 0 (vertical) .. +90 (overhang); gym 0–90
+  heightMetres?: number             // A44 — route height in metres
   routeName?: string
   colour?: string                   // gym tape colour (Gym sessions only; lowercase, e.g. 'red', 'wood')
+  routeType?: 'sport' | 'trad'      // A64 — crag lead/top-rope metadata only
+  gymArea?: string                  // A69 — gym section/area this route is in
   tick: ClimbingTick
   attempts?: number
   falls?: number
@@ -223,6 +270,8 @@ export interface LoggedHang {
   actualDurationSeconds?: number
   weightKg: number
   restTakenSeconds?: number
+  hangType?: HangType               // A37
+  abrahangReps?: number             // A37 — reps completed in an abrahang set
   skipped: boolean
   loggedAt: number
 }
@@ -263,14 +312,14 @@ export interface PlannedWorkout {
 
 ## Dexie schema — `src/db/db.ts`
 
-Nine data tables plus `meta`. Compound indexes back the hot read paths — "last set for an exercise" and "sets/routes/hangs for a session ordered by time" — so those never sort in memory.
+Ten data tables plus `meta`. Compound indexes back the hot read paths — "last set for an exercise" and "sets/routes/hangs for a session ordered by time" — so those never sort in memory. Each `.upgrade()` runs a per-record try/catch so one bad row is logged and skipped, never aborting the migration.
 
 ```ts
 import Dexie, { type Table } from 'dexie'
 import type {
   Exercise, WorkoutTemplate, WorkoutSession,
-  LoggedSet, LoggedCardio,
-  ClimbingRoute, LoggedHang, PersonalRecord, PlannedWorkout
+  LoggedSet, LoggedCardio, ClimbingRoute, LoggedHang,
+  PersonalRecord, PlannedWorkout, TagMeta,
 } from '@/types'
 
 export class WorkoutDB extends Dexie {
@@ -283,6 +332,7 @@ export class WorkoutDB extends Dexie {
   hangs!: Table<LoggedHang>
   prs!: Table<PersonalRecord>
   plannedWorkouts!: Table<PlannedWorkout>
+  tags!: Table<TagMeta>
   meta!: Table<MetaRow>
 
   constructor() {
@@ -296,17 +346,19 @@ export class WorkoutDB extends Dexie {
       routes:    '&id, [sessionId+loggedAt], style',
       prs:       '&id, sessionId, [climbingStyle+prType], exerciseName, prType, achievedAt',
     })
-    // v2 adds a small key/value meta table for built-in seed provenance.
-    this.version(2).stores({ meta: '&key' })
-    // v3 adds hangboard hang logs.
-    this.version(3).stores({ hangs: '&id, sessionId, [sessionId+loggedAt]' })
-    // v4 adds the calendar's planned workouts.
-    this.version(4).stores({
-      plannedWorkouts: '&id, plannedDate, templateId, completedSessionId',
-    })
-    // v5 adds per-tag metadata (colour + default selection). Keyed by name;
-    // isDefault is a boolean (not an indexable key) so it stays unindexed.
-    this.version(5).stores({ tags: '&name, order' })
+    this.version(2).stores({ meta: '&key' })                                   // built-in seed provenance
+    this.version(3).stores({ hangs: '&id, sessionId, [sessionId+loggedAt]' })  // hangboard hang logs
+    this.version(4).stores({ plannedWorkouts: '&id, plannedDate, templateId, completedSessionId' })
+    this.version(5).stores({ tags: '&name, order' })                          // per-tag colour + default selection
+    // v6 (A36) adds a category index on exercises and backfills existing rows
+    // (distance-tracked → cardio, else strength).
+    this.version(6).stores({ exercises: '&id, name, category' }).upgrade(/* backfill */)
+    // v7 (A73) reclassifies a climbing session with no route venue as type 'mixed'
+    // so hangboard-only training sessions render on the training screen.
+    this.version(7).stores({ sessions: '&id, type, startedAt, templateId' }).upgrade(/* reclassify */)
+    // v8 (A94/F46) moves templates from a single `type` to `categories: []` (derived
+    // from content, incl. 'climbing' for hangboard); drops the `type` index.
+    this.version(8).stores({ templates: '&id, lastUsedAt' }).upgrade(/* derive categories */)
   }
 }
 
@@ -319,14 +371,15 @@ Each helper is a typed async function. **Components import helpers, never `db` d
 
 IDs come from `generateId()` (see `src/lib/id.ts` below), not a bare `crypto.randomUUID()`, so the app still works in non-secure contexts. Timestamps are `Date.now()`.
 
-Functions to implement (signatures only — bodies written in Phase 2):
+The DB helper API (signatures only):
 
 ```ts
 // Exercises
 export async function getAllExercises(): Promise<Exercise[]>
 export async function upsertExercise(e: Omit<Exercise, 'id' | 'createdAt'>): Promise<string>
-export async function updateExercise(id: string, updates: Partial<Omit<Exercise, 'id' | 'createdAt'>>): Promise<void>  // rename cascades to templates
+export async function updateExercise(id: string, updates: Partial<Omit<Exercise, 'id' | 'createdAt'>>): Promise<void>  // rename cascades to templates + PRs (DM1)
 export async function deleteExercise(id: string): Promise<void>
+export async function setExerciseFavorite(id: string, favorite: boolean): Promise<void>
 
 // Tags (A35) — colour + default-selection metadata
 export async function getAllTags(): Promise<TagMeta[]>
@@ -340,21 +393,29 @@ export async function deleteTag(name: string): Promise<void>  // removes the tag
 
 // Templates
 export async function getAllTemplates(): Promise<WorkoutTemplate[]>
-export async function getTemplatesByType(type?: DisciplineType): Promise<WorkoutTemplate[]>
+export async function getTemplatesInCategory(category: TemplateCategory): Promise<WorkoutTemplate[]>  // A94 — templates whose `categories` include it
 export async function getTemplate(id: string): Promise<WorkoutTemplate | undefined>
 export async function upsertTemplate(t: Omit<WorkoutTemplate, 'id' | 'createdAt'> & { id?: string }): Promise<string>
 export async function deleteTemplate(id: string): Promise<void>
+export async function setTemplateFavorite(id: string, favorite: boolean): Promise<void>
+export async function createTemplateFromSession(sessionId: string, name: string): Promise<string>  // "save as template" from a logged session
 export async function markTemplateUsed(id: string): Promise<void>  // bump lastUsedAt on start
 
 // Sessions
 export async function createSession(s: Omit<WorkoutSession, 'id'>): Promise<string>
-export async function updateSession(id: string, updates: Partial<WorkoutSession>): Promise<void>  // notes, gym, crag
+export async function startSessionFromTemplate(templateId: string): Promise<{ sessionId: string; type: DisciplineType } | null>  // A34 — live copy of a template
+export async function startSessionFromExercise(exercise: Exercise): Promise<string>  // A59 — template-less session pre-loaded with one exercise
+export async function updateSession(id: string, updates: Partial<WorkoutSession>): Promise<void>  // notes, gym, crag, title
+export async function renameSession(id: string, title: string): Promise<void>  // A68 — sets templateName + titleRenamed
+export async function updateClimbingSessionLocation(id: string, venue: 'gym' | 'crag' | 'board', name: string): Promise<void>
+export async function updateSessionHeartbeat(id: string): Promise<void>  // A48 — bumps lastActiveAt
 export async function endSession(id: string): Promise<void>
-export async function deleteSession(id: string): Promise<void>  // cascades to sets/cardio/routes/prs
+export async function reopenSession(id: string): Promise<void>  // F23 — reactivate a completed session (clears endedAt, rolls the pause gap)
+export async function deleteSession(id: string): Promise<void>  // cascades to sets/cardio/routes/hangs/prs
 export async function getRecentSessions(limit?: number): Promise<WorkoutSession[]>
 export async function getAllSessions(type?: DisciplineType): Promise<WorkoutSession[]>  // ordered by startedAt desc; for History
 export async function getSessionById(id: string): Promise<WorkoutSession | undefined>
-export async function getUnfinishedSession(): Promise<WorkoutSession | undefined>  // most recent session with no endedAt — Home resume banner (A34)
+export async function getUnfinishedSession(): Promise<WorkoutSession | undefined>  // most-recently-active session with no endedAt — Home resume banner (A34)
 export async function describeSessions(sessions: WorkoutSession[]): Promise<Record<string, SessionKind>>  // classifies each by logged content (cardio activity / distinct climb styles / hangboard / workout) for History + Recents badges
 export async function repeatSession(sourceId: string): Promise<string>  // "use as workout" — snapshots a past session's plan onto a new one
 // endSession() also best-effort links a same-day, same-template PlannedWorkout via completedSessionId
@@ -402,11 +463,15 @@ export async function deletePlannedWorkout(id: string): Promise<void>
 export async function linkPlanToSession(plannedId: string, sessionId: string): Promise<void>
 
 // Export / import / data management
-export async function exportAllData(): Promise<string>   // JSON string; includes plannedWorkouts + tags
+export async function exportAllData(): Promise<string>   // JSON string; full snapshot (incl. plannedWorkouts + tags)
 export async function importAllData(json: string): Promise<void>  // REPLACE — one Dexie transaction
 export async function mergeData(json: string): Promise<{ inserted: number; skipped: number }>  // additive; skips existing ids, re-runs PR detection
 export async function clearAllData(): Promise<void>  // clears every table (incl. meta) → re-seeds next launch
-export async function restoreDefaults(): Promise<void>  // re-inserts any missing built-in exercises/templates by id; edited/user records untouched
+
+// One-time, best-effort startup migrations (run from Root.tsx after seedIfNeeded)
+export async function syncAllTagMeta(): Promise<void>          // A35 — backfill tag metadata
+export async function migrateWallAngles(): Promise<void>      // A45 — legacy wallAngle → climbCharacter
+export async function migrateHomeVenueToBoard(): Promise<void> // F30 — climbingVenue 'home' → 'board'
 ```
 
 ## ID generation — `src/lib/id.ts`
@@ -434,18 +499,4 @@ Built-in exercises and templates use **stable slug ids** (`ex_*`, `tpl_*`) so th
 - **Templates** are seeded once each: the `meta` key `seededTemplateIds` records every built-in ever seeded, so a new build adds only the new ids and a user-deleted starter is never resurrected.
 - A one-time **legacy migration** (`meta.legacyMigrated`) removes the original uuid-id starter set, replaced by the stable-id set. User-created templates (uuid ids, non-starter names) are untouched.
 
-The built-in set is science-based / proven splits: Push/Pull/Legs A+B, Upper/Lower, Full Body A/B, plus Easy run, Tempo run, Zone 2 ride, Interval ride, Rowing intervals, and two hangboard protocols (Repeaters @180s, Max hangs @300s). Strength rest defaults and hangboard rest values are literature-based (see `05_reference` / comments in `seed.ts`). `BUILTIN_SET_VERSION` bumps trigger a one-time refresh of existing built-ins (preserving `createdAt`/`lastUsedAt`).
-
-**Exercise library to seed** (minimum viable set):
-
-Strength: Squat, Romanian deadlift, Leg press, Leg curl, Hip thrust, Bench press, Incline dumbbell press, Cable fly, Overhead press, Lateral raise, Pull-up, Lat pulldown, Seated row, Face pull, Bicep curl, Tricep pushdown, Plank
-
-Cardio: Run, Ride, Row
-
-**Templates to seed:**
-
-- Push A: Bench press 4×8, Overhead press 3×10, Incline DB press 3×12, Lateral raise 3×15, Tricep pushdown 3×15
-- Pull A: Pull-up 4×6, Seated row 4×10, Lat pulldown 3×12, Face pull 3×15, Bicep curl 3×12
-- Legs A: Squat 4×6, Romanian deadlift 3×10, Leg press 3×12, Leg curl 3×12, Hip thrust 3×10
-- Easy run: 30 min, no intervals
-- Interval ride: 5 min warmup + 8×(2 min hard / 1 min easy) + 5 min cooldown
+The built-in library spans all five exercise categories — strength, cardio, climbing, rehab, and hangboard — and the built-in templates cover proven splits (Push/Pull/Legs A+B, Upper/Lower, Full Body A/B), cardio sessions (Easy/Tempo run, Zone 2/Interval ride, Rowing intervals), and hangboard protocols (Repeaters, Max hangs, Sub-max Repeaters, Abrahangs, plus a mixed Strength and Fingers). Strength rest defaults and hangboard rest values are literature-based (see `05_reference` / comments in `seed.ts`). The exact set lives in `seed.ts`; `BUILTIN_SET_VERSION` bumps trigger a one-time refresh of existing built-ins (preserving `createdAt`/`lastUsedAt`).

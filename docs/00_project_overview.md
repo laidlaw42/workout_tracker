@@ -16,7 +16,7 @@ A mobile-first Progressive Web App (PWA) for tracking strength workouts, cardio 
 | PWA | vite-plugin-pwa | Auto service worker + manifest generation |
 | Routing | React Router v6 | Standard SPA routing |
 | Icons | Lucide React | Consistent, tree-shakeable |
-| Charts | Recharts | Mobile-friendly, works with shadcn theming |
+| Charts | Hand-rolled SVG | Tiny, theme-aware; no chart-library dependency (D2) |
 | Drag & drop | @dnd-kit | Accessible sortable lists (template editor) |
 | Hosting | GitHub Pages | Free static hosting at the `/workout_tracker/` subpath; CI via GitHub Actions |
 
@@ -51,7 +51,9 @@ The app tracks three distinct activity types, each with its own data model and s
 
 1. **Strength** — pre-built templates with exercises, sets, reps, rest times. Mid-session modification (add/swap/skip/remove/reorder) and an auto rest timer.
 2. **Cardio** — duration, distance, pace. Optional interval structure, editable mid-session.
-3. **Climbing** — three flavours: plain gym/crag route logging (bouldering V-grade + roped Ewbanks with theCrag tick types), **hangboard** templates (grip protocols), and climbing-**workout** templates (strength-style exercises + hangs + routes in one session).
+3. **Climbing** — gym/crag/board route logging (bouldering V-grade + roped Ewbanks with theCrag tick types) and **hangboard** protocols (grip/edge/duration sets), which have their own exercise category and library tab. Hangboard sessions log on the training screen (A73).
+
+A build-from-scratch session that ends up spanning more than one discipline (e.g. strength + hangs) is typed **'mixed'** (A66).
 
 ## Planning & personalisation
 
@@ -67,7 +69,7 @@ The app tracks three distinct activity types, each with its own data model and s
 - JSON export/import (replace or merge) for backup and restore
 - 22 light/dark themes; UI preferences (theme, name, session toggles, week start, pre-count, saved gyms/crags/boards, per-gym grade ranges) persist in `localStorage`; all workout data in IndexedDB
 - Weights are stored and entered in **kg only** in v1 (no unit toggle)
-- Requires a secure context (HTTPS or `localhost`) for the service worker and `crypto` — on-device LAN testing uses a dev HTTPS cert (see Phase 1)
+- Requires a secure context (HTTPS or `localhost`) for the service worker and `crypto` — on-device LAN testing uses a dev HTTPS cert (`vite-plugin-mkcert`)
 
 ## Guiding conventions for Claude
 
@@ -77,4 +79,3 @@ The app tracks three distinct activity types, each with its own data model and s
 - All Dexie operations — reads and writes — go through `src/db/` helper functions, never called directly from components. Live reads use `useLiveQuery(() => someHelper())` so components never import `db`.
 - All TypeScript types live in `src/types/index.ts` unless screen-specific
 - Commits are descriptive: `feat(db): add sessions table and typed helpers`
-- Each phase ends with a working, installable app — no half-built phases
