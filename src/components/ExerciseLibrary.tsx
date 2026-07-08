@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { ChevronRight, Dumbbell, Pencil, Play, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useTagColours } from '@/hooks/useTagColours'
+import { useUnfinishedWorkoutGuard } from '@/hooks/useUnfinishedWorkoutGuard'
 import {
   getAllExercises,
   getAllTemplates,
@@ -43,6 +44,7 @@ const CATEGORY_OPTIONS: { value: CatFilter; label: string }[] = [
 
 export function ExerciseLibrary() {
   const navigate = useNavigate()
+  const { guardStart, guardDialog } = useUnfinishedWorkoutGuard()
   const exercises = useLiveQuery(() => getAllExercises(), [])
   const templates = useLiveQuery(() => getAllTemplates(), [])
   const defaultTags = useLiveQuery(() => getDefaultTags(), []) ?? []
@@ -199,7 +201,7 @@ export function ExerciseLibrary() {
               <ContextMenu key={ex.id}>
                 <ContextMenuTrigger asChild>{card}</ContextMenuTrigger>
                 <ContextMenuContent>
-                  <ContextMenuItem onSelect={() => void startAsWorkout(ex)}>
+                  <ContextMenuItem onSelect={() => guardStart(() => startAsWorkout(ex))}>
                     <Play /> Start as workout
                   </ContextMenuItem>
                   <ContextMenuItem onSelect={() => openEdit(ex)}>
@@ -220,6 +222,7 @@ export function ExerciseLibrary() {
         defaultTags={defaultTags}
         onSaved={() => setEditing(null)}
       />
+      {guardDialog}
     </div>
   )
 }

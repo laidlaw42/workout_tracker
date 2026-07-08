@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Check, MapPin, Pencil, Play, Plus, Repeat, Save, Trash2 } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
+import { useUnfinishedWorkoutGuard } from '@/hooks/useUnfinishedWorkoutGuard'
 import {
   addHang,
   addSet,
@@ -84,6 +85,7 @@ function fullDate(ts: number): string {
 export default function SessionDetailScreen() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
+  const { guardStart, guardDialog } = useUnfinishedWorkoutGuard()
 
   const session = useLiveQuery(() => getSessionById(id).then((s) => s ?? null), [id])
   const sets = useLiveQuery(() => getSetsForSession(id), [id]) ?? []
@@ -396,7 +398,7 @@ export default function SessionDetailScreen() {
                 <Play className="size-4" /> Resume workout
               </Button>
             )}
-            <Button variant="outline" className="w-full" onClick={useAsWorkout}>
+            <Button variant="outline" className="w-full" onClick={() => guardStart(useAsWorkout)}>
               <Repeat className="size-4" /> Start workout
             </Button>
             {canSaveTemplate && (
@@ -522,6 +524,8 @@ export default function SessionDetailScreen() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {guardDialog}
 
       <Dialog open={saveTemplateOpen} onOpenChange={setSaveTemplateOpen}>
         <DialogContent onOpenAutoFocus={(e) => e.preventDefault()}>

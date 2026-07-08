@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Activity, Bandage, Dumbbell, Flame, Hand, Play, Plus, Save, Settings } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
+import { useUnfinishedWorkoutGuard } from '@/hooks/useUnfinishedWorkoutGuard'
 import {
   createSession,
   deleteSession,
@@ -53,6 +54,9 @@ export default function HomeScreen() {
     return { sessions, recent, kinds }
   }, [])
   const unfinished = useLiveQuery(() => getUnfinishedSession().then((s) => s ?? null), [])
+  // Starting a new workout while one is unfinished prompts Resume-or-Discard (a
+  // session can now be left running via the header Close button).
+  const { guardStart, guardDialog } = useUnfinishedWorkoutGuard()
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const loading = data === undefined
   const streak = data ? computeStreak(data.sessions) : 0
@@ -168,7 +172,7 @@ export default function HomeScreen() {
         </div>
       </div>
 
-      <Button size="lg" className="w-full" onClick={startNewWorkout}>
+      <Button size="lg" className="w-full" onClick={() => guardStart(startNewWorkout)}>
         <Plus className="size-5" /> Start new workout
       </Button>
 
@@ -204,7 +208,7 @@ export default function HomeScreen() {
 
       <section className="space-y-3">
         <h2 className="text-sm font-medium text-muted-foreground">Climbing</h2>
-        <ClimbingQuickStarts />
+        <ClimbingQuickStarts guardStart={guardStart} />
       </section>
 
       <section className="space-y-3">
@@ -241,6 +245,8 @@ export default function HomeScreen() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {guardDialog}
     </div>
   )
 }

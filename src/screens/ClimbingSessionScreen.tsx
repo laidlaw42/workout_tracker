@@ -487,7 +487,8 @@ export default function ClimbingSessionScreen() {
         paused={clock.paused}
         onPause={clock.pause}
         onResume={clock.resume}
-        onCancel={() => setConfirmCancel(true)}
+        onClose={() => navigate('/home')}
+        onDelete={() => setConfirmCancel(true)}
         onFinish={finish}
       />
 
@@ -819,7 +820,7 @@ export default function ClimbingSessionScreen() {
       <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancel this workout?</AlertDialogTitle>
+            <AlertDialogTitle>Discard this workout?</AlertDialogTitle>
             <AlertDialogDescription>All progress will be lost.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

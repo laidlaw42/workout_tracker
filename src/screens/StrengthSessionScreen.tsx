@@ -498,7 +498,8 @@ export default function StrengthSessionScreen() {
         paused={timer.paused}
         onPause={timer.pause}
         onResume={timer.resume}
-        onCancel={() => setConfirmCancel(true)}
+        onClose={() => navigate('/home')}
+        onDelete={() => setConfirmCancel(true)}
         onFinish={() => (allDone ? proceedFinish() : setConfirmFinish(true))}
       />
 
@@ -659,7 +660,7 @@ export default function StrengthSessionScreen() {
       <AlertDialog open={confirmCancel} onOpenChange={setConfirmCancel}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Cancel this workout?</AlertDialogTitle>
+            <AlertDialogTitle>Discard this workout?</AlertDialogTitle>
             <AlertDialogDescription>All progress will be lost.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

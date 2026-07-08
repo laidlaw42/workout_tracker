@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
+import { useUnfinishedWorkoutGuard } from '@/hooks/useUnfinishedWorkoutGuard'
 import {
   addPlannedWorkout,
   deletePlannedWorkout,
@@ -62,6 +63,7 @@ type SessionMap = Map<string, WorkoutSession[]>
 
 export default function PlannerScreen() {
   const navigate = useNavigate()
+  const { guardStart, guardDialog } = useUnfinishedWorkoutGuard()
   const [view, setView] = useState<View>('week')
   const [anchor, setAnchor] = useState(() => new Date())
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
@@ -257,9 +259,11 @@ export default function PlannerScreen() {
         onAdd={() => setPickerOpen(true)}
         onEditPlan={setEditingPlan}
         onDeletePlan={handleDeletePlan}
-        onStartPlan={handleStartPlan}
+        onStartPlan={(p) => guardStart(() => handleStartPlan(p))}
         onOpenSession={(id) => navigate(`/history/${id}`)}
       />
+
+      {guardDialog}
 
       <TemplatePickerSheet open={pickerOpen} onOpenChange={setPickerOpen} onSelect={handleAddTemplate} />
 

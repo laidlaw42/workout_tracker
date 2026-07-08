@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { ChevronDown } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useTagColours } from '@/hooks/useTagColours'
+import { useUnfinishedWorkoutGuard } from '@/hooks/useUnfinishedWorkoutGuard'
 import { getTemplate, startSessionFromTemplate } from '@/db/helpers'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
 import { badgesForTemplate } from '@/lib/badges'
@@ -110,6 +111,7 @@ export default function TemplateDetailScreen() {
   const navigate = useNavigate()
   const template = useLiveQuery(() => getTemplate(id).then((t) => t ?? null), [id])
   const tagColour = useTagColours()
+  const { guardStart, guardDialog } = useUnfinishedWorkoutGuard()
 
   async function start(t: WorkoutTemplate) {
     try {
@@ -244,7 +246,7 @@ export default function TemplateDetailScreen() {
       </div>
 
       <div className="fixed inset-x-0 bottom-0 mx-auto flex w-full max-w-md gap-3 border-t border-border bg-background p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)]">
-        <Button className="flex-1" size="lg" onClick={() => start(template)}>
+        <Button className="flex-1" size="lg" onClick={() => guardStart(() => start(template))}>
           Start workout
         </Button>
         <Button
@@ -255,6 +257,7 @@ export default function TemplateDetailScreen() {
           Edit workout
         </Button>
       </div>
+      {guardDialog}
     </div>
   )
 }

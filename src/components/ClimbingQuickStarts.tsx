@@ -18,7 +18,14 @@ const SESSION_LABEL: Record<Kind, string> = {
 // A78 — tapping a venue starts a climbing session immediately (no name prompt);
 // the location is chosen inside the session screen. A saved default gym/board
 // (A51) is pre-selected on start; crag has no default.
-export function ClimbingQuickStarts() {
+//
+// `guardStart` (optional) wraps each start so an already-running session prompts
+// Resume-or-Discard first; it defaults to running the start straight through.
+export function ClimbingQuickStarts({
+  guardStart = (start: () => void) => start(),
+}: {
+  guardStart?: (start: () => void) => void
+}) {
   const navigate = useNavigate()
 
   async function start(kind: Kind) {
@@ -44,9 +51,9 @@ export function ClimbingQuickStarts() {
 
   return (
     <div className="grid grid-cols-3 gap-2">
-      <QuickCard venue="gym" onClick={() => start('gym')} />
-      <QuickCard venue="crag" onClick={() => start('crag')} />
-      <QuickCard venue="board" onClick={() => start('board')} />
+      <QuickCard venue="gym" onClick={() => guardStart(() => start('gym'))} />
+      <QuickCard venue="crag" onClick={() => guardStart(() => start('crag'))} />
+      <QuickCard venue="board" onClick={() => guardStart(() => start('board'))} />
     </div>
   )
 }
