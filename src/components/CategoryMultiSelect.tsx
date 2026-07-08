@@ -1,21 +1,21 @@
-import { TEMPLATE_CATEGORY_OPTIONS } from '@/lib/templateCategories'
+import { WORKOUT_CATEGORY_OPTIONS, type WorkoutCategory } from '@/lib/templateCategories'
 import { cn } from '@/lib/utils'
-import type { TemplateCategory } from '@/types'
 
 interface Props {
-  value: TemplateCategory[]
-  onChange: (next: TemplateCategory[]) => void
+  value: WorkoutCategory[]
+  onChange: (next: WorkoutCategory[]) => void
 }
 
 // A94 — the discipline picker for a workout template: toggle one or more of
-// Strength / Cardio / Climbing / Rehab. Callers enforce "at least one selected".
+// Strength / Cardio / Climbing / Hangboard / Rehab. Callers enforce "at least
+// one selected". 'hangboard' is a UI-only build category (stored as 'climbing').
 export function CategoryMultiSelect({ value, onChange }: Props) {
-  function toggle(c: TemplateCategory) {
+  function toggle(c: WorkoutCategory) {
     onChange(value.includes(c) ? value.filter((x) => x !== c) : [...value, c])
   }
   return (
     <div className="flex flex-wrap gap-2">
-      {TEMPLATE_CATEGORY_OPTIONS.map((o) => {
+      {WORKOUT_CATEGORY_OPTIONS.map((o) => {
         const on = value.includes(o.value)
         return (
           <button

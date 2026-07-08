@@ -14,6 +14,7 @@ import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-ki
 import { useLiveQuery } from '@/hooks/useDb'
 import { getAllExercises, getDefaultTags, upsertTemplate } from '@/db/helpers'
 import { generateId } from '@/lib/id'
+import { buildToStoredCategories, type WorkoutCategory } from '@/lib/templateCategories'
 import { templateExerciseFromExercise } from '@/lib/exerciseDefaults'
 import { ExercisePicker } from '@/components/ExercisePicker'
 import { HangboardSetsEditor } from '@/components/HangboardSetsEditor'
@@ -43,7 +44,6 @@ import type {
   ExerciseCategory,
   HangboardSet,
   IntervalBlock,
-  TemplateCategory,
 } from '@/types'
 
 // A94 — the build-a-workout creation view. Mirrors the home "Start new workout"
@@ -65,7 +65,7 @@ export default function TemplateCreateScreen() {
   const exById = useMemo(() => new Map(exercises.map((e) => [e.id, e])), [exercises])
   const defaultTags = useLiveQuery(() => getDefaultTags(), [])
 
-  const [categories, setCategories] = useState<TemplateCategory[]>([])
+  const [categories, setCategories] = useState<WorkoutCategory[]>([])
   const [name, setName] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [tagsSeeded, setTagsSeeded] = useState(false)
@@ -91,21 +91,24 @@ export default function TemplateCreateScreen() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   // Which discipline sections show. Exercises show by default (before any category
-  // is picked, so the screen opens like "Start new workout") and for any non-cardio
-  // discipline; cardio fields for cardio; hangboard for climbing (A92).
-  const showExercises = categories.length === 0 || categories.some((c) => c !== 'cardio')
+  // is picked, so the screen opens like "Start new workout") and for any exercise
+  // discipline; cardio fields for cardio; hang sets for Hangboard (its own pill now).
+  const showExercises =
+    categories.length === 0 ||
+    categories.some((c) => c === 'strength' || c === 'climbing' || c === 'rehab')
   const showCardio = categories.includes('cardio')
-  const showHangboard = categories.includes('climbing')
-  // Picker scope = the selected categories (climbing also offers hangboard); before
-  // any are selected, show everything so exercises can be added freely.
+  const showHangboard = categories.includes('hangboard')
+  // Picker scope = the selected exercise categories; Hangboard also offers hang
+  // exercises (they seed hang rows). Before any are selected, show everything.
   const pickerCategories: ExerciseCategory[] | undefined =
     categories.length === 0
       ? undefined
-      : categories.includes('climbing')
-        ? [...categories, 'hangboard']
-        : categories
+      : [
+          ...categories.filter((c): c is ExerciseCategory => c !== 'hangboard'),
+          ...(showHangboard ? (['hangboard'] as ExerciseCategory[]) : []),
+        ]
 
-  function setCats(next: TemplateCategory[]) {
+  function setCats(next: WorkoutCategory[]) {
     setCategories(next)
     setDirty(true)
   }
@@ -160,7 +163,7 @@ export default function TemplateCreateScreen() {
     try {
       const id = await upsertTemplate({
         name: trimmed,
-        categories,
+        categories: buildToStoredCategories(categories),
         tags,
         exercises: showExercises
           ? rows.map((r, i) => ({
@@ -352,7 +355,7 @@ export default function TemplateCreateScreen() {
             <p className="text-sm font-medium text-muted-foreground">Hangboard</p>
             {hangSets.length === 0 && (
               <p className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
-                No hangs yet — add hangboard exercises above, or grip/edge sets below.
+                No hangs yet — add grip/edge/duration sets below.
               </p>
             )}
             <HangboardSetsEditor

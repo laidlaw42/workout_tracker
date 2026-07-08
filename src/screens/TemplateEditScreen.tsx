@@ -23,7 +23,11 @@ import { CategoryMultiSelect } from '@/components/CategoryMultiSelect'
 import { PageHeader } from '@/components/PageHeader'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { TagInput } from '@/components/TagInput'
-import { templateCategories } from '@/lib/templateCategories'
+import {
+  buildToStoredCategories,
+  storedToBuildCategories,
+  type WorkoutCategory,
+} from '@/lib/templateCategories'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -43,7 +47,6 @@ import type {
   ExerciseCategory,
   HangboardSet,
   IntervalBlock,
-  TemplateCategory,
 } from '@/types'
 
 type Row = TemplateRow
@@ -67,7 +70,7 @@ export default function TemplateEditScreen() {
   const exById = useMemo(() => new Map(exercises.map((e) => [e.id, e])), [exercises])
 
   const [name, setName] = useState('')
-  const [categories, setCategories] = useState<TemplateCategory[]>([])
+  const [categories, setCategories] = useState<WorkoutCategory[]>([])
   const [tags, setTags] = useState<string[]>([])
   const [rows, setRows] = useState<Row[]>([])
   const [activity, setActivity] = useState<CardioActivityType>('run')
@@ -86,7 +89,7 @@ export default function TemplateEditScreen() {
   useEffect(() => {
     if (template && !inited) {
       setName(template.name)
-      setCategories(templateCategories(template))
+      setCategories(storedToBuildCategories(template))
       setTags(template.tags)
       setRows(template.exercises.map((e) => ({ ...e, uid: generateId() })))
       setActivity(template.cardioActivity ?? 'run')
@@ -157,10 +160,11 @@ export default function TemplateEditScreen() {
 
   function save() {
     if (!template || categories.length === 0) return
-    // Reclassifying away from Climbing drops the hangboard sets + climbingKind —
+    // Deselecting Hangboard (or Climbing) drops the hangboard sets / climbingKind —
     // confirm first so protocol data isn't lost silently.
-    const hadClimbingContent = (template.hangboardSets?.length ?? 0) > 0 || !!template.climbingKind
-    if (!categories.includes('climbing') && hadClimbingContent) {
+    const willDropHangs = (template.hangboardSets?.length ?? 0) > 0 && !showHangboard
+    const willDropClimbingKind = !!template.climbingKind && !categories.includes('climbing')
+    if (willDropHangs || willDropClimbingKind) {
       setConfirmDropClimbing(true)
       return
     }
@@ -174,7 +178,7 @@ export default function TemplateEditScreen() {
       await upsertTemplate({
         id: template.id,
         name: name.trim() || template.name,
-        categories,
+        categories: buildToStoredCategories(categories),
         tags,
         exercises: showExercises
           ? rows.map((r, i) => ({
@@ -197,7 +201,7 @@ export default function TemplateEditScreen() {
         intervals: showCardio && intervals.length > 0 ? intervals : undefined,
         // climbingKind is preserved only for climbing templates (drives the
         // climbing session screen); undefined otherwise.
-        climbingKind: showHangboard ? template.climbingKind : undefined,
+        climbingKind: categories.includes('climbing') ? template.climbingKind : undefined,
         hangboardSets: showHangboard ? hangSets.map((h, i) => ({ ...h, order: i })) : undefined,
         lastUsedAt: template.lastUsedAt,
       })
@@ -231,17 +235,18 @@ export default function TemplateEditScreen() {
     }
   }
 
-  // A94 — which content sections apply, derived from the (editable) categories.
-  // Exercises for any non-cardio discipline; cardio fields for cardio; hangboard
-  // sets for climbing (A92).
-  const showExercises = categories.some((c) => c !== 'cardio')
+  // A94 — which content sections apply, derived from the (editable) build
+  // categories. Exercises for any exercise discipline; cardio fields for cardio;
+  // hang sets for Hangboard (its own pill now).
+  const showExercises = categories.some((c) => c === 'strength' || c === 'climbing' || c === 'rehab')
   const showCardio = categories.includes('cardio')
-  const showHangboard = categories.includes('climbing')
-  // The picker shows exactly the template's disciplines; climbing also offers
-  // hangboard exercises (they seed hang rows).
-  const pickerCategories: ExerciseCategory[] = categories.includes('climbing')
-    ? [...categories, 'hangboard']
-    : categories
+  const showHangboard = categories.includes('hangboard')
+  // The picker shows the selected exercise disciplines; Hangboard also offers hang
+  // exercises (they seed hang rows).
+  const pickerCategories: ExerciseCategory[] = [
+    ...categories.filter((c): c is ExerciseCategory => c !== 'hangboard'),
+    ...(showHangboard ? (['hangboard'] as ExerciseCategory[]) : []),
+  ]
 
   return (
     <div className="min-h-dvh pb-24">
@@ -449,7 +454,7 @@ export default function TemplateEditScreen() {
       <AlertDialog open={confirmDropClimbing} onOpenChange={setConfirmDropClimbing}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove Climbing from this workout?</AlertDialogTitle>
+            <AlertDialogTitle>Remove hangboard from this workout?</AlertDialogTitle>
             <AlertDialogDescription>
               This workout’s hangboard sets will be deleted when you save.
             </AlertDialogDescription>

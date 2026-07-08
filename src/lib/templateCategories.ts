@@ -14,6 +14,45 @@ export const TEMPLATE_CATEGORY_OPTIONS: { value: TemplateCategory; label: string
   { value: 'strength', label: 'Strength' },
 ]
 
+// A UI-only build category. 'hangboard' isn't a stored TemplateCategory (a
+// hangboard workout is filed under 'climbing' with hangboardSets), but the
+// workout builder offers it as its own pill so a pure hangboard workout can be
+// created without going through Climbing — matching the library tabs.
+export type WorkoutCategory = TemplateCategory | 'hangboard'
+
+export const WORKOUT_CATEGORY_OPTIONS: { value: WorkoutCategory; label: string }[] = [
+  { value: 'cardio', label: 'Cardio' },
+  { value: 'climbing', label: 'Climbing' },
+  { value: 'hangboard', label: 'Hangboard' },
+  { value: 'rehab', label: 'Rehab' },
+  { value: 'strength', label: 'Strength' },
+]
+
+// Build categories (may include 'hangboard') → stored TemplateCategory[]: hangboard
+// maps to 'climbing', deduped, order preserved. Used on save.
+export function buildToStoredCategories(build: WorkoutCategory[]): TemplateCategory[] {
+  const out: TemplateCategory[] = []
+  for (const c of build) {
+    const mapped: TemplateCategory = c === 'hangboard' ? 'climbing' : c
+    if (!out.includes(mapped)) out.push(mapped)
+  }
+  return out
+}
+
+// Reconstruct the build categories (with 'hangboard') when editing a template: a
+// hangboard-only workout (hangs, no exercises) shows as just Hangboard; a mix of
+// hangs + exercises keeps its stored categories plus Hangboard.
+export function storedToBuildCategories(
+  t: Pick<WorkoutTemplate, 'categories' | 'type' | 'hangboardSets' | 'exercises'>,
+): WorkoutCategory[] {
+  const hasHangs = (t.hangboardSets?.length ?? 0) > 0
+  const hasExercises = (t.exercises?.length ?? 0) > 0
+  if (hasHangs && !hasExercises) return ['hangboard']
+  const build: WorkoutCategory[] = [...templateCategories(t)]
+  if (hasHangs) build.push('hangboard')
+  return build
+}
+
 type CategoryReadable = Pick<WorkoutTemplate, 'categories' | 'type' | 'hangboardSets'>
 
 // Best-effort category list for a legacy record still carrying single `type`. The
