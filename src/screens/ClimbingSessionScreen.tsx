@@ -184,6 +184,9 @@ export default function ClimbingSessionScreen() {
           weight: e.defaultWeight, // A98 — template default weight pre-fills the row
           distanceKm: e.defaultDistanceKm,
           restSeconds: e.defaultRestSeconds,
+          edgeDepthMm: e.defaultEdgeDepthMm, // F51 — hangboard row params
+          intraRestSeconds: e.defaultIntraRestSeconds,
+          abrahangReps: e.defaultAbrahangReps,
           skipped: false,
         })),
     [planExercises],

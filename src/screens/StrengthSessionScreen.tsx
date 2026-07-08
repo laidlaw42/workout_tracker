@@ -115,6 +115,9 @@ export default function StrengthSessionScreen() {
         weight: e.defaultWeight, // A98 — template's default weight pre-fills the set row
         distanceKm: e.defaultDistanceKm,
         restSeconds: e.defaultRestSeconds,
+        edgeDepthMm: e.defaultEdgeDepthMm, // F51 — hangboard row params
+        intraRestSeconds: e.defaultIntraRestSeconds,
+        abrahangReps: e.defaultAbrahangReps,
         skipped: false,
       }))
     // Resuming an unfinished session (A34): re-attach exercises that were added

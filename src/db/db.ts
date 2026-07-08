@@ -4,6 +4,13 @@ import {
   deriveExerciseParams,
   legacyTemplateToCategories,
 } from '@/lib/migrations'
+import {
+  hangExerciseId,
+  hangGripExercise,
+  hangSetToTemplateExercise,
+  hangToLoggedSet,
+} from '@/lib/hangboard'
+import type { HangboardSet, TemplateExercise } from '@/types'
 import type {
   Exercise,
   WorkoutTemplate,
@@ -175,6 +182,68 @@ export class WorkoutDB extends Dexie {
             console.error('F51 exercise migration failed for record', e.id, err)
           }
         })
+    })
+    // v10 (F51): fold each template's hangboardSets into its exercises as standard
+    // duration rows (grip-as-exercise), creating any missing grip exercise, then
+    // drop hangboardSets. v11 does the same for logged hangs. Both keep the hangs
+    // table intact for rollback. Per-record try/catch; grip-exercise creation is
+    // deterministic (hangExerciseId), so re-derivation is idempotent.
+    this.version(10).upgrade(async (tx) => {
+      const exTable = tx.table('exercises')
+      const tplTable = tx.table('templates')
+      const haveEx = new Set((await exTable.toArray()).map((e: { id: string }) => e.id))
+      const gripsToAdd: ReturnType<typeof hangGripExercise>[] = []
+      const ensureGrip = (grip: string) => {
+        const eid = hangExerciseId(grip)
+        if (!haveEx.has(eid)) {
+          haveEx.add(eid)
+          gripsToAdd.push(hangGripExercise(grip, Date.now()))
+        }
+      }
+      const templates = (await tplTable.toArray()) as {
+        id?: string
+        exercises?: TemplateExercise[]
+        hangboardSets?: HangboardSet[]
+      }[]
+      for (const t of templates) {
+        try {
+          const hs = t.hangboardSets
+          if (!Array.isArray(hs) || hs.length === 0) continue
+          const base = t.exercises?.length ?? 0
+          const rows = hs.map((h, i) => {
+            ensureGrip(h.gripType)
+            return hangSetToTemplateExercise(h, base + i)
+          })
+          t.exercises = [...(t.exercises ?? []), ...rows]
+          delete t.hangboardSets
+          await tplTable.put(t)
+        } catch (err) {
+          console.error('F51 v10 template migration failed for record', t.id, err)
+        }
+      }
+      if (gripsToAdd.length) await exTable.bulkPut(gripsToAdd)
+    })
+    this.version(11).upgrade(async (tx) => {
+      const exTable = tx.table('exercises')
+      const setsTable = tx.table('sets')
+      const haveEx = new Set((await exTable.toArray()).map((e: { id: string }) => e.id))
+      const gripsToAdd: ReturnType<typeof hangGripExercise>[] = []
+      const hangs = (await tx.table('hangs').toArray()) as LoggedHang[]
+      const setsToAdd = []
+      for (const h of hangs) {
+        try {
+          const eid = hangExerciseId(h.gripType)
+          if (!haveEx.has(eid)) {
+            haveEx.add(eid)
+            gripsToAdd.push(hangGripExercise(h.gripType, Date.now()))
+          }
+          setsToAdd.push(hangToLoggedSet(h))
+        } catch (err) {
+          console.error('F51 v11 hang migration failed for record', h.id, err)
+        }
+      }
+      if (gripsToAdd.length) await exTable.bulkPut(gripsToAdd)
+      if (setsToAdd.length) await setsTable.bulkPut(setsToAdd)
     })
   }
 }

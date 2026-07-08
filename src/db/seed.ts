@@ -1,5 +1,7 @@
 import { db } from './db'
 import { deriveExerciseParams } from '@/lib/migrations'
+import { hangExerciseId, hangGripExercise } from '@/lib/hangboard'
+import { GRIP_TYPES } from '@/lib/climbing'
 import type {
   Exercise,
   ExerciseCategory,
@@ -15,7 +17,7 @@ import type {
 // time: new built-ins are added on upgrade, user-deleted ones are not
 // resurrected, and user-created templates (uuid ids) are never touched.
 
-const BUILTIN_SET_VERSION = 8 // trim bodybuilding-isolation exercises; refocus PPL/UL/full-body templates on compounds
+const BUILTIN_SET_VERSION = 9 // F51 — hangboard templates rebuilt as grip-exercise rows
 
 // Built-in strength templates removed in A54 — deleted once from existing
 // libraries (keyed by the meta flag below) and absent from the seed arrays so
@@ -55,6 +57,12 @@ const REMOVED_EXERCISE_IDS = [
   'ex_leg_curl',
   'ex_glute_bridge',
   'ex_calf_raise',
+  // F51 — the protocol-based hangboard exercises are superseded by grip-as-exercise
+  // (Half crimp, Open hand, …); their protocol now lives on the template row.
+  'ex_hb_max_hangs',
+  'ex_hb_repeaters',
+  'ex_hb_abrahangs',
+  'ex_hb_min_edge',
 ]
 
 // Evidence-based rest defaults. Heavy compound lifts at low reps need long rests
@@ -211,13 +219,9 @@ const EXERCISES: ExerciseSeed[] = [
   { id: 'ex_frenchies', name: 'Frenchies (lock-off ladder)', muscleGroups: ['back', 'biceps'], trackingType: 'reps', category: 'climbing' },
   { id: 'ex_toes_to_bar', name: 'Toes-to-bar', muscleGroups: ['core'], trackingType: 'reps', category: 'climbing' },
   { id: 'ex_windshield_wiper', name: 'Windshield wipers', muscleGroups: ['core'], trackingType: 'reps', category: 'climbing' },
-  // Hangboard exercises (A73) — first-class training exercises. Each carries a
-  // default protocol (science-based rest: 300s max hangs, 180s repeaters); adding
-  // one to a training session seeds a HangboardSet the athlete can tune per set.
-  { id: 'ex_hb_max_hangs', name: 'Max hangs', muscleGroups: ['forearms'], trackingType: 'duration', category: 'hangboard', hangboard: { gripType: 'Half crimp', hangType: 'max_hang', edgeDepthMm: 20, durationSeconds: 10, weightKg: 0, sets: 5, restSeconds: 300 } },
-  { id: 'ex_hb_repeaters', name: 'Repeaters', muscleGroups: ['forearms'], trackingType: 'duration', category: 'hangboard', hangboard: { gripType: 'Half crimp', hangType: 'sub_max', edgeDepthMm: 20, durationSeconds: 7, weightKg: 0, sets: 6, restSeconds: 180 } },
-  { id: 'ex_hb_abrahangs', name: 'Abrahangs', muscleGroups: ['forearms'], trackingType: 'duration', category: 'hangboard', hangboard: { gripType: 'Half crimp', hangType: 'abrahang', edgeDepthMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: 180, abrahangReps: 6, intraRestSeconds: 3 } },
-  { id: 'ex_hb_min_edge', name: 'Minimum-edge hang', muscleGroups: ['forearms'], trackingType: 'duration', category: 'hangboard', hangboard: { gripType: 'Half crimp', hangType: 'max_hang', edgeDepthMm: 8, durationSeconds: 10, weightKg: 0, sets: 5, restSeconds: 300 } },
+  // Hangboard grip exercises (F51 — grip-as-exercise) are not listed here: they are
+  // built from GRIP_TYPES via hangGripExercise and seeded separately, since their
+  // config (load, edge, intra-rest capable) is explicit rather than derived.
 ]
 
 const EXERCISE_NAME = new Map(EXERCISES.map((e) => [e.id, e.name]))
@@ -524,6 +528,47 @@ function buildTemplateExercise(r: StrengthRow, order: number): TemplateExercise 
   }
 }
 
+// F51 — a seed hang row → a standard duration TemplateExercise referencing the grip
+// exercise; the protocol lives on the row (Abrahang → reps + intra-rest).
+function buildHangRow(
+  grip: string,
+  hangType: HangType,
+  p: {
+    edgeMm: number
+    durationSeconds: number
+    weightKg: number
+    sets: number
+    restSeconds: number
+    abrahangReps?: number
+    intraRestSeconds?: number
+  },
+  order: number,
+): TemplateExercise {
+  const abrahang = hangType === 'abrahang'
+  return {
+    exerciseId: hangExerciseId(grip),
+    exerciseName: grip,
+    order,
+    defaultSets: p.sets,
+    defaultDuration: p.durationSeconds,
+    defaultWeight: p.weightKg,
+    defaultRestSeconds: p.restSeconds,
+    defaultEdgeDepthMm: p.edgeMm,
+    defaultIntraRestSeconds: abrahang ? (p.intraRestSeconds ?? 3) : undefined,
+    defaultAbrahangReps: abrahang ? (p.abrahangReps ?? 6) : undefined,
+  }
+}
+
+// F51 — every grip a built-in touches, plus the standard picker grips (GRIP_TYPES),
+// seeded as grip exercises so template rows resolve and the picker is populated.
+const SEED_GRIPS = [
+  ...new Set<string>([
+    ...GRIP_TYPES,
+    ...HANGBOARD.flatMap((t) => t.hangs.map((h) => h.grip)),
+    ...CLIMBING_WORKOUTS.flatMap((t) => t.hangs.map((h) => h.grip)),
+  ]),
+]
+
 function buildTemplate(
   seed: StrengthSeed | CardioSeed | HangboardSeed | ClimbingWorkoutSeed,
   now: number,
@@ -531,26 +576,17 @@ function buildTemplate(
   // Checked first: a climbing workout also has `hangs`, so it must be
   // distinguished before the hangboard branch.
   if ('climbingWorkout' in seed) {
+    const rows = seed.rows.map<TemplateExercise>((r, order) => buildTemplateExercise(r, order))
+    const hangRows = seed.hangs.map((h, i) => buildHangRow(h.grip, h.hangType, h, rows.length + i))
     return {
       id: seed.id,
       name: seed.name,
       // A94: a climbing-strength workout (climbing-category exercises + hangs)
-      // lives under the Climbing discipline (A92).
+      // lives under the Climbing discipline (A92). F51: hangs are exercise rows.
       categories: ['climbing'],
       tags: seed.tags,
       createdAt: now,
-      exercises: seed.rows.map<TemplateExercise>((r, order) => buildTemplateExercise(r, order)),
-      hangboardSets: seed.hangs.map((h, order) => ({
-        id: `${seed.id}_h${order}`, // stable across refreshes
-        gripType: h.grip,
-        hangType: h.hangType,
-        edgeDepthMm: h.edgeMm,
-        durationSeconds: h.durationSeconds,
-        weightKg: h.weightKg,
-        sets: h.sets,
-        restSeconds: h.restSeconds,
-        order,
-      })),
+      exercises: [...rows, ...hangRows],
     }
   }
   if ('hangs' in seed) {
@@ -558,24 +594,12 @@ function buildTemplate(
       id: seed.id,
       name: seed.name,
       // A94: a pure-hangboard template lives under the Climbing discipline (A92);
-      // deriveSessionType routes it to the training session screen.
+      // deriveSessionType routes it to the training session screen. F51: each grip
+      // is a standard duration exercise row.
       categories: ['climbing'],
       tags: seed.tags,
       createdAt: now,
-      exercises: [],
-      hangboardSets: seed.hangs.map((h, order) => ({
-        id: `${seed.id}_h${order}`, // stable across refreshes
-        gripType: h.grip,
-        hangType: seed.hangType,
-        edgeDepthMm: h.edgeMm,
-        durationSeconds: h.durationSeconds,
-        weightKg: h.weightKg,
-        sets: h.sets,
-        restSeconds: h.restSeconds,
-        abrahangReps: h.abrahangReps,
-        intraRestSeconds: h.intraRestSeconds,
-        order,
-      })),
+      exercises: seed.hangs.map((h, i) => buildHangRow(h.grip, seed.hangType, h, i)),
     }
   }
   if ('rows' in seed) {
@@ -644,23 +668,27 @@ export async function seedIfNeeded(): Promise<void> {
     // (V1 → V2 when the isolation-lift batch was added to REMOVED_EXERCISE_IDS)
     // re-runs the idempotent bulkDelete so users who already ran an earlier batch
     // still get the newly-removed ids cleaned up.
-    if (!(await getMeta<boolean>('removedExercisesV2'))) {
+    if (!(await getMeta<boolean>('removedExercisesV3'))) {
       await db.exercises.bulkDelete(REMOVED_EXERCISE_IDS)
-      await db.meta.put({ key: 'removedExercisesV2', value: true })
+      await db.meta.put({ key: 'removedExercisesV3', value: true })
     }
 
     // Seed each built-in exercise once (tracked by id), so a user-deleted
-    // exercise is never re-seeded and user edits are never clobbered.
+    // exercise is never re-seeded and user edits are never clobbered. F51 grip
+    // exercises are built directly (explicit config) alongside the derived seeds.
     const seededExIds = (await getMeta<string[]>('seededExerciseIds')) ?? []
     const seededEx = new Set(seededExIds)
-    const unseededEx = EXERCISES.filter((e) => !seededEx.has(e.id))
-    if (unseededEx.length) {
+    const gripExercises = SEED_GRIPS.map((g) => hangGripExercise(g, now))
+    const unseededBuiltins = EXERCISES.filter((e) => !seededEx.has(e.id))
+    const unseededGrips = gripExercises.filter((e) => !seededEx.has(e.id))
+    if (unseededBuiltins.length || unseededGrips.length) {
       const haveEx = new Set((await db.exercises.toArray()).map((e) => e.id))
-      const toInsert = unseededEx
-        .filter((e) => !haveEx.has(e.id))
-        .map((e) => seedToExercise(e, now))
+      const toInsert = [
+        ...unseededBuiltins.filter((e) => !haveEx.has(e.id)).map((e) => seedToExercise(e, now)),
+        ...unseededGrips.filter((e) => !haveEx.has(e.id)),
+      ]
       if (toInsert.length) await db.exercises.bulkPut(toInsert)
-      for (const e of unseededEx) seededEx.add(e.id)
+      for (const e of [...unseededBuiltins, ...unseededGrips]) seededEx.add(e.id)
       await db.meta.put({ key: 'seededExerciseIds', value: [...seededEx] })
     }
 
@@ -713,7 +741,10 @@ export async function restoreDefaults(): Promise<void> {
     const now = Date.now()
 
     const haveEx = new Set((await db.exercises.toArray()).map((e) => e.id))
-    const exToAdd = EXERCISES.filter((e) => !haveEx.has(e.id)).map((e) => seedToExercise(e, now))
+    const exToAdd = [
+      ...EXERCISES.filter((e) => !haveEx.has(e.id)).map((e) => seedToExercise(e, now)),
+      ...SEED_GRIPS.map((g) => hangGripExercise(g, now)).filter((e) => !haveEx.has(e.id)),
+    ]
     if (exToAdd.length) await db.exercises.bulkPut(exToAdd)
 
     const haveTpl = new Set((await db.templates.toArray()).map((t) => t.id))
