@@ -159,8 +159,12 @@ export function isInMonth(key: string, monthAnchor: Date): boolean {
 export function hhmmToMinutes(v: string): number | undefined {
   const m = /^(\d{1,2}):(\d{2})$/.exec(v.trim())
   if (!m) return undefined
-  const mins = Number(m[1]) * 60 + Number(m[2])
-  return Number.isFinite(mins) && mins >= 0 && mins < 1440 ? mins : undefined
+  const h = Number(m[1])
+  const min = Number(m[2])
+  // Reject an out-of-range field rather than silently rolling it over
+  // ("12:60" must not read as 13:00, "20:99" must not read as 21:39).
+  if (h > 23 || min > 59) return undefined
+  return h * 60 + min
 }
 
 export function minutesToHHMM(mins: number): string {
