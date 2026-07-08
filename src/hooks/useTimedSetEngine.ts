@@ -222,10 +222,36 @@ export function useTimedSetEngine(params: TimedSetEngineParams): TimedSetEngine 
       ...(input ?? plannedTimedInput(ex)),
       durationSeconds: ex.durationSeconds,
     }
-    const run = () => {
-      persistPhase('countdown', 'exercise', ex.exerciseId, ex.durationSeconds!)
-      countdown.start(ex.uid, ex.durationSeconds!, () => logSet(ex, data))
+    const secs = ex.durationSeconds
+    // F51 — an intra-rest exercise with >1 rep runs the Abrahang cycle (work / short
+    // intra-rest, alternating), logging one set at the end; anything else is a single
+    // hold. Both reuse the countdown timer (so A7 beeps fire); the label drives the
+    // on-screen phase. Driven by config (hasIntraRest) + the row's reps, not hangType.
+    const reps = exById.get(ex.exerciseId)?.hasIntraRest ? (data.abrahangReps ?? 1) : 1
+    const intra = data.intraRestSeconds ?? 0
+    const runSingle = () => {
+      persistPhase('countdown', 'exercise', ex.exerciseId, secs)
+      countdown.start(ex.uid, secs, () => logSet(ex, data))
     }
+    const runCycle = () => {
+      let rep = 0
+      const doWork = () => {
+        rep += 1
+        setAbrahangLabel('Hang')
+        persistPhase('countdown', 'exercise', ex.exerciseId, secs)
+        countdown.start(ex.uid, secs, () => {
+          if (rep >= reps) {
+            setAbrahangLabel(null)
+            void logSet(ex, data)
+          } else {
+            setAbrahangLabel('Rest')
+            countdown.start(ex.uid, intra, doWork)
+          }
+        })
+      }
+      doWork()
+    }
+    const run = reps > 1 ? runCycle : runSingle
     // Optional "Get ready" pre-count before the exercise countdown (A30).
     const pre = getPrecountSeconds()
     if (pre > 0) {
