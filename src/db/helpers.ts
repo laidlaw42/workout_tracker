@@ -15,13 +15,13 @@ import {
   legacyTemplateToCategories,
   normaliseBoardVenue,
 } from '@/lib/migrations'
+import { foldTemplateHangboard, hangGripExercise, hangToLoggedSet } from '@/lib/hangboard'
 import type {
   CardioActivityType,
   ClimbingRoute,
   ClimbingStyle,
   DisciplineType,
   Exercise,
-  HangboardSet,
   LoggedCardio,
   LoggedHang,
   LoggedSet,
@@ -59,6 +59,18 @@ function withCategory(e: Exercise): Exercise {
     return next
   }
   return raw.category ? e : { ...e, category }
+}
+
+// F51 — every grip a pre-F51 backup references (template hangboardSets + logged
+// hangs), so the import can create the grip exercises they resolve to.
+function collectHangGrips(
+  templates?: { hangboardSets?: { gripType: string }[] }[],
+  hangs?: { gripType: string }[],
+): string[] {
+  const grips = new Set<string>()
+  for (const t of templates ?? []) for (const h of t.hangboardSets ?? []) grips.add(h.gripType)
+  for (const h of hangs ?? []) grips.add(h.gripType)
+  return [...grips]
 }
 
 // A94/F46 — a pre-v8 backup's templates carry the legacy single `type` and no
@@ -568,37 +580,12 @@ function planExercisesFromSets(sets: LoggedSet[]): TemplateExercise[] {
       defaultSets: g.length,
       defaultReps: timed ? undefined : (first.targetReps ?? first.actualReps),
       defaultDuration: timed ? first.durationSeconds : undefined,
+      defaultWeight: first.weightKg ?? first.additionalWeightKg,
       defaultRestSeconds: first.restTakenSeconds ?? 90,
-    }
-  })
-}
-
-function planHangsFromHangs(hangs: LoggedHang[]): HangboardSet[] {
-  const key = (h: LoggedHang) =>
-    `${h.gripType}|${h.edgeDepthMm}|${h.targetDurationSeconds}|${h.weightKg}`
-  const order: string[] = []
-  const groups = new Map<string, LoggedHang[]>()
-  for (const h of [...hangs].sort((a, b) => a.loggedAt - b.loggedAt)) {
-    const k = key(h)
-    if (!groups.has(k)) {
-      groups.set(k, [])
-      order.push(k)
-    }
-    groups.get(k)!.push(h)
-  }
-  return order.map((k, i) => {
-    const first = groups.get(k)![0]
-    return {
-      id: generateId(),
-      gripType: first.gripType,
-      hangType: first.hangType ?? 'sub_max',
-      edgeDepthMm: first.edgeDepthMm,
-      durationSeconds: first.targetDurationSeconds,
-      weightKg: first.weightKg,
-      sets: groups.get(k)!.length,
-      restSeconds: first.restTakenSeconds ?? 60,
-      abrahangReps: first.abrahangReps,
-      order: i,
+      // F51 — carry hangboard row params so a rebuilt hang row keeps its shape.
+      defaultEdgeDepthMm: first.edgeDepthMm,
+      defaultIntraRestSeconds: first.intraRestSeconds,
+      defaultAbrahangReps: first.abrahangReps,
     }
   })
 }
@@ -634,10 +621,9 @@ export async function repeatSession(sourceId: string): Promise<string> {
         }
       }
     } else {
+      // F51 — hangs are logged sets, so they come through planExercisesFromSets.
       const pe = planExercisesFromSets(await getSetsForSession(sourceId))
-      const ph = planHangsFromHangs(await getHangsForSession(sourceId))
       if (pe.length) base.plannedExercises = pe
-      if (ph.length) base.plannedHangs = ph
     }
     const id = generateId()
     await db.sessions.put({ ...base, id })
@@ -679,12 +665,6 @@ export async function createTemplateFromSession(
       // A66 — a mixed template keeps its exercise list; each exercise's own
       // tracking type drives the row variant when the template is started.
       base.exercises = planExercisesFromSets(await getSetsForSession(sourceId))
-      // A73 — a training (mixed) session may also log hangs (hangboard exercises);
-      // preserve them so the saved template rebuilds the hang rows too.
-      if (src.type === 'mixed') {
-        const ph = planHangsFromHangs(await getHangsForSession(sourceId))
-        if (ph.length) base.hangboardSets = ph
-      }
     } else if (src.type === 'cardio') {
       const c = await getCardioForSession(sourceId)
       base.cardioActivity = c?.activityType ?? 'other'
@@ -702,11 +682,10 @@ export async function createTemplateFromSession(
         ]
       }
     } else {
-      // Climbing workout / hangboard: reconstruct both blocks; kind follows content.
+      // Climbing workout / hangboard: reconstruct from the logged sets (hangs
+      // included, F51); kind follows content.
       const pe = planExercisesFromSets(await getSetsForSession(sourceId))
-      const ph = planHangsFromHangs(await getHangsForSession(sourceId))
       base.exercises = pe
-      base.hangboardSets = ph.length ? ph : undefined
       base.climbingKind = pe.length > 0 ? 'workout' : 'hangboard'
     }
     // A94 — categories from the reconstructed content. Cardio/climbing sessions
@@ -998,41 +977,6 @@ export async function getAllRoutes(): Promise<ClimbingRoute[]> {
   return run('getAllRoutes', () => db.routes.toArray())
 }
 
-// ---------------------------------------------------------------------------
-// Hangboard hangs
-// ---------------------------------------------------------------------------
-
-export async function addHang(h: Omit<LoggedHang, 'id'>): Promise<string> {
-  return run('addHang', async () => {
-    const id = generateId()
-    await db.hangs.put({ ...h, id })
-    return id
-  })
-}
-
-export async function updateHang(id: string, updates: Partial<LoggedHang>): Promise<void> {
-  return run('updateHang', async () => {
-    await db.hangs.update(id, updates)
-  })
-}
-
-export async function deleteHang(id: string): Promise<void> {
-  return run('deleteHang', () => db.hangs.delete(id))
-}
-
-export async function getHangsForSession(sessionId: string): Promise<LoggedHang[]> {
-  return run('getHangsForSession', () =>
-    db.hangs
-      .where('[sessionId+loggedAt]')
-      .between([sessionId, MIN], [sessionId, MAX])
-      .toArray(),
-  )
-}
-
-export async function getAllHangs(): Promise<LoggedHang[]> {
-  return run('getAllHangs', () => db.hangs.toArray())
-}
-
 // F51 — hangboard progress reads logged sets for hangboard-category exercises
 // (grip-as-exercise), replacing the LoggedHang table.
 export async function getHangboardSets(): Promise<LoggedSet[]> {
@@ -1261,14 +1205,26 @@ export async function importAllData(json: string): Promise<void> {
         ])
         const importExs = (d.exercises ?? []).map(withCategory)
         const importExCat = new Map(importExs.map((e) => [e.id, e.category ?? 'strength']))
-        if (importExs.length) await db.exercises.bulkAdd(importExs)
+        // F51 — fold a pre-F51 backup's hangboard data into the unified shape:
+        // templates' hangboardSets → grip rows, logged hangs → sets, plus any grip
+        // exercises the backup lacks. (withCategories runs first, using hangboardSets
+        // for the climbing signal, then foldTemplateHangboard rewrites them.)
+        const importGrips = collectHangGrips(d.templates, d.hangs)
+        const haveExIds = new Set(importExs.map((e) => e.id))
+        const gripExs = importGrips
+          .map((g) => hangGripExercise(g, Date.now()))
+          .filter((e) => !haveExIds.has(e.id))
+        if (importExs.length || gripExs.length)
+          await db.exercises.bulkAdd([...importExs, ...gripExs])
         if (d.templates?.length)
-          await db.templates.bulkAdd(d.templates.map(withCategories(importExCat)))
+          await db.templates.bulkAdd(
+            d.templates.map((t) => foldTemplateHangboard(withCategories(importExCat)(t))),
+          )
         if (d.sessions?.length) await db.sessions.bulkAdd(d.sessions.map(withBoardVenue))
-        if (d.sets?.length) await db.sets.bulkAdd(d.sets)
+        const importSets = [...(d.sets ?? []), ...(d.hangs ?? []).map(hangToLoggedSet)]
+        if (importSets.length) await db.sets.bulkAdd(importSets)
         if (d.cardio?.length) await db.cardio.bulkAdd(d.cardio)
         if (d.routes?.length) await db.routes.bulkAdd(d.routes)
-        if (d.hangs?.length) await db.hangs.bulkAdd(d.hangs)
         if (d.prs?.length) await db.prs.bulkAdd(d.prs)
         if (d.plannedWorkouts?.length) await db.plannedWorkouts.bulkAdd(d.plannedWorkouts)
         if (d.tags?.length) await db.tags.bulkAdd(d.tags)
@@ -1295,28 +1251,43 @@ const CARDIO_PR_LABEL: Record<CardioActivityType, string> = {
 async function redetectPRs(
   newSets: LoggedSet[],
   newRoutes: ClimbingRoute[],
-  newHangs: LoggedHang[],
   newCardio: LoggedCardio[],
 ): Promise<void> {
-  // Exercises whose load lives in additionalWeightKg (pull-up, dip, …).
-  const loadable = new Set(
-    (await db.exercises.toArray()).filter((e) => e.isBodyweight).map((e) => e.id),
+  const allExercises = await db.exercises.toArray()
+  // Exercises whose load lives in additionalWeightKg (pull-up, dip, hang, …).
+  const loadable = new Set(allExercises.filter((e) => e.isBodyweight).map((e) => e.id))
+  // Duration-tracked exercises take a longest-hold PR (hangs included, F51).
+  const durationEx = new Set(
+    allExercises.filter((e) => e.trackingType === 'duration').map((e) => e.id),
   )
   for (const s of newSets) {
     if (s.skipped) continue
-    if (!repsMet(s.targetReps, s.actualReps)) continue
-    // Same weight-PR rule as the live logging path (loadable → added load alone).
-    const value = weightPrValue(loadable.has(s.exerciseId), s)
-    if (value == null) continue
-    await checkAndSavePR({
-      exerciseId: s.exerciseId,
-      exerciseName: s.exerciseName,
-      prType: 'weight',
-      value,
-      unit: 'kg',
-      sessionId: s.sessionId,
-      achievedAt: s.loggedAt,
-    })
+    if (repsMet(s.targetReps, s.actualReps)) {
+      // Same weight-PR rule as the live logging path (loadable → added load alone).
+      const value = weightPrValue(loadable.has(s.exerciseId), s)
+      if (value != null) {
+        await checkAndSavePR({
+          exerciseId: s.exerciseId,
+          exerciseName: s.exerciseName,
+          prType: 'weight',
+          value,
+          unit: 'kg',
+          sessionId: s.sessionId,
+          achievedAt: s.loggedAt,
+        })
+      }
+    }
+    if (durationEx.has(s.exerciseId) && (s.durationSeconds ?? 0) > 0) {
+      await checkAndSavePR({
+        exerciseId: s.exerciseId,
+        exerciseName: s.exerciseName,
+        prType: 'duration',
+        value: s.durationSeconds!,
+        unit: 's',
+        sessionId: s.sessionId,
+        achievedAt: s.loggedAt,
+      })
+    }
   }
   for (const r of newRoutes) {
     if (!isCleanTick(r.tick)) continue
@@ -1339,30 +1310,6 @@ async function redetectPRs(
         unit: 'ewbanks',
         sessionId: r.sessionId,
         achievedAt: r.loggedAt,
-      })
-    }
-  }
-  // Hangboard PRs are keyed per grip: heaviest added load and longest hang.
-  for (const h of newHangs) {
-    if (h.skipped) continue
-    if (h.weightKg > 0) {
-      await checkAndSavePR({
-        exerciseName: h.gripType,
-        prType: 'weight',
-        value: h.weightKg,
-        unit: 'kg',
-        sessionId: h.sessionId,
-        achievedAt: h.loggedAt,
-      })
-    }
-    if (h.targetDurationSeconds > 0) {
-      await checkAndSavePR({
-        exerciseName: h.gripType,
-        prType: 'duration',
-        value: h.targetDurationSeconds,
-        unit: 's',
-        sessionId: h.sessionId,
-        achievedAt: h.loggedAt,
       })
     }
   }
@@ -1407,7 +1354,6 @@ export async function mergeData(json: string): Promise<{ inserted: number; skipp
     let skipped = 0
     const newSets: LoggedSet[] = []
     const newRoutes: ClimbingRoute[] = []
-    const newHangs: LoggedHang[] = []
     const newCardio: LoggedCardio[] = []
 
     await db.transaction(
@@ -1446,18 +1392,30 @@ export async function mergeData(json: string): Promise<{ inserted: number; skipp
           }
         }
 
-        await mergeInto(db.exercises, d.exercises?.map(withCategory))
+        // F51 — create grip exercises for any pre-F51 hangboard data being merged.
+        const gripExs = collectHangGrips(d.templates, d.hangs).map((g) =>
+          hangGripExercise(g, Date.now()),
+        )
+        await mergeInto(db.exercises, [...(d.exercises ?? []).map(withCategory), ...gripExs])
         // Build the exercise-category map from the post-merge exercises table (local
         // + just-added), so imported legacy templates derive categories correctly.
         const mergeExCat = new Map(
           (await db.exercises.toArray()).map((e) => [e.id, e.category ?? 'strength']),
         )
-        await mergeInto(db.templates, d.templates?.map(withCategories(mergeExCat)))
+        await mergeInto(
+          db.templates,
+          d.templates?.map((t) => foldTemplateHangboard(withCategories(mergeExCat)(t))),
+        )
         await mergeInto(db.sessions, d.sessions?.map(withBoardVenue))
         await mergeInto(db.sets, d.sets, (s) => newSets.push(s))
+        // Pre-F51 logged hangs merge as duration sets (grip-as-exercise).
+        await mergeInto(
+          db.sets,
+          d.hangs?.map(hangToLoggedSet),
+          (s) => newSets.push(s),
+        )
         await mergeInto(db.cardio, d.cardio, (c) => newCardio.push(c))
         await mergeInto(db.routes, d.routes, (r) => newRoutes.push(r))
-        await mergeInto(db.hangs, d.hangs, (h) => newHangs.push(h))
         await mergeInto(db.prs, d.prs)
         await mergeInto(db.plannedWorkouts, d.plannedWorkouts)
 
@@ -1474,7 +1432,7 @@ export async function mergeData(json: string): Promise<{ inserted: number; skipp
       },
     )
 
-    await redetectPRs(newSets, newRoutes, newHangs, newCardio)
+    await redetectPRs(newSets, newRoutes, newCardio)
     return { inserted, skipped }
   })
 }

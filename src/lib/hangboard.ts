@@ -60,6 +60,21 @@ export function hangSetToTemplateExercise(hs: HangboardSet, order: number): Temp
   }
 }
 
+// Import path (F51) — fold a pre-F51 backup template's hangboardSets into its
+// exercises as grip rows, then drop the array. Idempotent (no-op when absent), so
+// post-F51 backups pass through unchanged. Mirrors the v10 upgrade.
+export function foldTemplateHangboard<
+  T extends { exercises?: TemplateExercise[]; hangboardSets?: HangboardSet[] },
+>(t: T): T {
+  const hs = t.hangboardSets
+  if (!Array.isArray(hs) || hs.length === 0) return t
+  const base = t.exercises?.length ?? 0
+  const rows = hs.map((h, i) => hangSetToTemplateExercise(h, base + i))
+  const next = { ...t, exercises: [...(t.exercises ?? []), ...rows] }
+  delete next.hangboardSets
+  return next
+}
+
 // v11 (F51) — a logged hang becomes a logged (duration) set for the grip exercise.
 // The hang's load is bodyweight-relative, so it lands in additionalWeightKg (0 =
 // plain bodyweight → undefined), keeping the "BW ±N kg" label and % consistent.
