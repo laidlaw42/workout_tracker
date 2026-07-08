@@ -39,6 +39,16 @@ export function buildToStoredCategories(build: WorkoutCategory[]): TemplateCateg
   return out
 }
 
+// A "hangboard-only" workout is nothing but hang sets (no exercises) — it reads
+// as Hangboard (its own library tab + badge). A template mixing hangs with
+// climbing/strength exercises stays under its real categories. Single source of
+// truth for the library filter and the card badge, so they never disagree.
+export function isHangboardOnlyTemplate(
+  t: Pick<WorkoutTemplate, 'hangboardSets' | 'exercises'>,
+): boolean {
+  return (t.hangboardSets?.length ?? 0) > 0 && (t.exercises?.length ?? 0) === 0
+}
+
 // Reconstruct the build categories (with 'hangboard') when editing a template: a
 // hangboard-only workout (hangs, no exercises) shows as just Hangboard; a mix of
 // hangs + exercises keeps its stored categories plus Hangboard.

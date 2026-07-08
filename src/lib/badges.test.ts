@@ -1,9 +1,16 @@
 import { describe, it, expect } from 'vitest'
-import { badgeForSession, badgesForSession, deriveSessionKind, normalizeVenue } from './badges'
-import type { ClimbingRoute, WorkoutSession } from '@/types'
+import {
+  badgeForSession,
+  badgesForSession,
+  badgesForTemplate,
+  deriveSessionKind,
+  normalizeVenue,
+} from './badges'
+import type { ClimbingRoute, WorkoutSession, WorkoutTemplate } from '@/types'
 
 const sess = (s: Partial<WorkoutSession>) => s as WorkoutSession
 const route = (style: ClimbingRoute['style']) => ({ style }) as ClimbingRoute
+const tpl = (t: Partial<WorkoutTemplate>) => ({ exercises: [], ...t }) as WorkoutTemplate
 
 describe('normalizeVenue', () => {
   it('maps legacy home → board and rejects unknowns', () => {
@@ -96,5 +103,33 @@ describe('badgesForSession', () => {
   })
   it('falls back to a single badge otherwise', () => {
     expect(badgesForSession(sess({ type: 'strength' })).map((b) => b.label)).toEqual(['Strength'])
+  })
+})
+
+describe('badgesForTemplate', () => {
+  const labels = (t: WorkoutTemplate) => badgesForTemplate(t).map((b) => b.label)
+
+  it('a hangboard-only workout reads as Hangboard, not Climbing', () => {
+    // Stored as ['climbing'] with hang sets and no exercises (e.g. Abrahangs).
+    expect(labels(tpl({ categories: ['climbing'], hangboardSets: [{}] as never, exercises: [] }))).toEqual([
+      'Hangboard',
+    ])
+  })
+
+  it('a mix of climbing exercises + hangs shows both Climbing and Hangboard', () => {
+    expect(
+      labels(
+        tpl({
+          categories: ['climbing'],
+          exercises: [{}] as never,
+          hangboardSets: [{}] as never,
+        }),
+      ),
+    ).toEqual(['Climbing', 'Hangboard'])
+  })
+
+  it('a plain climbing / strength workout is unchanged', () => {
+    expect(labels(tpl({ categories: ['climbing'], exercises: [{}] as never }))).toEqual(['Climbing'])
+    expect(labels(tpl({ categories: ['strength'], exercises: [{}] as never }))).toEqual(['Strength'])
   })
 })

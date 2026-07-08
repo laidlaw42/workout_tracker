@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { CLIMB_STYLE_ICONS } from '@/lib/climbing'
 import { assertNever } from '@/lib/assert'
-import { templateCategories } from '@/lib/templateCategories'
+import { isHangboardOnlyTemplate, templateCategories } from '@/lib/templateCategories'
 import type {
   CardioActivityType,
   ClimbingRoute,
@@ -126,14 +126,22 @@ function templateCategoryBadge(t: WorkoutTemplate, c: TemplateCategory): Badge {
 }
 
 // A94 — one badge per category a template spans, shown as a row of pills on the
-// template card. Ordered alphabetically for a stable read.
+// template card. Ordered alphabetically for a stable read. A hangboard-only
+// workout reads as Hangboard (not Climbing); a mix of hangs + exercises keeps its
+// category badges plus a Hangboard pill — mirroring the library tabs.
 export function badgesForTemplate(t: WorkoutTemplate): Badge[] {
+  if (isHangboardOnlyTemplate(t)) return [HANGBOARD(TONE.climbing)]
   const cats = templateCategories(t)
-  return CATEGORY_BADGE_ORDER.filter((c) => cats.includes(c)).map((c) => templateCategoryBadge(t, c))
+  const badges = CATEGORY_BADGE_ORDER.filter((c) => cats.includes(c)).map((c) =>
+    templateCategoryBadge(t, c),
+  )
+  if ((t.hangboardSets?.length ?? 0) > 0) badges.push(HANGBOARD(TONE.climbing))
+  return badges
 }
 
 // Single representative badge (multi-category → Mixed) for compact one-badge spots.
 export function badgeForTemplate(t: WorkoutTemplate): Badge {
+  if (isHangboardOnlyTemplate(t)) return HANGBOARD(TONE.climbing)
   const cats = templateCategories(t)
   return cats.length > 1 ? MIXED : templateCategoryBadge(t, cats[0])
 }
