@@ -17,7 +17,7 @@ import { FavoriteButton, FavoriteFilterButton } from '@/components/FavoriteButto
 import { EmptyState } from '@/components/EmptyState'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
-import { badgeForCategory } from '@/lib/badges'
+import { badgeForCategory, categoryTabClasses } from '@/lib/badges'
 import {
   ContextMenu,
   ContextMenuContent,
@@ -121,6 +121,7 @@ export function ExerciseLibrary() {
             scrollable
             options={CATEGORY_OPTIONS}
             value={catFilter}
+            tone={categoryTabClasses}
             onChange={(v) => {
               setCatFilter(v)
               setActiveTags([])

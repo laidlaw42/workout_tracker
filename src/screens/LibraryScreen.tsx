@@ -6,6 +6,7 @@ import { useTagColours } from '@/hooks/useTagColours'
 import { getAllTemplates, setTemplateFavorite } from '@/db/helpers'
 import { isHangboardOnlyTemplate, templateCategories } from '@/lib/templateCategories'
 import { SegmentedControl } from '@/components/SegmentedControl'
+import { categoryTabClasses } from '@/lib/badges'
 import { FavoriteFilterButton } from '@/components/FavoriteButton'
 import { TemplateCard } from '@/components/TemplateCard'
 import { ExerciseLibrary } from '@/components/ExerciseLibrary'
@@ -108,6 +109,7 @@ export default function LibraryScreen() {
                 scrollable
                 options={OPTIONS}
                 value={filter}
+                tone={categoryTabClasses}
                 onChange={(v) => {
                   setFilter(v)
                   setActiveTag(null)

@@ -42,13 +42,52 @@ export interface Badge {
 const TONE = {
   strength: 'bg-red-500/15 text-red-700 dark:text-red-300 ring-red-500/30',
   cardio: 'bg-orange-500/15 text-orange-700 dark:text-orange-300 ring-orange-500/30',
-  climbing: 'bg-green-500/15 text-green-700 dark:text-green-300 ring-green-500/30',
+  // Climbing is tan (#b0895b); hangboard keeps the green it used to share with
+  // climbing, so the two read apart in badges and in the category tabs.
+  climbing: 'bg-[#b0895b]/20 text-[#7d5e33] dark:text-[#d6b98c] ring-[#b0895b]/40',
+  hangboard: 'bg-green-500/15 text-green-700 dark:text-green-300 ring-green-500/30',
   rehab: 'bg-sky-500/15 text-sky-700 dark:text-sky-300 ring-sky-500/30', // (F31)
   gym: 'bg-pink-500/15 text-pink-700 dark:text-pink-300 ring-pink-500/30', // (F47)
   crag: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 ring-amber-500/30',
   board: 'bg-purple-500/15 text-purple-700 dark:text-purple-300 ring-purple-500/30', // (F47)
   mixed: 'bg-violet-500/15 text-violet-700 dark:text-violet-300 ring-violet-500/30', // (A66)
 } as const
+
+// Per-category accent for the filter / selector tabs (Library, Exercises, the
+// exercise picker, and the new-workout category pills). `solid` fills the active
+// tab; `text` colours an idle tab's label on the component's own background.
+// Colours mirror the badge TONE (strength red, cardio orange, climbing tan,
+// hangboard green, rehab sky). 'all' has no entry → keeps the neutral default.
+const CATEGORY_TAB_TONE: Record<string, { solid: string; text: string }> = {
+  strength: { solid: 'bg-red-500 text-white', text: 'text-red-700 dark:text-red-300' },
+  cardio: { solid: 'bg-orange-500 text-white', text: 'text-orange-700 dark:text-orange-300' },
+  climbing: { solid: 'bg-[#8f6a3d] text-white', text: 'text-[#8a6a3d] dark:text-[#d6b98c]' },
+  hangboard: { solid: 'bg-green-600 text-white', text: 'text-green-700 dark:text-green-300' },
+  rehab: { solid: 'bg-sky-500 text-white', text: 'text-sky-700 dark:text-sky-300' },
+}
+
+// Classes for a category filter tab (SegmentedControl `tone` prop). Returns
+// undefined for a value with no accent ('all', or non-category tabs) so the
+// control falls back to its default active/idle styling.
+export function categoryTabClasses(value: string, active: boolean): string | undefined {
+  const t = CATEGORY_TAB_TONE[value]
+  if (!t) return undefined
+  return active ? `${t.solid} shadow-sm` : t.text
+}
+
+// Classes for a standalone category pill (CategoryMultiSelect / picker tabs),
+// which supply their own background + ring. Colour-tinted always; solid when on.
+export function categoryPillClasses(value: string, active: boolean): string {
+  const t = CATEGORY_TAB_TONE[value]
+  if (!t) {
+    return active
+      ? 'bg-primary text-primary-foreground ring-primary'
+      : 'bg-muted text-muted-foreground ring-border active:bg-accent'
+  }
+  return active
+    ? `${t.solid} ring-transparent`
+    : `bg-muted ${t.text} ring-border active:bg-accent`
+}
 
 const CARDIO: Record<CardioActivityType, { Icon: LucideIcon; label: string }> = {
   run: { Icon: Footprints, label: 'Run' },
@@ -111,7 +150,7 @@ export function badgeForCategory(category: ExerciseCategory): Badge {
     case 'rehab':
       return REHAB_BADGE
     case 'hangboard':
-      return HANGBOARD(TONE.climbing)
+      return HANGBOARD(TONE.hangboard)
     default:
       return assertNever(category, 'exercise category')
   }
@@ -130,12 +169,12 @@ function templateCategoryBadge(t: WorkoutTemplate, c: TemplateCategory): Badge {
 // workout reads as Hangboard (not Climbing); a mix of hangs + exercises keeps its
 // category badges plus a Hangboard pill — mirroring the library tabs.
 export function badgesForTemplate(t: WorkoutTemplate): Badge[] {
-  if (isHangboardOnlyTemplate(t)) return [HANGBOARD(TONE.climbing)]
+  if (isHangboardOnlyTemplate(t)) return [HANGBOARD(TONE.hangboard)]
   const cats = templateCategories(t)
   const badges = CATEGORY_BADGE_ORDER.filter((c) => cats.includes(c)).map((c) =>
     templateCategoryBadge(t, c),
   )
-  if ((t.hangboardSets?.length ?? 0) > 0) badges.push(HANGBOARD(TONE.climbing))
+  if ((t.hangboardSets?.length ?? 0) > 0) badges.push(HANGBOARD(TONE.hangboard))
   return badges
 }
 
@@ -154,7 +193,7 @@ export function badgeForSession(s: WorkoutSession, kind?: SessionKind): Badge {
   if (s.type === 'mixed') {
     // A73: a training session whose only logged content is hangs reads as a
     // Hangboard session (green identity); anything with sets too stays Mixed.
-    if (kind?.climbingIsHangboard) return HANGBOARD(TONE.climbing)
+    if (kind?.climbingIsHangboard) return HANGBOARD(TONE.hangboard)
     return MIXED
   }
   if (s.type === 'cardio') return cardioBadge(kind?.cardioActivity ?? s.plannedActivity)

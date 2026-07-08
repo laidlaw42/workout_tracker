@@ -1,4 +1,5 @@
 import { WORKOUT_CATEGORY_OPTIONS, type WorkoutCategory } from '@/lib/templateCategories'
+import { categoryPillClasses } from '@/lib/badges'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -25,9 +26,7 @@ export function CategoryMultiSelect({ value, onChange }: Props) {
             aria-pressed={on}
             className={cn(
               'rounded-full px-3.5 py-1.5 text-sm font-medium ring-1 transition-colors',
-              on
-                ? 'bg-primary text-primary-foreground ring-primary'
-                : 'bg-muted text-muted-foreground ring-border active:bg-accent',
+              categoryPillClasses(o.value, on),
             )}
           >
             {o.label}

@@ -5,7 +5,7 @@ import { getAllExercises, setExerciseFavorite } from '@/db/helpers'
 import { FavoriteButton, FavoriteFilterButton } from '@/components/FavoriteButton'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
 import { ExerciseFormSheet } from '@/components/ExerciseFormSheet'
-import { badgeForCategory } from '@/lib/badges'
+import { badgeForCategory, categoryPillClasses } from '@/lib/badges'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -194,9 +194,7 @@ export function ExercisePicker({
                     onClick={() => setCatFilter(t.value)}
                     className={cn(
                       'shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors',
-                      catFilter === t.value
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-muted-foreground active:bg-accent',
+                      categoryPillClasses(t.value, catFilter === t.value),
                     )}
                   >
                     {t.label}

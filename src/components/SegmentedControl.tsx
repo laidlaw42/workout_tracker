@@ -18,6 +18,9 @@ interface Props<T extends string> {
    *  each edge that has hidden segments (tap to scroll) and keeps the active
    *  segment in view. */
   scrollable?: boolean
+  /** Per-segment colour classes (e.g. category accents). Return undefined for a
+   *  segment to keep the default active/idle styling. */
+  tone?: (value: T, active: boolean) => string | undefined
 }
 
 export function SegmentedControl<T extends string>({
@@ -26,6 +29,7 @@ export function SegmentedControl<T extends string>({
   onChange,
   className,
   scrollable = false,
+  tone,
 }: Props<T>) {
   const scrollRef = useRef<HTMLDivElement>(null)
   // Which edges have off-screen segments (drives the chevron hints).
@@ -63,21 +67,26 @@ export function SegmentedControl<T extends string>({
     if (el) el.scrollBy({ left: dir * el.clientWidth * 0.75, behavior: 'smooth' })
   }
 
-  const buttons = options.map((o) => (
-    <button
-      key={o.value}
-      type="button"
-      data-active={value === o.value}
-      onClick={() => onChange(o.value)}
-      className={cn(
-        'min-h-9 rounded-md px-2 text-sm font-medium transition-colors',
-        scrollable ? 'shrink-0 whitespace-nowrap px-3' : 'flex-1',
-        value === o.value ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground',
-      )}
-    >
-      {o.label}
-    </button>
-  ))
+  const buttons = options.map((o) => {
+    const active = value === o.value
+    const toneClasses = tone?.(o.value, active)
+    return (
+      <button
+        key={o.value}
+        type="button"
+        data-active={active}
+        onClick={() => onChange(o.value)}
+        className={cn(
+          'min-h-9 rounded-md px-2 text-sm font-medium transition-colors',
+          scrollable ? 'shrink-0 whitespace-nowrap px-3' : 'flex-1',
+          toneClasses ??
+            (active ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'),
+        )}
+      >
+        {o.label}
+      </button>
+    )
+  })
 
   if (!scrollable) {
     return (
