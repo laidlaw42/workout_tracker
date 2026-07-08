@@ -514,25 +514,22 @@ export default function StrengthSessionScreen() {
           onSkip={skip}
           onRemove={setConfirmRemoveUid}
           renderItem={(ex, isCurrent) => {
-            // A66 — dispatch each exercise to its row variant by category /
-            // tracking type: cardio → duration+distance; rehab reps hide the
-            // weight input (unless it carries extra load).
+            // A66/F51 — dispatch each exercise to its row variant by tracking type
+            // (cardio → duration+distance); all field visibility on the reps row is
+            // driven by the exercise's own tracking config.
             const meta = exById.get(ex.exerciseId)
             const distanceMode = meta?.trackingType === 'distance'
-            const showWeight = !(
-              meta?.category === 'rehab' &&
-              meta?.trackingType === 'reps' &&
-              !meta?.isBodyweight
-            )
             return (
               <ExerciseCard
                 exercise={ex}
                 loggedSets={loggedFor(ex)}
                 isCurrent={isCurrent}
                 prefill={isCurrent ? prefill : undefined}
+                hasWeight={meta?.hasWeight}
+                weightLabel={meta?.weightLabel}
                 isBodyweight={meta?.isBodyweight}
+                supportsNegativeLoad={meta?.supportsNegativeLoad}
                 distanceMode={distanceMode}
-                showWeight={showWeight}
                 onLog={(d) => engine.logSet(ex, d)}
                 onAddSet={() => addSetTo(ex.uid)}
                 onRemoveSet={() => removeSet(ex.uid)}

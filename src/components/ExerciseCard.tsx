@@ -6,7 +6,15 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { NumberStepper } from '@/components/NumberStepper'
 import { SetCountdown } from '@/components/SetCountdown'
-import type { LoggedSet } from '@/types'
+import type { LoggedSet, WeightLabel } from '@/types'
+
+// F51 — the load input's label follows the exercise's weightLabel; a ± suffix
+// signals that assisted (negative) values are allowed.
+function loadFieldLabel(weightLabel: WeightLabel | undefined, negative: boolean): string {
+  const base =
+    weightLabel === 'added_load' ? 'Added load' : weightLabel === 'load' ? 'Load' : 'Weight'
+  return `${base}${negative ? ' ±' : ''} (kg)`
+}
 
 export interface WorkExercise {
   uid: string
@@ -41,12 +49,16 @@ interface Props {
   isCurrent: boolean
   /** Last logged set for this exercise (any session) — pre-fills the row (F22). */
   prefill?: Pick<LoggedSet, 'weightKg' | 'additionalWeightKg' | 'actualReps'>
-  /** Bodyweight movement that can carry extra load — shows the +kg field. */
+  /** F51 — show a weight/load input on the set row. Default true. */
+  hasWeight?: boolean
+  /** F51 — label for the load input: 'weight' | 'added_load' | 'load'. */
+  weightLabel?: WeightLabel
+  /** F51 — bodyweight movement: load stores in additionalWeightKg; % is (BW+load)/BW. */
   isBodyweight?: boolean
+  /** F51 — allow negative (assisted) load values. */
+  supportsNegativeLoad?: boolean
   /** Cardio exercise (A66): render the duration + distance row instead of reps. */
   distanceMode?: boolean
-  /** Show the weight input on the reps row (A66: rehab reps hide it). Default true. */
-  showWeight?: boolean
   onLog: (data: LoggedSetInput) => void
   onAddSet: () => void
   /** Remove the current incomplete set (last set → confirms exercise removal). */
@@ -67,9 +79,11 @@ export function ExerciseCard({
   loggedSets,
   isCurrent,
   prefill,
+  hasWeight = true,
+  weightLabel,
   isBodyweight,
+  supportsNegativeLoad,
   distanceMode = false,
-  showWeight = true,
   onLog,
   onAddSet,
   onRemoveSet,
@@ -132,7 +146,13 @@ export function ExerciseCard({
       </div>
 
       {editing && canEdit && (
-        <EditPanel exercise={exercise} distanceMode={distanceMode} onEdit={onEdit!} />
+        <EditPanel
+          exercise={exercise}
+          distanceMode={distanceMode}
+          hasWeight={hasWeight}
+          weightLabel={weightLabel}
+          onEdit={onEdit!}
+        />
       )}
 
       {!exercise.skipped && (
@@ -199,8 +219,10 @@ export function ExerciseCard({
                 targetReps={exercise.targetReps}
                 plannedWeight={exercise.weight}
                 prefill={prefill}
+                hasWeight={hasWeight}
+                weightLabel={weightLabel}
                 isBodyweight={isBodyweight}
-                showWeight={showWeight}
+                supportsNegativeLoad={supportsNegativeLoad}
                 onLog={onLog}
                 onRemove={onRemoveSet}
               />
@@ -224,10 +246,14 @@ export function ExerciseCard({
 function EditPanel({
   exercise,
   distanceMode = false,
+  hasWeight = true,
+  weightLabel,
   onEdit,
 }: {
   exercise: WorkExercise
   distanceMode?: boolean
+  hasWeight?: boolean
+  weightLabel?: WeightLabel
   onEdit: (u: ExerciseEdit) => void
 }) {
   // A cardio exercise's duration/distance are entered per bout, so only Rest is
@@ -269,19 +295,21 @@ function EditPanel({
               }}
             />
           </EditField>
-          <EditField label="Weight (kg)">
-            <NumberStepper
-              value={weight}
-              ariaLabel="weight"
-              step={getWeightStep()}
-              min={0}
-              inputMode="decimal"
-              onChange={(v) => {
-                setWeight(v)
-                onEdit({ weight: toNum(v) })
-              }}
-            />
-          </EditField>
+          {hasWeight && (
+            <EditField label={loadFieldLabel(weightLabel, false)}>
+              <NumberStepper
+                value={weight}
+                ariaLabel="weight"
+                step={getWeightStep()}
+                min={0}
+                inputMode="decimal"
+                onChange={(v) => {
+                  setWeight(v)
+                  onEdit({ weight: toNum(v) })
+                }}
+              />
+            </EditField>
+          )}
         </>
       )}
       <EditField label="Rest (s)">
@@ -313,9 +341,10 @@ interface SetRowProps {
   targetReps?: number
   plannedWeight?: number
   prefill?: Pick<LoggedSet, 'weightKg' | 'additionalWeightKg' | 'actualReps'>
+  hasWeight?: boolean
+  weightLabel?: WeightLabel
   isBodyweight?: boolean
-  /** Hide the primary weight input (A66: reps-based rehab exercises). */
-  showWeight?: boolean
+  supportsNegativeLoad?: boolean
   onLog: (data: LoggedSetInput) => void
   onRemove?: () => void
 }
@@ -329,28 +358,31 @@ function SetRow({
   targetReps,
   plannedWeight,
   prefill,
+  hasWeight = true,
+  weightLabel,
   isBodyweight,
-  showWeight = true,
+  supportsNegativeLoad,
   onLog,
   onRemove,
 }: SetRowProps) {
-  const seedWeight = () => str(plannedWeight ?? prefill?.weightKg)
-  const seedAddl = () => str(prefill?.additionalWeightKg)
+  // F51 — a single load field. A bodyweight move stores its added/assisted load in
+  // additionalWeightKg (so PRs, labels and the % stay bodyweight-relative); every
+  // other weighted move stores a plain bar weight in weightKg. Planned (template /
+  // A31 edit) wins, else the last logged set's value (F22).
+  const seedLoad = () =>
+    str(isBodyweight ? (plannedWeight ?? prefill?.additionalWeightKg) : (plannedWeight ?? prefill?.weightKg))
   const seedReps = () => str(targetReps ?? prefill?.actualReps)
-  const [weight, setWeight] = useState(seedWeight)
-  const [addl, setAddl] = useState(seedAddl)
+  const [load, setLoad] = useState(seedLoad)
   const [reps, setReps] = useState(seedReps)
   // F39 — advisory warning when logging a weighted set with an empty weight.
   const [warnWeight, setWarnWeight] = useState(false)
-  const weightRef = useRef<HTMLInputElement>(null)
+  const loadRef = useRef<HTMLInputElement>(null)
   const weightStep = getWeightStep() // A60 — configurable +/− step
 
-  // Weight is a relevant, expected field only for plain weighted exercises: a
-  // bodyweight-loadable move (pull-up, dip) leaves the primary weight blank by
-  // design, and timed exercises never reach SetRow. So the warning is gated to
-  // exercises without a dedicated additional-weight field.
-  const weightExpected = showWeight && !isBodyweight
-  const showWeightWarning = warnWeight && weightExpected && weight.trim() === ''
+  // The empty-load warning is for plain weighted moves only: a bodyweight move is
+  // legitimately done unloaded (an unweighted pull-up), so it never warns.
+  const weightExpected = hasWeight && !isBodyweight
+  const showWeightWarning = warnWeight && weightExpected && load.trim() === ''
 
   // The last-set prefill resolves asynchronously (and briefly holds the previous
   // exercise's value across an exercise change). Adopt it once it arrives, but
@@ -362,45 +394,46 @@ function SetRow({
   }
   useEffect(() => {
     if (dirty.current) return
-    setWeight(seedWeight())
-    setAddl(seedAddl())
+    setLoad(seedLoad())
     setReps(seedReps())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefill?.weightKg, prefill?.additionalWeightKg, prefill?.actualReps])
 
-  // Effort as a % of bodyweight (A39), if a bodyweight is set. The bar weight is
-  // shown relative to bodyweight; for a bodyweight+load move the % is the total
-  // (bodyweight + added load) relative to bodyweight. Recomputed each render, so
-  // it tracks the +/- steppers and typing live.
+  // Effort as a % of bodyweight (A39), if a bodyweight is set. A bodyweight move
+  // is (bodyweight + load) / bodyweight (so an assisted −20 on a 70 kg climber
+  // reads ~71%); a plain weighted move is load / bodyweight. Live per render.
   const bw = getBodyweight()
-  const wNum = weight.trim() === '' ? null : Number(weight)
-  const aNum = addl.trim() === '' ? null : Number(addl)
-  const weightPct = bw != null && wNum != null && Number.isFinite(wNum) && wNum > 0 ? Math.round((wNum / bw) * 100) : null
-  // Assisted (negative) load counts too: net effort is (bodyweight + load) as a %
-  // of bodyweight, so a −20 kg assist on a 70 kg climber reads ~71%. A plain-BW
-  // set (0 added) shows nothing here — the row already reads BW.
-  const addlPct = aNum != null && aNum !== 0 ? bodyweightLoadPct(aNum) : null
+  const loadNum = load.trim() === '' ? null : Number(load)
+  const pct =
+    !hasWeight || bw == null || loadNum == null || !Number.isFinite(loadNum)
+      ? null
+      : isBodyweight
+        ? loadNum !== 0
+          ? bodyweightLoadPct(loadNum)
+          : null
+        : loadNum > 0
+          ? Math.round((loadNum / bw) * 100)
+          : null
 
   function doLog() {
     setWarnWeight(false)
-    const w = weight.trim() === '' ? undefined : Number(weight)
-    const a = addl.trim() === '' ? undefined : Number(addl)
+    const l = load.trim() === '' ? undefined : Number(load)
     const r = reps.trim() === '' ? undefined : Number(reps)
+    const validLoad = l != null && !Number.isNaN(l)
     onLog({
-      weightKg: w != null && !Number.isNaN(w) ? w : undefined,
-      additionalWeightKg: a != null && !Number.isNaN(a) && a !== 0 ? a : undefined,
+      weightKg: validLoad && !isBodyweight ? l : undefined,
+      additionalWeightKg: validLoad && isBodyweight && l !== 0 ? l : undefined,
       actualReps: r != null && !Number.isNaN(r) ? r : undefined,
     })
-    setWeight(seedWeight())
-    setAddl(seedAddl())
+    setLoad(seedLoad())
     setReps(seedReps())
   }
 
   // Logging is never blocked — an empty weight only surfaces an advisory warning
   // first (F39). Some exercises are legitimately done unloaded, so a second tap
-  // ("Log anyway") proceeds with weightKg undefined.
+  // ("Log anyway") proceeds with the load undefined.
   function attemptLog() {
-    if (weightExpected && weight.trim() === '') {
+    if (weightExpected && load.trim() === '') {
       setWarnWeight(true)
       return
     }
@@ -409,29 +442,27 @@ function SetRow({
 
   return (
     <div className="space-y-3 rounded-lg border border-primary/40 bg-background p-3">
-      {showWeight && (
-        <SetField label="Weight (kg)">
+      {hasWeight && (
+        <SetField label={loadFieldLabel(weightLabel, supportsNegativeLoad ?? false)}>
           <NumberStepper
-            value={weight}
-            ariaLabel="weight"
+            value={load}
+            ariaLabel="load"
             step={weightStep}
-            min={0}
+            min={supportsNegativeLoad ? -999 : 0}
             inputMode="decimal"
-            placeholder="BW"
-            inputRef={weightRef}
-            // Editing the weight dismisses the empty-weight warning (F39) for good,
+            placeholder={isBodyweight ? '0' : 'BW'}
+            inputRef={loadRef}
+            // Editing the load dismisses the empty-weight warning (F39) for good,
             // so re-clearing it later doesn't re-surface it without a fresh Log tap.
             onChange={(v) => {
               if (warnWeight) setWarnWeight(false)
-              markDirty(setWeight)(v)
+              markDirty(setLoad)(v)
             }}
           />
         </SetField>
       )}
-      {showWeight && weightPct != null && (
-        <p className="-mt-2 pr-1 text-right text-xs text-muted-foreground">
-          {weightPct}% of bodyweight
-        </p>
+      {pct != null && (
+        <p className="-mt-2 pr-1 text-right text-xs text-muted-foreground">{pct}% of bodyweight</p>
       )}
       {showWeightWarning && (
         <div className="-mt-1 flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
@@ -448,7 +479,7 @@ function SetRow({
               type="button"
               onClick={() => {
                 setWarnWeight(false)
-                weightRef.current?.focus()
+                loadRef.current?.focus()
               }}
               className="rounded-md border border-border px-2 py-1 font-medium text-foreground transition-colors active:bg-accent"
             >
@@ -456,25 +487,6 @@ function SetRow({
             </button>
           </div>
         </div>
-      )}
-      {isBodyweight && (
-        // Signed: + for added load (weighted pull-up/dip), − for assisted
-        // (band/machine/foot). No `min`, so the stepper and field allow negatives.
-        <SetField label="Load ± (kg)">
-          <NumberStepper
-            value={addl}
-            ariaLabel="additional weight"
-            step={weightStep}
-            inputMode="decimal"
-            placeholder="0"
-            onChange={markDirty(setAddl)}
-          />
-        </SetField>
-      )}
-      {addlPct != null && (
-        <p className="-mt-2 pr-1 text-right text-xs text-muted-foreground">
-          {addlPct}% of bodyweight
-        </p>
       )}
       <SetField label="Reps">
         <NumberStepper value={reps} ariaLabel="reps" min={0} onChange={markDirty(setReps)} />
