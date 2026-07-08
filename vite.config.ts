@@ -40,8 +40,8 @@ export default defineConfig(({ mode }) => ({
         name: 'Workout Tracker',
         short_name: 'Workouts',
         description: 'Offline-first tracker for strength, cardio, and climbing.',
-        theme_color: '#0f172a',
-        background_color: '#0f172a',
+        theme_color: '#f3f7f2',
+        background_color: '#f3f7f2',
         display: 'standalone',
         orientation: 'portrait',
         icons: [

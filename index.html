@@ -1,18 +1,18 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="%BASE_URL%icons/pwa-192.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0f172a" />
+    <meta name="theme-color" content="#f3f7f2" />
     <title>Workout Tracker</title>
 
     <!-- Apply the saved theme before paint to avoid a flash of the default. -->
     <script>
       ;(function () {
         try {
-          var t = localStorage.getItem('theme') || 'dark'
-          // Themes removed in later versions fall back to Dark (flash-free).
+          var t = localStorage.getItem('theme') || 'forest-light'
+          // Themes removed in later versions fall back to the default (flash-free).
           var removed = [
             'emerald-dark',
             'emerald-light',
@@ -21,7 +21,7 @@
             'coral-dark',
             'coral-light',
           ]
-          if (removed.indexOf(t) !== -1) t = 'dark'
+          if (removed.indexOf(t) !== -1) t = 'forest-light'
           var el = document.documentElement
           el.setAttribute('data-theme', t)
           // Keep in sync with DARK_THEME_IDS in src/lib/theme.ts

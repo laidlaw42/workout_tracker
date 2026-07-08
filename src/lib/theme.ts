@@ -63,7 +63,7 @@ export const THEME_PREVIEWS: Record<string, [string, string, string]> = {
  *  pre-paint list in index.html. */
 export const DARK_THEME_IDS = THEMES.filter((t) => t.dark).map((t) => t.id)
 
-const DEFAULT_THEME = 'dark'
+const DEFAULT_THEME = 'forest-light'
 const KEY = 'theme'
 
 function isDark(id: string): boolean {
