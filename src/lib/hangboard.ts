@@ -1,4 +1,4 @@
-import type { Exercise } from '@/types'
+import type { Exercise, HangboardSet, LoggedHang, LoggedSet, TemplateExercise } from '@/types'
 
 // F51 — grip-as-exercise. In the unified model a hangboard "exercise" is a grip
 // position (Half crimp, Open hand, …); the protocol (hang duration, load, edge,
@@ -37,5 +37,47 @@ export function hangGripExercise(grip: string, now: number): Exercise {
     hasIntraRest: true,
     hasEdgeDepth: true,
     createdAt: now,
+  }
+}
+
+// v10 (F51) — a template's HangboardSet becomes a standard duration TemplateExercise
+// row referencing the grip exercise. The protocol lives in the row params: hang
+// duration, load (weightKg → the row's default load), edge depth, inter-set rest,
+// and — for an Abrahang/repeater (legacy hangType) — the reps + intra-rest.
+export function hangSetToTemplateExercise(hs: HangboardSet, order: number): TemplateExercise {
+  const abrahang = hs.hangType === 'abrahang'
+  return {
+    exerciseId: hangExerciseId(hs.gripType),
+    exerciseName: hs.gripType,
+    order,
+    defaultSets: hs.sets,
+    defaultDuration: hs.durationSeconds,
+    defaultWeight: hs.weightKg,
+    defaultRestSeconds: hs.restSeconds,
+    defaultEdgeDepthMm: hs.edgeDepthMm,
+    defaultIntraRestSeconds: abrahang ? (hs.intraRestSeconds ?? 3) : undefined,
+    defaultAbrahangReps: abrahang ? (hs.abrahangReps ?? 6) : undefined,
+  }
+}
+
+// v11 (F51) — a logged hang becomes a logged (duration) set for the grip exercise.
+// The hang's load is bodyweight-relative, so it lands in additionalWeightKg (0 =
+// plain bodyweight → undefined), keeping the "BW ±N kg" label and % consistent.
+// Legacy LoggedHang never stored intra-rest, so only abrahangReps carries over.
+export function hangToLoggedSet(h: LoggedHang): LoggedSet {
+  const abrahang = h.hangType === 'abrahang'
+  return {
+    id: h.id,
+    sessionId: h.sessionId,
+    exerciseId: hangExerciseId(h.gripType),
+    exerciseName: h.gripType,
+    setNumber: h.setNumber,
+    durationSeconds: h.actualDurationSeconds ?? h.targetDurationSeconds,
+    additionalWeightKg: h.weightKg !== 0 ? h.weightKg : undefined,
+    edgeDepthMm: h.edgeDepthMm,
+    abrahangReps: abrahang ? h.abrahangReps : undefined,
+    restTakenSeconds: h.restTakenSeconds,
+    skipped: h.skipped,
+    loggedAt: h.loggedAt,
   }
 }
