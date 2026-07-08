@@ -33,3 +33,15 @@ export function setWeightLabel(s: { weightKg?: number; additionalWeightKg?: numb
   }
   return s.weightKg != null ? `${s.weightKg} kg` : 'BW'
 }
+
+// Net effort as a % of bodyweight for a bodyweight movement (pull-up, hang, …)
+// carrying `loadKg` of added (+) or assisted (−) load (A39/A99). Null when no
+// bodyweight is set, or when assistance meets/exceeds bodyweight (non-physical).
+// A plain-bodyweight effort (0 load) reads 100%. Shared by the strength set row
+// and the hangboard weight editors so both surface the same live figure.
+export function bodyweightLoadPct(loadKg: number): number | null {
+  const bw = getBodyweight()
+  if (bw == null || !Number.isFinite(loadKg)) return null
+  const net = bw + loadKg
+  return net > 0 ? Math.round((net / bw) * 100) : null
+}

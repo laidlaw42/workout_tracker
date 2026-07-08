@@ -1,3 +1,4 @@
+import { bodyweightLoadPct } from '@/lib/bodyweight'
 import { GRIP_TYPES } from '@/lib/climbing'
 import { getWeightStep } from '@/lib/prefs'
 import { NumberStepper } from '@/components/NumberStepper'
@@ -46,6 +47,9 @@ interface Props {
 // config. No autofocus — the surrounding sheets suppress it (F12).
 export function HangConfigFields({ value: h, onChange: patch }: Props) {
   const known = KNOWN.includes(h.gripType)
+  // A hang is loaded relative to bodyweight, so surface the same %-of-bodyweight
+  // figure the strength set row shows (A39); 0 load = a plain 100% bodyweight hang.
+  const loadPct = bodyweightLoadPct(h.weightKg)
   return (
     <div className="space-y-2">
       <Select
@@ -100,17 +104,22 @@ export function HangConfigFields({ value: h, onChange: patch }: Props) {
           onChange={(v) => patch({ edgeDepthMm: v })}
         />
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-muted-foreground">Weight ± (kg)</span>
+          <span className="text-xs text-muted-foreground">Load ± (kg)</span>
           {/* No `min`, so the −/+ stepper (and typing) allow assisted hangs below
               zero — feet on the ground, a pulley, or a resistance band. */}
           <NumberStepper
             value={String(h.weightKg)}
-            ariaLabel="hang weight"
+            ariaLabel="hang load"
             step={getWeightStep()}
             inputMode="decimal"
             inputClassName="h-9"
             onChange={(v) => patch({ weightKg: v.trim() === '' || v.trim() === '-' ? 0 : Number(v) })}
           />
+          {loadPct != null && (
+            <span className="text-right text-[11px] text-muted-foreground">
+              {loadPct}% of bodyweight
+            </span>
+          )}
         </label>
       </div>
 

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Check, Minus, Pencil, Plus } from 'lucide-react'
+import { bodyweightLoadPct } from '@/lib/bodyweight'
 import { getWeightStep } from '@/lib/prefs'
 import { weightLabel } from '@/lib/climbing'
 import { Button } from '@/components/ui/button'
@@ -159,6 +160,7 @@ function HangEditPanel({ hangSet, onEdit }: { hangSet: HangboardSet; onEdit: (u:
     const n = Number(v)
     return v.trim() === '' || v.trim() === '-' || Number.isNaN(n) ? 0 : n
   }
+  const loadPct = bodyweightLoadPct(toNum(weight))
 
   return (
     <div className="space-y-2 rounded-lg border border-primary/40 bg-background p-3">
@@ -173,10 +175,10 @@ function HangEditPanel({ hangSet, onEdit }: { hangSet: HangboardSet; onEdit: (u:
           }}
         />
       </EditField>
-      <EditField label="Weight (kg)">
+      <EditField label="Load (kg)">
         <NumberStepper
           value={weight}
-          ariaLabel="hang weight"
+          ariaLabel="hang load"
           step={getWeightStep()}
           inputMode="decimal"
           onChange={(v) => {
@@ -184,6 +186,11 @@ function HangEditPanel({ hangSet, onEdit }: { hangSet: HangboardSet; onEdit: (u:
             onEdit({ weightKg: toNum(v) })
           }}
         />
+        {loadPct != null && (
+          <p className="mt-1 text-right text-[11px] text-muted-foreground">
+            {loadPct}% of bodyweight
+          </p>
+        )}
       </EditField>
       <EditField label="Rest (s)">
         <NumberStepper

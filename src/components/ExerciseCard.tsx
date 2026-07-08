@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ArrowLeftRight, Check, Minus, Pencil, Plus } from 'lucide-react'
-import { getBodyweight, setWeightLabel } from '@/lib/bodyweight'
+import { bodyweightLoadPct, getBodyweight, setWeightLabel } from '@/lib/bodyweight'
 import { getWeightStep } from '@/lib/prefs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -377,11 +377,9 @@ function SetRow({
   const aNum = addl.trim() === '' ? null : Number(addl)
   const weightPct = bw != null && wNum != null && Number.isFinite(wNum) && wNum > 0 ? Math.round((wNum / bw) * 100) : null
   // Assisted (negative) load counts too: net effort is (bodyweight + load) as a %
-  // of bodyweight, so a −20 kg assist on a 70 kg climber reads ~71%.
-  const addlPct =
-    bw != null && aNum != null && Number.isFinite(aNum) && aNum !== 0 && bw + aNum > 0
-      ? Math.round(((bw + aNum) / bw) * 100)
-      : null
+  // of bodyweight, so a −20 kg assist on a 70 kg climber reads ~71%. A plain-BW
+  // set (0 added) shows nothing here — the row already reads BW.
+  const addlPct = aNum != null && aNum !== 0 ? bodyweightLoadPct(aNum) : null
 
   function doLog() {
     setWarnWeight(false)
