@@ -106,9 +106,7 @@ export default function StrengthSessionScreen() {
         weight: e.defaultWeight, // A98 — template's default weight pre-fills the set row
         distanceKm: e.defaultDistanceKm,
         restSeconds: e.defaultRestSeconds,
-        edgeDepthMm: e.defaultEdgeDepthMm, // F51 — hangboard row params
-        intraRestSeconds: e.defaultIntraRestSeconds,
-        abrahangReps: e.defaultAbrahangReps,
+        edgeDepthMm: e.defaultEdgeDepthMm, // F51 — hangboard edge
         skipped: false,
       }))
     // Resuming an unfinished session (A34): re-attach exercises that were added
@@ -356,10 +354,8 @@ export default function StrengthSessionScreen() {
                 defaultDuration: timed ? e.durationSeconds : undefined,
                 defaultWeight: e.weight,
                 defaultRestSeconds: e.restSeconds,
-                // F51 — preserve hangboard row params so a training template round-trips.
+                // F51 — preserve the hangboard edge so a training template round-trips.
                 defaultEdgeDepthMm: e.edgeDepthMm,
-                defaultIntraRestSeconds: e.intraRestSeconds,
-                defaultAbrahangReps: e.abrahangReps,
               }
             }),
           lastUsedAt: template?.lastUsedAt,
@@ -431,7 +427,6 @@ export default function StrengthSessionScreen() {
                 isBodyweight={meta?.isBodyweight}
                 supportsNegativeLoad={meta?.supportsNegativeLoad}
                 hasEdgeDepth={meta?.hasEdgeDepth}
-                hasIntraRest={meta?.hasIntraRest}
                 distanceMode={distanceMode}
                 onLog={(d) => engine.logSet(ex, d)}
                 onAddSet={() => addSetTo(ex.uid)}
@@ -446,7 +441,6 @@ export default function StrengthSessionScreen() {
                       ? {
                           remaining: engine.countdown.remaining,
                           duration: engine.countdown.duration,
-                          label: engine.abrahangLabel ?? undefined,
                         }
                       : null
                 }

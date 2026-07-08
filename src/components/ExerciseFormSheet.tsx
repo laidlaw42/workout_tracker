@@ -3,24 +3,17 @@ import { toast } from 'sonner'
 import { deleteExercise, updateExercise, upsertExercise } from '@/db/helpers'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import {
-  ExerciseDefaultsFields,
-  EMPTY_DEFAULTS,
-  defaultsToDraft,
-  draftToDefaults,
-  type DefaultsDraft,
-} from '@/components/ExerciseDefaultsFields'
-import {
-  TrackingOptionsFields,
-  DEFAULT_TRACKING_CONFIG,
-  configToDraft,
-  draftToConfig,
-  type TrackingConfigDraft,
-} from '@/components/TrackingOptionsFields'
+  MetricsFields,
+  exerciseToMetricsDraft,
+  metricsDraftToStored,
+  type MetricsDraft,
+} from '@/components/MetricsFields'
+import { metricsToConfig } from '@/lib/metrics'
 import { TagInput } from '@/components/TagInput'
-import { TRACKING_TYPES } from '@/lib/trackingTypes'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Sheet,
   SheetContent,
@@ -38,7 +31,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import type { Exercise, ExerciseCategory, TrackingType } from '@/types'
+import type { Exercise, ExerciseCategory } from '@/types'
 
 interface Props {
   open: boolean
@@ -73,16 +66,13 @@ export function ExerciseFormSheet({
   onSaved,
 }: Props) {
   const [name, setName] = useState('')
-  const [category, setCategory] = useState<ExerciseCategory>('strength')
+  const [description, setDescription] = useState('')
   const [muscles, setMuscles] = useState('')
-  const [tracking, setTracking] = useState<TrackingType>('reps')
+  const [category, setCategory] = useState<ExerciseCategory>('strength')
   const [tags, setTags] = useState<string[]>([])
   const [confirmDelete, setConfirmDelete] = useState(false)
-  // A98 — optional default parameters (held as a string draft; blank = unset →
-  // falls back to the hardcoded add-to-template defaults).
-  const [defDraft, setDefDraft] = useState<DefaultsDraft>(EMPTY_DEFAULTS)
-  // F51 — the exercise's tracking configuration (which metrics its set row shows).
-  const [cfgDraft, setCfgDraft] = useState<TrackingConfigDraft>(DEFAULT_TRACKING_CONFIG)
+  // The Parameters draft: which metrics the exercise tracks + their defaults.
+  const [metrics, setMetrics] = useState<MetricsDraft>(() => exerciseToMetricsDraft(null))
 
   // Seed on open only. `defaultTags` is intentionally not a dependency: it is read
   // once at open time for a new exercise, so a later live update never clobbers
@@ -90,12 +80,11 @@ export function ExerciseFormSheet({
   useEffect(() => {
     if (!open) return
     setName(exercise?.name ?? defaultName)
-    setCategory(exercise?.category ?? defaultCategory)
+    setDescription(exercise?.notes ?? '')
     setMuscles(exercise?.muscleGroups.join(', ') ?? '')
-    setTracking(exercise?.trackingType ?? 'reps')
+    setCategory(exercise?.category ?? defaultCategory)
     setTags(exercise?.tags ?? defaultTags)
-    setDefDraft(defaultsToDraft(exercise?.defaults))
-    setCfgDraft(configToDraft(exercise))
+    setMetrics(exerciseToMetricsDraft(exercise))
   }, [open, exercise])
 
   async function save() {
@@ -105,37 +94,27 @@ export function ExerciseFormSheet({
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean)
-    const trackingType: TrackingType = tracking
-    // A98 — default parameters; the shared builder keeps only the fields relevant to
-    // the tracking type and returns undefined when nothing is set, so an exercise
-    // with no defaults stays clean and uses the add fallbacks.
-    const defaults = draftToDefaults(trackingType, defDraft)
-    // F51 — the tracking config from the user's Tracking-options draft (every
-    // category, hangboard included; a grip is a standard duration exercise).
-    const config = draftToConfig(trackingType, cfgDraft)
+    // Metrics are the source of truth; trackingType + the weight/edge flags are
+    // derived from them so the set row / PR / progress code stays unchanged.
+    const { metrics: enabled, defaults } = metricsDraftToStored(metrics)
+    const config = metricsToConfig(enabled)
+    const record = {
+      name: trimmed,
+      category,
+      muscleGroups,
+      tags,
+      notes: trimmed && description.trim() ? description.trim() : undefined,
+      metrics: enabled,
+      defaults,
+      ...config,
+    }
     try {
       let id: string
       if (exercise) {
-        await updateExercise(exercise.id, {
-          name: trimmed,
-          category,
-          muscleGroups,
-          trackingType,
-          tags,
-          defaults,
-          ...config,
-        })
+        await updateExercise(exercise.id, record)
         id = exercise.id
       } else {
-        id = await upsertExercise({
-          name: trimmed,
-          category,
-          muscleGroups,
-          trackingType,
-          tags,
-          defaults,
-          ...config,
-        })
+        id = await upsertExercise(record)
       }
       onSaved?.(id)
       onOpenChange(false)
@@ -170,16 +149,22 @@ export function ExerciseFormSheet({
 
         <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
           <div className="space-y-2">
-            <Label>Category</Label>
-            <SegmentedControl options={CATEGORIES} value={category} onChange={setCategory} />
-          </div>
-          <div className="space-y-2">
             <Label htmlFor="ex-form-name">Name</Label>
             <Input
               id="ex-form-name"
               value={name}
               placeholder="e.g. Front squat"
               onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ex-form-desc">Description</Label>
+            <Textarea
+              id="ex-form-desc"
+              value={description}
+              placeholder="optional — cues, setup, notes"
+              rows={2}
+              onChange={(e) => setDescription(e.target.value)}
             />
           </div>
           <div className="space-y-2">
@@ -192,28 +177,15 @@ export function ExerciseFormSheet({
             />
           </div>
           <div className="space-y-2">
-            <Label>Tracking</Label>
-            <SegmentedControl options={TRACKING_TYPES} value={tracking} onChange={setTracking} />
+            <Label>Category</Label>
+            <SegmentedControl options={CATEGORIES} value={category} onChange={setCategory} />
           </div>
-          {/* F51 — the tracking configuration: which metrics the set row shows. No
-              field is locked or inferred from category/name (hangboard included). */}
-          <TrackingOptionsFields
-            tracking={tracking}
-            value={cfgDraft}
-            onChange={(patch) => setCfgDraft((c) => ({ ...c, ...patch }))}
-          />
-          {/* A98 — default parameters, keyed to the tracking type. Pre-fill a new
-              template/session row; blank falls back to the standard defaults. */}
-          <ExerciseDefaultsFields
-            tracking={tracking}
-            value={defDraft}
-            onChange={(patch) => setDefDraft((d) => ({ ...d, ...patch }))}
-            edge={cfgDraft.hasEdgeDepth}
-          />
           <div className="space-y-2">
             <Label>Tags</Label>
             <TagInput value={tags} onChange={setTags} />
           </div>
+          {/* The Parameters section: which metrics this exercise tracks + defaults. */}
+          <MetricsFields value={metrics} onChange={setMetrics} />
           {exercise && (
             <Button
               variant="ghost"

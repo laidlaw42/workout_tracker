@@ -177,9 +177,7 @@ export default function ClimbingSessionScreen() {
           weight: e.defaultWeight, // A98 — template default weight pre-fills the row
           distanceKm: e.defaultDistanceKm,
           restSeconds: e.defaultRestSeconds,
-          edgeDepthMm: e.defaultEdgeDepthMm, // F51 — hangboard row params
-          intraRestSeconds: e.defaultIntraRestSeconds,
-          abrahangReps: e.defaultAbrahangReps,
+          edgeDepthMm: e.defaultEdgeDepthMm, // F51 — hangboard edge
           skipped: false,
         })),
     [planExercises],
@@ -481,7 +479,6 @@ export default function ClimbingSessionScreen() {
                   isBodyweight={exById.get(ex.exerciseId)?.isBodyweight}
                   supportsNegativeLoad={exById.get(ex.exerciseId)?.supportsNegativeLoad}
                   hasEdgeDepth={exById.get(ex.exerciseId)?.hasEdgeDepth}
-                  hasIntraRest={exById.get(ex.exerciseId)?.hasIntraRest}
                   onLog={(d) => engine.logSet(ex, d)}
                   onAddSet={() => addSetTo(ex.uid)}
                   onRemoveSet={() => removeSet(ex.uid)}
@@ -495,7 +492,6 @@ export default function ClimbingSessionScreen() {
                         ? {
                             remaining: engine.countdown.remaining,
                             duration: engine.countdown.duration,
-                            label: engine.abrahangLabel ?? undefined,
                           }
                         : null
                   }

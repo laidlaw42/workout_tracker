@@ -24,19 +24,19 @@ describe('hangExerciseId', () => {
 })
 
 describe('hangGripExercise', () => {
-  it('builds a bodyweight-loaded, edged, intra-rest-capable duration exercise', () => {
+  it('builds a bodyweight-loaded, edged duration exercise from the hang metrics', () => {
     expect(hangGripExercise('Open hand', 123)).toEqual({
       id: 'ex_hang_open_hand',
       name: 'Open hand',
       category: 'hangboard',
       muscleGroups: ['forearms'],
-      trackingType: 'duration',
       tags: [],
+      metrics: ['sets', 'duration', 'rest', 'edge', 'load'],
+      trackingType: 'duration',
       hasWeight: true,
       weightLabel: 'load',
       isBodyweight: true,
       supportsNegativeLoad: true,
-      hasIntraRest: true,
       hasEdgeDepth: true,
       defaults: { sets: 6, durationSeconds: 7, restSeconds: 180, edgeDepthMm: 20 },
       createdAt: 123,
@@ -58,7 +58,7 @@ const hangSet = (patch: Partial<HangboardSet>): HangboardSet => ({
 })
 
 describe('hangSetToTemplateExercise', () => {
-  it('maps a plain hang set to a duration row (no intra-rest)', () => {
+  it('maps a hang set to a plain duration row', () => {
     expect(hangSetToTemplateExercise(hangSet({ weightKg: 10 }), 2)).toEqual({
       exerciseId: 'ex_hang_half_crimp',
       exerciseName: 'Half crimp',
@@ -68,22 +68,6 @@ describe('hangSetToTemplateExercise', () => {
       defaultWeight: 10,
       defaultRestSeconds: 180,
       defaultEdgeDepthMm: 20,
-      defaultIntraRestSeconds: undefined,
-      defaultAbrahangReps: undefined,
-    })
-  })
-  it('carries reps + intra-rest for an Abrahang protocol', () => {
-    expect(
-      hangSetToTemplateExercise(
-        hangSet({ hangType: 'abrahang', abrahangReps: 6, intraRestSeconds: 3 }),
-        0,
-      ),
-    ).toMatchObject({ defaultIntraRestSeconds: 3, defaultAbrahangReps: 6 })
-  })
-  it('defaults Abrahang reps/intra-rest when the legacy row omitted them', () => {
-    expect(hangSetToTemplateExercise(hangSet({ hangType: 'abrahang' }), 0)).toMatchObject({
-      defaultIntraRestSeconds: 3,
-      defaultAbrahangReps: 6,
     })
   })
 })
@@ -113,7 +97,6 @@ describe('hangToLoggedSet', () => {
       durationSeconds: 7,
       additionalWeightKg: undefined,
       edgeDepthMm: 20,
-      abrahangReps: undefined,
       restTakenSeconds: undefined,
       skipped: false,
       loggedAt: 1000,
@@ -127,11 +110,5 @@ describe('hangToLoggedSet', () => {
     expect(
       hangToLoggedSet(loggedHang({ targetDurationSeconds: 10, actualDurationSeconds: 8 })),
     ).toMatchObject({ durationSeconds: 8 })
-  })
-  it('carries Abrahang reps only for an Abrahang hang', () => {
-    expect(
-      hangToLoggedSet(loggedHang({ hangType: 'abrahang', abrahangReps: 6 })),
-    ).toMatchObject({ abrahangReps: 6 })
-    expect(hangToLoggedSet(loggedHang({ abrahangReps: 6 }))).toMatchObject({ abrahangReps: undefined })
   })
 })

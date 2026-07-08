@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { useRestTimer } from '@/hooks/useRestTimer'
 import { useCountdownTimer } from '@/hooks/useCountdownTimer'
@@ -39,8 +39,6 @@ export interface TimedSetEngine {
   rest: ReturnType<typeof useRestTimer>
   countdown: ReturnType<typeof useCountdownTimer>
   precount: ReturnType<typeof useCountdownTimer>
-  /** Current intra-rest (Abrahang) phase label ('Hang' | 'Rest'), else null. */
-  abrahangLabel: string | null
   logSet: (ex: WorkExercise, data: LoggedSetInput) => Promise<void>
   startTimedSet: (ex: WorkExercise, input?: LoggedSetInput) => void
   /** Cancel the active pre-count/countdown/rest and drop the persisted phase —
@@ -53,10 +51,9 @@ export interface TimedSetEngine {
 // CA1 — the timed-set engine shared by StrengthSessionScreen and
 // ClimbingSessionScreen: the three timers (rest / exercise-countdown /
 // pre-count), the log→rest→auto-advance orchestration for both exercises and
-// hangboard hangs (incl. the Abrahang runner, A37), and the F48 persist/resume
-// that lets a running phase survive a reload. The screens own their working
-// lists and views; they hand the engine the current state and render with what
-// it returns.
+// hangboard hangs, and the F48 persist/resume that lets a running phase survive a
+// reload. The screens own their working lists and views; they hand the engine the
+// current state and render with what it returns.
 export function useTimedSetEngine(params: TimedSetEngineParams): TimedSetEngine {
   const {
     sessionId: id,
@@ -76,8 +73,6 @@ export function useTimedSetEngine(params: TimedSetEngineParams): TimedSetEngine 
   const precount = useCountdownTimer(paused)
   useCountdownBeeps(countdown.remaining, countdown.isRunning && !paused)
   usePrecountBeeps(precount.remaining, precount.isRunning && !paused)
-
-  const [abrahangLabel, setAbrahangLabel] = useState<string | null>(null)
 
   // F48 — persist the running timed phase so it survives a reload/remount (see
   // src/lib/activePhase.ts). `ref` is stable across a reload: an exercise's
@@ -132,9 +127,7 @@ export function useTimedSetEngine(params: TimedSetEngineParams): TimedSetEngine 
         additionalWeightKg: data.additionalWeightKg,
         durationSeconds: data.durationSeconds,
         distanceKm: data.distanceKm, // cardio exercise in a mixed session (A66)
-        edgeDepthMm: data.edgeDepthMm, // F51 — hangboard set fields
-        intraRestSeconds: data.intraRestSeconds,
-        abrahangReps: data.abrahangReps,
+        edgeDepthMm: data.edgeDepthMm, // F51 — hangboard edge
         skipped: false,
         swappedFrom: ex.swappedFrom,
         loggedAt: Date.now(),
@@ -183,23 +176,21 @@ export function useTimedSetEngine(params: TimedSetEngineParams): TimedSetEngine 
     }
   }
 
-  // The load/edge/intra-rest to log for a timed set that carries no user input
-  // (auto-advance / F48 resume): fall back to the exercise's planned values.
+  // The load/edge to log for a timed set that carries no user input (auto-advance /
+  // F48 resume): fall back to the exercise's planned values.
   const plannedTimedInput = (ex: WorkExercise): LoggedSetInput => {
     const bodyweight = exById.get(ex.exerciseId)?.isBodyweight
     return {
       weightKg: !bodyweight && ex.weight != null ? ex.weight : undefined,
       additionalWeightKg: bodyweight && ex.weight != null && ex.weight !== 0 ? ex.weight : undefined,
       edgeDepthMm: ex.edgeDepthMm,
-      abrahangReps: ex.abrahangReps,
-      intraRestSeconds: ex.intraRestSeconds,
     }
   }
 
   // Timed exercises: run the countdown, then log the set (which starts rest).
   // Starting a set dismisses any running rest timer immediately (A8). `input`
-  // carries the load/edge/intra-rest the user set on the row; auto-advance and
-  // F48 resume pass none and fall back to the planned values (F51).
+  // carries the load/edge the user set on the row; auto-advance and F48 resume
+  // pass none and fall back to the planned values (F51).
   function startTimedSet(ex: WorkExercise, input?: LoggedSetInput) {
     if (ex.durationSeconds == null) return
     resume() // starting a timed set lifts any pause (F19)
@@ -209,35 +200,10 @@ export function useTimedSetEngine(params: TimedSetEngineParams): TimedSetEngine 
       durationSeconds: ex.durationSeconds,
     }
     const secs = ex.durationSeconds
-    // F51 — an intra-rest exercise with >1 rep runs the Abrahang cycle (work / short
-    // intra-rest, alternating), logging one set at the end; anything else is a single
-    // hold. Both reuse the countdown timer (so A7 beeps fire); the label drives the
-    // on-screen phase. Driven by config (hasIntraRest) + the row's reps, not hangType.
-    const reps = exById.get(ex.exerciseId)?.hasIntraRest ? (data.abrahangReps ?? 1) : 1
-    const intra = data.intraRestSeconds ?? 0
-    const runSingle = () => {
+    const run = () => {
       persistPhase('countdown', 'exercise', ex.exerciseId, secs)
       countdown.start(ex.uid, secs, () => logSet(ex, data))
     }
-    const runCycle = () => {
-      let rep = 0
-      const doWork = () => {
-        rep += 1
-        setAbrahangLabel('Hang')
-        persistPhase('countdown', 'exercise', ex.exerciseId, secs)
-        countdown.start(ex.uid, secs, () => {
-          if (rep >= reps) {
-            setAbrahangLabel(null)
-            void logSet(ex, data)
-          } else {
-            setAbrahangLabel('Rest')
-            countdown.start(ex.uid, intra, doWork)
-          }
-        })
-      }
-      doWork()
-    }
-    const run = reps > 1 ? runCycle : runSingle
     // Optional "Get ready" pre-count before the exercise countdown (A30).
     const pre = getPrecountSeconds()
     if (pre > 0) {
@@ -309,7 +275,6 @@ export function useTimedSetEngine(params: TimedSetEngineParams): TimedSetEngine 
     rest,
     countdown,
     precount,
-    abrahangLabel,
     logSet,
     startTimedSet,
     cancelTimers,

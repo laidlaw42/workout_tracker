@@ -170,10 +170,8 @@ export default function TemplateEditScreen() {
               defaultWeight: r.defaultWeight,
               defaultDistanceKm: r.defaultDistanceKm,
               defaultRestSeconds: r.defaultRestSeconds,
-              // F51 — preserve hangboard row params so a hang row round-trips.
+              // F51 — preserve the hangboard edge so a hang row round-trips.
               defaultEdgeDepthMm: r.defaultEdgeDepthMm,
-              defaultIntraRestSeconds: r.defaultIntraRestSeconds,
-              defaultAbrahangReps: r.defaultAbrahangReps,
               notes: r.notes,
             }))
           : [],

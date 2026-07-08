@@ -53,7 +53,6 @@ export interface ExerciseParams {
   weightLabel: WeightLabel
   isBodyweight: boolean
   supportsNegativeLoad: boolean
-  hasIntraRest: boolean
   hasEdgeDepth: boolean
 }
 
@@ -71,13 +70,11 @@ export interface ExerciseParams {
 //  • isBodyweight — added_load OR hangboard: both compute % as (BW + load) / BW.
 //  • supportsNegativeLoad — every bodyweight move, NOT hangboard-only: assisted
 //    pull-ups/dips need negative load exactly as assisted hangs do (A99).
-//  • hasIntraRest — the Abrahang protocol (work/rest phases within a set).
 //  • hasEdgeDepth — hangboard (edge size on the set row).
 export function deriveExerciseParams(e: {
   supportsAdditionalWeight?: boolean
   category?: string
   trackingType?: string
-  hangboard?: { hangType?: string } | null
 }): ExerciseParams {
   const isHangboard = e.category === 'hangboard'
   const loadable = e.supportsAdditionalWeight === true
@@ -90,7 +87,6 @@ export function deriveExerciseParams(e: {
     weightLabel,
     isBodyweight,
     supportsNegativeLoad: isBodyweight,
-    hasIntraRest: e.hangboard?.hangType === 'abrahang',
     hasEdgeDepth: isHangboard,
   }
 }

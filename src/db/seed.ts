@@ -6,7 +6,6 @@ import type {
   Exercise,
   ExerciseCategory,
   HangboardSet,
-  HangType,
   IntervalBlock,
   TemplateExercise,
   TrackingType,
@@ -17,7 +16,7 @@ import type {
 // time: new built-ins are added on upgrade, user-deleted ones are not
 // resurrected, and user-created templates (uuid ids) are never touched.
 
-const BUILTIN_SET_VERSION = 10 // F51 — Repeaters template fixed to a true 7/3×6 repeater
+const BUILTIN_SET_VERSION = 11 // hangboard templates simplified to plain sustained holds
 
 // Built-in strength templates removed in A54 — deleted once from existing
 // libraries (keyed by the meta flag below) and absent from the seed arrays so
@@ -391,78 +390,37 @@ interface HangboardRow {
   weightKg: number
   sets: number
   restSeconds: number
-  abrahangReps?: number
-  intraRestSeconds?: number
 }
 
 interface HangboardSeed {
   id: string
   name: string
   tags: string[]
-  hangType: HangType // A37 — applies to every hang in the template
   hangs: HangboardRow[]
 }
 
 const HANGBOARD: HangboardSeed[] = [
   {
-    // Repeaters — the classic 7s-on / 3s-off × 6-rep cadence (driven by the
-    // abrahang runner; 'sub_max' would play a single sustained hang and miss the
-    // repeater rhythm). A quick three-grip session; "Sub-max Repeaters" below runs
-    // the full six positions. 180s between sets.
+    // Repeaters — sub-maximal sustained hangs across three grips: 6 sets of a 7s
+    // hang on a 20mm edge, 180s between sets (finger-endurance work).
     id: 'tpl_hangboard_repeaters',
     name: 'Repeaters',
     tags: ['hangboard', 'endurance'],
-    hangType: 'abrahang',
     hangs: [
-      { grip: 'Half crimp', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_REPEATER_REST, abrahangReps: 6, intraRestSeconds: 3 },
-      { grip: 'Open hand', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_REPEATER_REST, abrahangReps: 6, intraRestSeconds: 3 },
-      { grip: 'Front three', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_REPEATER_REST, abrahangReps: 6, intraRestSeconds: 3 },
+      { grip: 'Half crimp', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 6, restSeconds: HANGBOARD_REPEATER_REST },
+      { grip: 'Open hand', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 6, restSeconds: HANGBOARD_REPEATER_REST },
+      { grip: 'Front three', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 6, restSeconds: HANGBOARD_REPEATER_REST },
     ],
   },
   {
+    // Max hangs — near-max recruitment: 5 sets of a 10s hang on a 20mm edge, 300s
+    // (5 min) between sets to recover fully before reloading.
     id: 'tpl_hangboard_maxhangs',
     name: 'Max hangs',
     tags: ['hangboard', 'strength'],
-    hangType: 'max_hang',
     hangs: [
       { grip: 'Half crimp', edgeMm: 20, durationSeconds: 10, weightKg: 0, sets: 5, restSeconds: HANGBOARD_MAX_REST },
       { grip: 'Open hand', edgeMm: 20, durationSeconds: 10, weightKg: 0, sets: 5, restSeconds: HANGBOARD_MAX_REST },
-    ],
-  },
-  {
-    // Abrahangs (A37) — 6×(7s work / 3s rest) repeaters, 180s between sets.
-    id: 'tpl_hangboard_abrahangs',
-    name: 'Abrahangs',
-    tags: ['hangboard', 'endurance'],
-    hangType: 'abrahang',
-    hangs: [
-      { grip: 'Half crimp', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_REPEATER_REST, abrahangReps: 6, intraRestSeconds: 3 },
-      { grip: 'Open hand', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_REPEATER_REST, abrahangReps: 6, intraRestSeconds: 3 },
-    ],
-  },
-  {
-    // Sub-max Repeaters (A53) — a full sub-maximal repeater protocol across the
-    // six common grip positions. Each grip runs the classic 7s-on / 3s-off
-    // repeater popularised as sub-maximal finger endurance work by Eva
-    // López-Rivera ("Effects of isometric training…", 2019) and the Anderson
-    // brothers' "The Rock Climber's Training Manual". The 7-on/3-off × 6 rep
-    // sequencing is driven by the app's abrahang runner (hangType 'abrahang');
-    // 'sub_max' plays a single sustained hang and would not reproduce the
-    // repeater cadence, so abrahang is the faithful model of a sub-max repeater.
-    // restSeconds is the 180s inter-set rest; the data model has no separate
-    // inter-exercise (grip-change) rest field, so the ~300s between grips is left
-    // to the athlete.
-    id: 'tpl_hangboard_submax_repeaters',
-    name: 'Sub-max Repeaters',
-    tags: ['hangboard', 'endurance'],
-    hangType: 'abrahang',
-    hangs: [
-      { grip: 'Half crimp', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_REPEATER_REST, abrahangReps: 6, intraRestSeconds: 3 },
-      { grip: 'Open hand', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_REPEATER_REST, abrahangReps: 6, intraRestSeconds: 3 },
-      { grip: 'Three-finger drag', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_REPEATER_REST, abrahangReps: 6, intraRestSeconds: 3 },
-      { grip: 'Pinch', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_REPEATER_REST, abrahangReps: 6, intraRestSeconds: 3 },
-      { grip: 'Wide pinch', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_REPEATER_REST, abrahangReps: 6, intraRestSeconds: 3 },
-      { grip: 'Sloper', edgeMm: 20, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_REPEATER_REST, abrahangReps: 6, intraRestSeconds: 3 },
     ],
   },
 ]
@@ -474,7 +432,6 @@ const HANGBOARD: HangboardSeed[] = [
 // all hangs). Reuses StrengthRow for the exercise rows.
 interface ClimbingWorkoutHang {
   grip: string
-  hangType: HangType
   edgeMm: number
   durationSeconds: number
   weightKg: number
@@ -510,9 +467,9 @@ const CLIMBING_WORKOUTS: ClimbingWorkoutSeed[] = [
     ],
     hangs: [
       // Warm-up block — sub-max open hand.
-      { grip: 'Open hand', hangType: 'sub_max', edgeMm: 20, durationSeconds: 10, weightKg: 0, sets: 3, restSeconds: 120 },
+      { grip: 'Open hand', edgeMm: 20, durationSeconds: 10, weightKg: 0, sets: 3, restSeconds: 120 },
       // Max-hang block — half crimp on a smaller edge.
-      { grip: 'Half crimp', hangType: 'max_hang', edgeMm: 10, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_MAX_REST },
+      { grip: 'Half crimp', edgeMm: 10, durationSeconds: 7, weightKg: 0, sets: 3, restSeconds: HANGBOARD_MAX_REST },
     ],
   },
 ]
@@ -533,22 +490,18 @@ function buildTemplateExercise(r: StrengthRow, order: number): TemplateExercise 
 }
 
 // F51 — a seed hang row → a standard duration TemplateExercise referencing the grip
-// exercise; the protocol lives on the row (Abrahang → reps + intra-rest).
+// exercise (a timed hang on a measured edge; the load default stays bodyweight).
 function buildHangRow(
   grip: string,
-  hangType: HangType,
   p: {
     edgeMm: number
     durationSeconds: number
     weightKg: number
     sets: number
     restSeconds: number
-    abrahangReps?: number
-    intraRestSeconds?: number
   },
   order: number,
 ): TemplateExercise {
-  const abrahang = hangType === 'abrahang'
   return {
     exerciseId: hangExerciseId(grip),
     exerciseName: grip,
@@ -558,8 +511,6 @@ function buildHangRow(
     defaultWeight: p.weightKg,
     defaultRestSeconds: p.restSeconds,
     defaultEdgeDepthMm: p.edgeMm,
-    defaultIntraRestSeconds: abrahang ? (p.intraRestSeconds ?? 3) : undefined,
-    defaultAbrahangReps: abrahang ? (p.abrahangReps ?? 6) : undefined,
   }
 }
 
@@ -581,7 +532,7 @@ function buildTemplate(
   // distinguished before the hangboard branch.
   if ('climbingWorkout' in seed) {
     const rows = seed.rows.map<TemplateExercise>((r, order) => buildTemplateExercise(r, order))
-    const hangRows = seed.hangs.map((h, i) => buildHangRow(h.grip, h.hangType, h, rows.length + i))
+    const hangRows = seed.hangs.map((h, i) => buildHangRow(h.grip, h, rows.length + i))
     return {
       id: seed.id,
       name: seed.name,
@@ -603,7 +554,7 @@ function buildTemplate(
       categories: ['climbing'],
       tags: seed.tags,
       createdAt: now,
-      exercises: seed.hangs.map((h, i) => buildHangRow(h.grip, seed.hangType, h, i)),
+      exercises: seed.hangs.map((h, i) => buildHangRow(h.grip, h, i)),
     }
   }
   if ('rows' in seed) {

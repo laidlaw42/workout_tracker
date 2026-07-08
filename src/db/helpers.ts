@@ -582,10 +582,8 @@ function planExercisesFromSets(sets: LoggedSet[]): TemplateExercise[] {
       defaultDuration: timed ? first.durationSeconds : undefined,
       defaultWeight: first.weightKg ?? first.additionalWeightKg,
       defaultRestSeconds: first.restTakenSeconds ?? 90,
-      // F51 — carry hangboard row params so a rebuilt hang row keeps its shape.
+      // F51 — carry the hangboard edge so a rebuilt hang row keeps its shape.
       defaultEdgeDepthMm: first.edgeDepthMm,
-      defaultIntraRestSeconds: first.intraRestSeconds,
-      defaultAbrahangReps: first.abrahangReps,
     }
   })
 }

@@ -69,7 +69,6 @@ describe('deriveExerciseParams (F51 v9)', () => {
       weightLabel: 'weight',
       isBodyweight: false,
       supportsNegativeLoad: false,
-      hasIntraRest: false,
       hasEdgeDepth: false,
     })
   })
@@ -85,7 +84,6 @@ describe('deriveExerciseParams (F51 v9)', () => {
       weightLabel: 'added_load',
       isBodyweight: true,
       supportsNegativeLoad: true, // assisted pull-ups (A99) — NOT hangboard-only
-      hasIntraRest: false,
       hasEdgeDepth: false,
     })
   })
@@ -121,16 +119,6 @@ describe('deriveExerciseParams (F51 v9)', () => {
       isBodyweight: true,
       supportsNegativeLoad: true,
       hasEdgeDepth: true,
-      hasIntraRest: false,
     })
-  })
-  it('an Abrahang hangboard protocol enables intra-rest', () => {
-    expect(
-      deriveExerciseParams({
-        trackingType: 'duration',
-        category: 'hangboard',
-        hangboard: { hangType: 'abrahang' },
-      }),
-    ).toMatchObject({ hasIntraRest: true })
   })
 })

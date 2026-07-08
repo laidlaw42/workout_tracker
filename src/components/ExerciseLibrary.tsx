@@ -207,6 +207,16 @@ export function ExerciseLibrary() {
                     </p>
                   </div>
                 </button>
+                {canStart && (
+                  <button
+                    type="button"
+                    aria-label={`Start ${ex.name} as a workout`}
+                    onClick={() => guardStart(() => startAsWorkout(ex))}
+                    className="flex size-9 shrink-0 items-center justify-center rounded-md text-primary transition-colors active:bg-accent"
+                  >
+                    <Play className="size-4" />
+                  </button>
+                )}
                 <FavoriteButton
                   favorite={!!ex.favorite}
                   onToggle={() => void setExerciseFavorite(ex.id, !ex.favorite)}

@@ -11,6 +11,18 @@ export type WallAngle = 'slab' | 'vertical' | 'overhang'
 // Physical character of a climb (A45) — supersedes WallAngle (a superset of it).
 export type ClimbCharacter = 'slab' | 'vertical' | 'overhang' | 'roof' | 'cave' | 'crack'
 export type TrackingType = 'reps' | 'duration' | 'distance'
+// The independent metrics an exercise can track. The editor shows a toggle + default
+// per metric; the set row surfaces exactly the enabled ones. trackingType and the
+// weight/edge flags on Exercise are derived from these (see lib/metrics.ts).
+export type ExerciseMetric =
+  | 'sets'
+  | 'reps'
+  | 'duration'
+  | 'distance'
+  | 'rest'
+  | 'edge'
+  | 'weight'
+  | 'load'
 // Discipline bucket an exercise belongs to (A36); 'rehab' is discipline-agnostic
 // (A42); 'hangboard' (A73) is a training category whose exercises carry a
 // hangboard protocol config and log as LoggedHang rather than LoggedSet.
@@ -60,7 +72,8 @@ export type PRType = 'weight' | 'reps' | 'pace' | 'distance' | 'grade' | 'durati
 export interface ExerciseDefaults {
   sets?: number
   reps?: number
-  weightKg?: number
+  weightKg?: number // the Weight metric — an absolute load
+  loadKg?: number // the Load metric — bodyweight-relative, signed
   durationSeconds?: number
   distanceKm?: number
   restSeconds?: number
@@ -78,16 +91,19 @@ export interface Exercise {
   muscleGroups: string[]
   trackingType: TrackingType
   tags: string[]
-  notes?: string
-  // F51 — per-exercise tracking configuration. Field visibility on the set row is
-  // a pure function of these flags (never inferred from name or category). All are
-  // optional with false / 'weight' defaults so a pre-F51 record still reads sanely
-  // until the v9 migration (deriveExerciseParams) backfills it.
+  notes?: string // free-text description (shown as "Description" in the editor)
+  // The metrics this exercise tracks (Sets/Reps/Duration/Distance/Rest/Edge/Weight/
+  // Load) — the source of truth for what the editor and the set row surface. The
+  // trackingType above and the derived flags below are computed from these on save
+  // (see lib/metrics.ts); a pre-metrics record derives them from the flags instead.
+  metrics?: ExerciseMetric[]
+  // Derived-from-metrics config the set row / PR / progress code reads. Kept in sync
+  // on every save so those consumers stay unchanged. Optional so a legacy record
+  // still reads sanely until the migration backfills it.
   hasWeight?: boolean // show a weight/load input on the set row
   weightLabel?: WeightLabel // label for that input: Weight / Added load / Load
-  isBodyweight?: boolean // load % uses (bodyweight + load) / bodyweight
+  isBodyweight?: boolean // load % uses (bodyweight + load) / bodyweight (the Load metric)
   supportsNegativeLoad?: boolean // allow negative values (assisted work)
-  hasIntraRest?: boolean // alternating work/rest phases within a set (Abrahang)
   hasEdgeDepth?: boolean // show an edge-depth (mm) input on the set row
   // Hangboard exercises (A73, category 'hangboard') carry a default protocol
   // config; adding one to a training session seeds a HangboardSet from it.
@@ -113,10 +129,8 @@ export interface TemplateExercise {
   defaultWeight?: number // kg
   defaultDistanceKm?: number // target distance for a distance-tracked row (A98)
   defaultRestSeconds: number
-  // F51 — hangboard row params (a hang is a duration exercise with these enabled):
-  defaultEdgeDepthMm?: number // edge size for a hasEdgeDepth exercise
-  defaultIntraRestSeconds?: number // rest between reps within a set (hasIntraRest)
-  defaultAbrahangReps?: number // reps within a set for an intra-rest (Abrahang) protocol
+  // F51 — edge size (mm) pre-filled on a hang row (an exercise with the Edge metric).
+  defaultEdgeDepthMm?: number
   notes?: string
 }
 
@@ -229,11 +243,8 @@ export interface LoggedSet {
   restTakenSeconds?: number
   durationSeconds?: number // for timed exercises
   distanceKm?: number // for a cardio exercise logged in a mixed session (A66)
-  // F51 — hangboard fields on a logged hang (a duration set): edge size, and for
-  // an intra-rest (Abrahang) protocol the reps within the set + the rest between them.
+  // F51 — edge size (mm) on a logged hang (a duration set with the Edge metric).
   edgeDepthMm?: number
-  intraRestSeconds?: number
-  abrahangReps?: number
   skipped: boolean
   swappedFrom?: string // original exerciseName if swapped
   loggedAt: number

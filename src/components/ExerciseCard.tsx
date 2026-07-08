@@ -26,12 +26,9 @@ export interface WorkExercise {
   weight?: number // planned weight (kg) for remaining sets — pre-fills the set row (A31)
   distanceKm?: number // planned target distance (km) for a cardio row — pre-fills it (A98)
   restSeconds: number
-  // F51 — planned hangboard params for a timed row (edge, and for an intra-rest /
-  // Abrahang protocol the reps + intra-rest); pre-fill the row and drive an
+  // F51 — planned hangboard edge for a timed row; pre-fills the row and drives an
   // auto-advanced / resumed set that has no user-entered values.
   edgeDepthMm?: number
-  intraRestSeconds?: number
-  abrahangReps?: number
   swappedFrom?: string
   skipped: boolean
 }
@@ -42,10 +39,8 @@ export interface LoggedSetInput {
   actualReps?: number
   durationSeconds?: number
   distanceKm?: number // cardio exercise in a mixed session (A66)
-  // F51 — hangboard fields captured on a timed (hang) set.
+  // F51 — hangboard edge captured on a timed (hang) set.
   edgeDepthMm?: number
-  intraRestSeconds?: number
-  abrahangReps?: number
 }
 
 // Fields editable inline mid-session (A31) — applied to remaining unlogged sets.
@@ -69,8 +64,6 @@ interface Props {
   supportsNegativeLoad?: boolean
   /** F51 — show an edge-depth (mm) input on a timed (hang) row. */
   hasEdgeDepth?: boolean
-  /** F51 — show reps + intra-rest inputs on a timed row (Abrahang/repeater). */
-  hasIntraRest?: boolean
   /** Cardio exercise (A66): render the duration + distance row instead of reps. */
   distanceMode?: boolean
   onLog: (data: LoggedSetInput) => void
@@ -87,8 +80,6 @@ interface Props {
     remaining: number
     duration: number
     precount?: boolean
-    /** Intra-rest (Abrahang) phase label: 'Hang' during work, 'Rest' between reps. */
-    label?: string
   } | null
 }
 
@@ -104,7 +95,6 @@ export function ExerciseCard({
   isBodyweight,
   supportsNegativeLoad,
   hasEdgeDepth,
-  hasIntraRest,
   distanceMode = false,
   onLog,
   onAddSet,
@@ -211,10 +201,8 @@ export function ExerciseCard({
                 <SetCountdown
                   remaining={countdown.remaining}
                   duration={countdown.duration}
-                  label={countdown.precount ? 'Get ready' : (countdown.label ?? 'Hold')}
-                  phase={
-                    countdown.precount ? 'precount' : countdown.label === 'Rest' ? 'rest' : 'hold'
-                  }
+                  label={countdown.precount ? 'Get ready' : 'Hold'}
+                  phase={countdown.precount ? 'precount' : 'hold'}
                 />
               ) : (
                 <TimedSetRow
@@ -226,7 +214,6 @@ export function ExerciseCard({
                   isBodyweight={isBodyweight}
                   supportsNegativeLoad={supportsNegativeLoad}
                   hasEdgeDepth={hasEdgeDepth}
-                  hasIntraRest={hasIntraRest}
                   onStart={(input) => onStartCountdown?.(input)}
                   onRemove={onRemoveSet}
                 />
@@ -533,9 +520,9 @@ function SetRow({
 }
 
 // F51 — the timed (hold / hang) set row. Config-driven like SetRow: a load input
-// (bodyweight moves store into additionalWeightKg), an optional edge-depth input,
-// and — for an intra-rest protocol — reps + intra-rest. The captured values ride
-// the Start button into the countdown, which logs them when the hold completes.
+// (bodyweight moves store into additionalWeightKg) and an optional edge-depth
+// input. The captured values ride the Start button into the countdown, which logs
+// them when the hold completes.
 function TimedSetRow({
   exercise,
   prefill,
@@ -544,7 +531,6 @@ function TimedSetRow({
   isBodyweight,
   supportsNegativeLoad,
   hasEdgeDepth,
-  hasIntraRest,
   onStart,
   onRemove,
 }: {
@@ -555,7 +541,6 @@ function TimedSetRow({
   isBodyweight?: boolean
   supportsNegativeLoad?: boolean
   hasEdgeDepth?: boolean
-  hasIntraRest?: boolean
   onStart: (input: LoggedSetInput) => void
   onRemove?: () => void
 }) {
@@ -564,8 +549,6 @@ function TimedSetRow({
     str(isBodyweight ? (exercise.weight ?? prefill?.additionalWeightKg) : (exercise.weight ?? prefill?.weightKg)),
   )
   const [edge, setEdge] = useState(() => str(exercise.edgeDepthMm))
-  const [reps, setReps] = useState(() => str(exercise.abrahangReps))
-  const [intra, setIntra] = useState(() => str(exercise.intraRestSeconds))
 
   const num = (s: string) => (s.trim() === '' ? undefined : Number(s))
   const bw = getBodyweight()
@@ -581,9 +564,7 @@ function TimedSetRow({
           ? Math.round((loadNum / bw) * 100)
           : null
 
-  const repsN = hasIntraRest ? (num(reps) ?? 1) : 1
-  const startLabel =
-    repsN > 1 ? `Start ${repsN}×${exercise.durationSeconds}s` : `Start ${exercise.durationSeconds}s hold`
+  const startLabel = `Start ${exercise.durationSeconds}s hold`
 
   function start() {
     const l = num(load)
@@ -592,8 +573,6 @@ function TimedSetRow({
       weightKg: validLoad && !isBodyweight ? l : undefined,
       additionalWeightKg: validLoad && isBodyweight && l !== 0 ? l : undefined,
       edgeDepthMm: hasEdgeDepth ? num(edge) : undefined,
-      abrahangReps: hasIntraRest ? num(reps) : undefined,
-      intraRestSeconds: hasIntraRest ? num(intra) : undefined,
     })
   }
 
@@ -619,19 +598,6 @@ function TimedSetRow({
         <SetField label="Edge (mm)">
           <NumberStepper value={edge} ariaLabel="edge depth" min={0} placeholder="20" onChange={setEdge} />
         </SetField>
-      )}
-      {hasIntraRest && (
-        <>
-          <SetField label="Reps">
-            <NumberStepper value={reps} ariaLabel="reps" min={1} placeholder="6" onChange={setReps} />
-          </SetField>
-          <SetField label="Intra-rest (s)">
-            <NumberStepper value={intra} ariaLabel="intra-rest" min={0} placeholder="3" onChange={setIntra} />
-          </SetField>
-          <p className="-mt-1 pr-1 text-right text-xs text-muted-foreground">
-            Rest between reps within a set.
-          </p>
-        </>
       )}
       <div className="flex gap-2">
         {onRemove && (

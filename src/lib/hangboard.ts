@@ -1,6 +1,8 @@
+import { metricsToConfig } from '@/lib/metrics'
 import type {
   Exercise,
   ExerciseDefaults,
+  ExerciseMetric,
   HangboardSet,
   LoggedHang,
   LoggedSet,
@@ -43,24 +45,20 @@ export function isHangExerciseId(id: string | undefined): boolean {
   return !!id && id.startsWith('ex_hang_')
 }
 
-// Build the Exercise record for a grip. A hang is a duration movement loaded
-// relative to bodyweight (isBodyweight → % = (BW+load)/BW, assisted allowed), on a
-// measured edge, and able to run an intra-rest (Abrahang/repeater) protocol — a
-// plain max/sub-max hang simply uses one rep with no intra-rest.
+// A grip tracks sets of a timed hang on a measured edge, loaded relative to
+// bodyweight (the Load metric → % = (BW+load)/BW, assisted allowed).
+const HANG_METRICS: ExerciseMetric[] = ['sets', 'duration', 'rest', 'edge', 'load']
+
+// Build the Exercise record for a grip, with the hang metrics + derived config.
 export function hangGripExercise(grip: string, now: number): Exercise {
   return {
     id: hangExerciseId(grip),
     name: grip,
     category: 'hangboard',
     muscleGroups: ['forearms'],
-    trackingType: 'duration',
     tags: [],
-    hasWeight: true,
-    weightLabel: 'load',
-    isBodyweight: true,
-    supportsNegativeLoad: true,
-    hasIntraRest: true,
-    hasEdgeDepth: true,
+    metrics: HANG_METRICS,
+    ...metricsToConfig(HANG_METRICS),
     defaults: { ...HANG_GRIP_DEFAULTS },
     createdAt: now,
   }
@@ -68,10 +66,8 @@ export function hangGripExercise(grip: string, now: number): Exercise {
 
 // v10 (F51) — a template's HangboardSet becomes a standard duration TemplateExercise
 // row referencing the grip exercise. The protocol lives in the row params: hang
-// duration, load (weightKg → the row's default load), edge depth, inter-set rest,
-// and — for an Abrahang/repeater (legacy hangType) — the reps + intra-rest.
+// duration, load (weightKg → the row's default load), edge depth, inter-set rest.
 export function hangSetToTemplateExercise(hs: HangboardSet, order: number): TemplateExercise {
-  const abrahang = hs.hangType === 'abrahang'
   return {
     exerciseId: hangExerciseId(hs.gripType),
     exerciseName: hs.gripType,
@@ -81,8 +77,6 @@ export function hangSetToTemplateExercise(hs: HangboardSet, order: number): Temp
     defaultWeight: hs.weightKg,
     defaultRestSeconds: hs.restSeconds,
     defaultEdgeDepthMm: hs.edgeDepthMm,
-    defaultIntraRestSeconds: abrahang ? (hs.intraRestSeconds ?? 3) : undefined,
-    defaultAbrahangReps: abrahang ? (hs.abrahangReps ?? 6) : undefined,
   }
 }
 
@@ -104,9 +98,7 @@ export function foldTemplateHangboard<
 // v11 (F51) — a logged hang becomes a logged (duration) set for the grip exercise.
 // The hang's load is bodyweight-relative, so it lands in additionalWeightKg (0 =
 // plain bodyweight → undefined), keeping the "BW ±N kg" label and % consistent.
-// Legacy LoggedHang never stored intra-rest, so only abrahangReps carries over.
 export function hangToLoggedSet(h: LoggedHang): LoggedSet {
-  const abrahang = h.hangType === 'abrahang'
   return {
     id: h.id,
     sessionId: h.sessionId,
@@ -116,7 +108,6 @@ export function hangToLoggedSet(h: LoggedHang): LoggedSet {
     durationSeconds: h.actualDurationSeconds ?? h.targetDurationSeconds,
     additionalWeightKg: h.weightKg !== 0 ? h.weightKg : undefined,
     edgeDepthMm: h.edgeDepthMm,
-    abrahangReps: abrahang ? h.abrahangReps : undefined,
     restTakenSeconds: h.restTakenSeconds,
     skipped: h.skipped,
     loggedAt: h.loggedAt,
