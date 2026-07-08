@@ -110,6 +110,10 @@ export interface TemplateExercise {
   defaultWeight?: number // kg
   defaultDistanceKm?: number // target distance for a distance-tracked row (A98)
   defaultRestSeconds: number
+  // F51 — hangboard row params (a hang is a duration exercise with these enabled):
+  defaultEdgeDepthMm?: number // edge size for a hasEdgeDepth exercise
+  defaultIntraRestSeconds?: number // rest between reps within a set (hasIntraRest)
+  defaultAbrahangReps?: number // reps within a set for an intra-rest (Abrahang) protocol
   notes?: string
 }
 
@@ -223,6 +227,11 @@ export interface LoggedSet {
   restTakenSeconds?: number
   durationSeconds?: number // for timed exercises
   distanceKm?: number // for a cardio exercise logged in a mixed session (A66)
+  // F51 — hangboard fields on a logged hang (a duration set): edge size, and for
+  // an intra-rest (Abrahang) protocol the reps within the set + the rest between them.
+  edgeDepthMm?: number
+  intraRestSeconds?: number
+  abrahangReps?: number
   skipped: boolean
   swappedFrom?: string // original exerciseName if swapped
   loggedAt: number
