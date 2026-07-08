@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Dumbbell, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
 import { useTagColours } from '@/hooks/useTagColours'
-import { getAllTemplates, getTemplatesInCategory, setTemplateFavorite } from '@/db/helpers'
+import { getAllTemplates, setTemplateFavorite } from '@/db/helpers'
+import { templateCategories } from '@/lib/templateCategories'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { FavoriteFilterButton } from '@/components/FavoriteButton'
 import { TemplateCard } from '@/components/TemplateCard'
@@ -12,33 +13,45 @@ import { EmptyState } from '@/components/EmptyState'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { TemplateCategory } from '@/types'
+import type { TemplateCategory, WorkoutTemplate } from '@/types'
 
-// A94/F46 — templates carry a `categories` array; each tab shows every template
-// whose categories include it, so a multi-discipline template appears under each.
-type Filter = 'all' | TemplateCategory
+// Templates carry a `categories` array (A94/F46). 'hangboard' isn't a stored
+// category — a hangboard workout is filed under 'climbing' with hangboardSets —
+// so it's matched by content to mirror the Exercises tab's Hangboard filter.
+type Filter = 'all' | TemplateCategory | 'hangboard'
 
-// A93/A95 — fixed strictly-alphabetical order, All pinned first (no Mixed tab: a
-// multi-category template shows under each of its disciplines). Hardcoded.
+// A93 alphabetical order, All pinned first; matches the Exercises category tabs
+// (incl. Hangboard). A multi-category template shows under each of its disciplines.
 const OPTIONS: { value: Filter; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'cardio', label: 'Cardio' },
   { value: 'climbing', label: 'Climbing' },
+  { value: 'hangboard', label: 'Hangboard' },
   { value: 'rehab', label: 'Rehab' },
   { value: 'strength', label: 'Strength' },
 ]
+
+const isHangboardTemplate = (t: WorkoutTemplate) => (t.hangboardSets?.length ?? 0) > 0
+
+// Hangboard workouts (hangboardSets) get their own tab, so the Climbing tab shows
+// only route/climbing-training workouts — disjoint, mirroring the Exercises tabs.
+function matchesFilter(t: WorkoutTemplate, f: Filter): boolean {
+  if (f === 'all') return true
+  if (f === 'hangboard') return isHangboardTemplate(t)
+  if (f === 'climbing') return templateCategories(t).includes('climbing') && !isHangboardTemplate(t)
+  return templateCategories(t).includes(f)
+}
 
 export default function LibraryScreen() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const initial = params.get('type')
   const [filter, setFilter] = useState<Filter>(() => {
-    // A92 — hangboard templates now live under the Climbing tab. A95 — Mixed is no
-    // longer a tab, so a legacy ?type=mixed link falls back to All.
-    if (initial === 'hangboard') return 'climbing'
+    // A95 — Mixed is no longer a tab, so a legacy ?type=mixed link falls back to All.
     return initial === 'strength' ||
       initial === 'cardio' ||
       initial === 'climbing' ||
+      initial === 'hangboard' ||
       initial === 'rehab'
       ? initial
       : 'all'
@@ -47,20 +60,26 @@ export default function LibraryScreen() {
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [favOnly, setFavOnly] = useState(false)
 
-  const templates = useLiveQuery(
-    () => (filter === 'all' ? getAllTemplates() : getTemplatesInCategory(filter)),
-    [filter],
-  )
+  const allTemplates = useLiveQuery(() => getAllTemplates(), [])
   const tagColour = useTagColours()
 
+  // Category slice first (client-side, so the computed Hangboard filter works);
+  // the tag pills only show tags present in this slice.
+  const inCategory = useMemo(
+    () => (allTemplates ?? []).filter((t) => matchesFilter(t, filter)),
+    [allTemplates, filter],
+  )
   const allTags = useMemo(() => {
     const set = new Set<string>()
-    for (const t of templates ?? []) for (const tag of t.tags) set.add(tag)
+    for (const t of inCategory) for (const tag of t.tags) set.add(tag)
     return [...set].sort()
-  }, [templates])
-  const filteredTemplates = templates?.filter(
-    (t) => (!activeTag || t.tags.includes(activeTag)) && (!favOnly || t.favorite),
-  )
+  }, [inCategory])
+  const filteredTemplates =
+    allTemplates === undefined
+      ? undefined
+      : inCategory.filter(
+          (t) => (!activeTag || t.tags.includes(activeTag)) && (!favOnly || t.favorite),
+        )
 
   return (
     <div className="space-y-4 p-4 pt-[calc(env(safe-area-inset-top)+1rem)]">
@@ -138,9 +157,11 @@ export default function LibraryScreen() {
                     ? `No workouts tagged #${activeTag}.`
                     : filter === 'climbing'
                       ? 'No climbing workouts yet.'
-                      : filter === 'rehab'
-                        ? 'No rehab workouts yet.'
-                        : 'Tap “Add new workout” to create one.'
+                      : filter === 'hangboard'
+                        ? 'No hangboard workouts yet.'
+                        : filter === 'rehab'
+                          ? 'No rehab workouts yet.'
+                          : 'Tap “Add new workout” to create one.'
               }
             />
           ) : (

@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import { Check, Plus } from 'lucide-react'
 import { useLiveQuery } from '@/hooks/useDb'
-import { getAllExercises, upsertExercise } from '@/db/helpers'
+import { getAllExercises, setExerciseFavorite, upsertExercise } from '@/db/helpers'
 import { SegmentedControl } from '@/components/SegmentedControl'
+import { FavoriteButton, FavoriteFilterButton } from '@/components/FavoriteButton'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
 import { badgeForCategory } from '@/lib/badges'
 import { DEFAULT_HANG, HangConfigFields } from '@/components/HangConfigFields'
@@ -81,6 +82,7 @@ export function ExercisePicker({
   const [hangCfg, setHangCfg] = useState<HangConfig>(DEFAULT_HANG)
   const [defDraft, setDefDraft] = useState<DefaultsDraft>(EMPTY_DEFAULTS) // A98 defaults for inline create
   const [catFilter, setCatFilter] = useState<CatFilter>('all') // universal mode (A66)
+  const [favOnly, setFavOnly] = useState(false)
 
   // A87 — the category filter tabs are ALWAYS shown, in every context the picker
   // opens (new workout, template edit, active session). The `categories` prop just
@@ -108,6 +110,7 @@ export function ExercisePicker({
     setHangCfg(DEFAULT_HANG)
     setDefDraft(EMPTY_DEFAULTS)
     setCatFilter('all')
+    setFavOnly(false)
   }
 
   function finish(chosen: Exercise[]) {
@@ -178,39 +181,46 @@ export function ExercisePicker({
   const filtered = (exercises ?? []).filter(
     (e) =>
       e.name.toLowerCase().includes(query.trim().toLowerCase()) &&
+      (!favOnly || e.favorite) &&
       (catFilter === 'all' ? availableCategories.includes(e.category) : e.category === catFilter),
   )
 
-  // A row (checkbox in multi-select) for one exercise.
+  // A row (checkbox in multi-select) for one exercise, with a favourite toggle.
   function renderRow(e: Exercise) {
     const isSelected = selected.includes(e.id)
     return (
-      <button
-        key={e.id}
-        type="button"
-        onClick={() => onRow(e)}
-        className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors active:bg-accent"
-      >
-        {multiple && (
-          <span
-            className={cn(
-              'flex size-5 shrink-0 items-center justify-center rounded border',
-              isSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-input',
-            )}
-          >
-            {isSelected && <Check className="size-3.5" />}
-          </span>
-        )}
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2">
-            <span className="truncate font-medium">{e.name}</span>
-            <DisciplineBadge badge={badgeForCategory(e.category)} className="shrink-0" />
-          </span>
-          {e.muscleGroups.length > 0 && (
-            <span className="block text-xs text-muted-foreground">{e.muscleGroups.join(', ')}</span>
+      <div key={e.id} className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => onRow(e)}
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors active:bg-accent"
+        >
+          {multiple && (
+            <span
+              className={cn(
+                'flex size-5 shrink-0 items-center justify-center rounded border',
+                isSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-input',
+              )}
+            >
+              {isSelected && <Check className="size-3.5" />}
+            </span>
           )}
-        </span>
-      </button>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-2">
+              <span className="truncate font-medium">{e.name}</span>
+              <DisciplineBadge badge={badgeForCategory(e.category)} className="shrink-0" />
+            </span>
+            {e.muscleGroups.length > 0 && (
+              <span className="block text-xs text-muted-foreground">{e.muscleGroups.join(', ')}</span>
+            )}
+          </span>
+        </button>
+        <FavoriteButton
+          favorite={!!e.favorite}
+          onToggle={() => void setExerciseFavorite(e.id, !e.favorite)}
+          label={e.name}
+        />
+      </div>
     )
   }
 
@@ -290,11 +300,15 @@ export function ExercisePicker({
         ) : (
           <>
             <div className="space-y-3 border-b border-border p-4">
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search exercises…"
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search exercises…"
+                  className="flex-1"
+                />
+                <FavoriteFilterButton active={favOnly} onToggle={() => setFavOnly((v) => !v)} />
+              </div>
               <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1">
                 {tabs.map((t) => (
                   <button
