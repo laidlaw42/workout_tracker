@@ -47,6 +47,9 @@ interface Props {
   usageCount?: number
   /** Tags pre-applied to a new exercise (A35). Ignored when editing. */
   defaultTags?: string[]
+  /** Category / name pre-filled for a new exercise (e.g. the picker's scope + search). */
+  defaultCategory?: ExerciseCategory
+  defaultName?: string
   onSaved?: (id: string) => void
 }
 
@@ -65,6 +68,8 @@ export function ExerciseFormSheet({
   exercise,
   usageCount = 0,
   defaultTags = [],
+  defaultCategory = 'strength',
+  defaultName = '',
   onSaved,
 }: Props) {
   const [name, setName] = useState('')
@@ -84,8 +89,8 @@ export function ExerciseFormSheet({
   // edits (and never overwrites an existing exercise's own tags).
   useEffect(() => {
     if (!open) return
-    setName(exercise?.name ?? '')
-    setCategory(exercise?.category ?? 'strength')
+    setName(exercise?.name ?? defaultName)
+    setCategory(exercise?.category ?? defaultCategory)
     setMuscles(exercise?.muscleGroups.join(', ') ?? '')
     setTracking(exercise?.trackingType ?? 'reps')
     setTags(exercise?.tags ?? defaultTags)
