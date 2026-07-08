@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { deleteExercise, updateExercise, upsertExercise } from '@/db/helpers'
+import { deriveExerciseParams } from '@/lib/migrations'
 import { SegmentedControl } from '@/components/SegmentedControl'
 import { DEFAULT_HANG, HangConfigFields } from '@/components/HangConfigFields'
 import {
@@ -10,6 +11,13 @@ import {
   draftToDefaults,
   type DefaultsDraft,
 } from '@/components/ExerciseDefaultsFields'
+import {
+  TrackingOptionsFields,
+  DEFAULT_TRACKING_CONFIG,
+  configToDraft,
+  draftToConfig,
+  type TrackingConfigDraft,
+} from '@/components/TrackingOptionsFields'
 import { TagInput } from '@/components/TagInput'
 import { TRACKING_TYPES } from '@/lib/trackingTypes'
 import { Button } from '@/components/ui/button'
@@ -71,6 +79,8 @@ export function ExerciseFormSheet({
   // A98 — optional default parameters (held as a string draft; blank = unset →
   // falls back to the hardcoded add-to-template defaults).
   const [defDraft, setDefDraft] = useState<DefaultsDraft>(EMPTY_DEFAULTS)
+  // F51 — the exercise's tracking configuration (which metrics its set row shows).
+  const [cfgDraft, setCfgDraft] = useState<TrackingConfigDraft>(DEFAULT_TRACKING_CONFIG)
 
   // Seed on open only. `defaultTags` is intentionally not a dependency: it is read
   // once at open time for a new exercise, so a later live update never clobbers
@@ -84,6 +94,7 @@ export function ExerciseFormSheet({
     setHangCfg(exercise?.hangboard ?? DEFAULT_HANG)
     setTags(exercise?.tags ?? defaultTags)
     setDefDraft(defaultsToDraft(exercise?.defaults))
+    setCfgDraft(configToDraft(exercise))
   }, [open, exercise])
 
   async function save() {
@@ -102,6 +113,12 @@ export function ExerciseFormSheet({
     // fields relevant to the tracking type and returns undefined when nothing is
     // set, so an exercise with no defaults stays clean and uses the add fallbacks.
     const defaults = isHang ? undefined : draftToDefaults(trackingType, defDraft)
+    // F51 — the tracking config. A hangboard exercise still carries its hang
+    // protocol (until Stage 3 unifies storage); derive its config so its six flags
+    // stay correct. Everything else takes the user's Tracking-options draft.
+    const config = isHang
+      ? deriveExerciseParams({ category: 'hangboard', trackingType: 'duration', hangboard: hangCfg })
+      : draftToConfig(trackingType, cfgDraft)
     try {
       let id: string
       if (exercise) {
@@ -113,6 +130,7 @@ export function ExerciseFormSheet({
           tags,
           hangboard,
           defaults,
+          ...config,
         })
         id = exercise.id
       } else {
@@ -124,6 +142,7 @@ export function ExerciseFormSheet({
           tags,
           hangboard,
           defaults,
+          ...config,
         })
       }
       onSaved?.(id)
@@ -191,6 +210,13 @@ export function ExerciseFormSheet({
                 <Label>Tracking</Label>
                 <SegmentedControl options={TRACKING_TYPES} value={tracking} onChange={setTracking} />
               </div>
+              {/* F51 — the tracking configuration: which metrics the set row shows.
+                  No field is locked or inferred from category/name. */}
+              <TrackingOptionsFields
+                tracking={tracking}
+                value={cfgDraft}
+                onChange={(patch) => setCfgDraft((c) => ({ ...c, ...patch }))}
+              />
               {/* A98 — default parameters, keyed to the tracking type. Pre-fill a
                   new template/session row; blank falls back to the standard defaults. */}
               <ExerciseDefaultsFields
