@@ -522,7 +522,7 @@ export default function StrengthSessionScreen() {
             const showWeight = !(
               meta?.category === 'rehab' &&
               meta?.trackingType === 'reps' &&
-              !meta?.supportsAdditionalWeight
+              !meta?.isBodyweight
             )
             return (
               <ExerciseCard
@@ -530,7 +530,7 @@ export default function StrengthSessionScreen() {
                 loggedSets={loggedFor(ex)}
                 isCurrent={isCurrent}
                 prefill={isCurrent ? prefill : undefined}
-                supportsAdditionalWeight={meta?.supportsAdditionalWeight}
+                isBodyweight={meta?.isBodyweight}
                 distanceMode={distanceMode}
                 showWeight={showWeight}
                 onLog={(d) => engine.logSet(ex, d)}

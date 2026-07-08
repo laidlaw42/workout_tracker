@@ -42,7 +42,7 @@ interface Props {
   /** Last logged set for this exercise (any session) — pre-fills the row (F22). */
   prefill?: Pick<LoggedSet, 'weightKg' | 'additionalWeightKg' | 'actualReps'>
   /** Bodyweight movement that can carry extra load — shows the +kg field. */
-  supportsAdditionalWeight?: boolean
+  isBodyweight?: boolean
   /** Cardio exercise (A66): render the duration + distance row instead of reps. */
   distanceMode?: boolean
   /** Show the weight input on the reps row (A66: rehab reps hide it). Default true. */
@@ -67,7 +67,7 @@ export function ExerciseCard({
   loggedSets,
   isCurrent,
   prefill,
-  supportsAdditionalWeight,
+  isBodyweight,
   distanceMode = false,
   showWeight = true,
   onLog,
@@ -199,7 +199,7 @@ export function ExerciseCard({
                 targetReps={exercise.targetReps}
                 plannedWeight={exercise.weight}
                 prefill={prefill}
-                supportsAdditionalWeight={supportsAdditionalWeight}
+                isBodyweight={isBodyweight}
                 showWeight={showWeight}
                 onLog={onLog}
                 onRemove={onRemoveSet}
@@ -313,7 +313,7 @@ interface SetRowProps {
   targetReps?: number
   plannedWeight?: number
   prefill?: Pick<LoggedSet, 'weightKg' | 'additionalWeightKg' | 'actualReps'>
-  supportsAdditionalWeight?: boolean
+  isBodyweight?: boolean
   /** Hide the primary weight input (A66: reps-based rehab exercises). */
   showWeight?: boolean
   onLog: (data: LoggedSetInput) => void
@@ -329,7 +329,7 @@ function SetRow({
   targetReps,
   plannedWeight,
   prefill,
-  supportsAdditionalWeight,
+  isBodyweight,
   showWeight = true,
   onLog,
   onRemove,
@@ -349,7 +349,7 @@ function SetRow({
   // bodyweight-loadable move (pull-up, dip) leaves the primary weight blank by
   // design, and timed exercises never reach SetRow. So the warning is gated to
   // exercises without a dedicated additional-weight field.
-  const weightExpected = showWeight && !supportsAdditionalWeight
+  const weightExpected = showWeight && !isBodyweight
   const showWeightWarning = warnWeight && weightExpected && weight.trim() === ''
 
   // The last-set prefill resolves asynchronously (and briefly holds the previous
@@ -457,7 +457,7 @@ function SetRow({
           </div>
         </div>
       )}
-      {supportsAdditionalWeight && (
+      {isBodyweight && (
         // Signed: + for added load (weighted pull-up/dip), − for assisted
         // (band/machine/foot). No `min`, so the stepper and field allow negatives.
         <SetField label="Load ± (kg)">

@@ -543,7 +543,7 @@ export default function ClimbingSessionScreen() {
                   loggedSets={loggedForEx(ex)}
                   isCurrent={isCurrent}
                   prefill={isCurrent ? prefill : undefined}
-                  supportsAdditionalWeight={exById.get(ex.exerciseId)?.supportsAdditionalWeight}
+                  isBodyweight={exById.get(ex.exerciseId)?.isBodyweight}
                   onLog={(d) => engine.logSet(ex, d)}
                   onAddSet={() => addSetTo(ex.uid)}
                   onRemoveSet={() => removeSet(ex.uid)}

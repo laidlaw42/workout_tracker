@@ -65,6 +65,9 @@ export interface ExerciseDefaults {
   restSeconds?: number
 }
 
+// F51 — the label shown on an exercise's weight/load input.
+export type WeightLabel = 'weight' | 'added_load' | 'load'
+
 export interface Exercise {
   id: string
   name: string
@@ -73,9 +76,16 @@ export interface Exercise {
   trackingType: TrackingType
   tags: string[]
   notes?: string
-  // Bodyweight movements that can carry extra load (pull-up, dip, …). When true,
-  // set logging shows an "Additional weight" (+kg) field.
-  supportsAdditionalWeight?: boolean
+  // F51 — per-exercise tracking configuration. Field visibility on the set row is
+  // a pure function of these flags (never inferred from name or category). All are
+  // optional with false / 'weight' defaults so a pre-F51 record still reads sanely
+  // until the v9 migration (deriveExerciseParams) backfills it.
+  hasWeight?: boolean // show a weight/load input on the set row
+  weightLabel?: WeightLabel // label for that input: Weight / Added load / Load
+  isBodyweight?: boolean // load % uses (bodyweight + load) / bodyweight
+  supportsNegativeLoad?: boolean // allow negative values (assisted work)
+  hasIntraRest?: boolean // alternating work/rest phases within a set (Abrahang)
+  hasEdgeDepth?: boolean // show an edge-depth (mm) input on the set row
   // Hangboard exercises (A73, category 'hangboard') carry a default protocol
   // config; adding one to a training session seeds a HangboardSet from it.
   hangboard?: HangConfig

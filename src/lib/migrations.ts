@@ -45,3 +45,52 @@ export function legacyTemplateToCategories(
 export function normaliseBoardVenue(venue: string | undefined): string | undefined {
   return venue === 'home' ? 'board' : venue
 }
+
+// F51 — the per-exercise tracking-config fields (mirrors Exercise's optional set).
+export type WeightLabel = 'weight' | 'added_load' | 'load'
+export interface ExerciseParams {
+  hasWeight: boolean
+  weightLabel: WeightLabel
+  isBodyweight: boolean
+  supportsNegativeLoad: boolean
+  hasIntraRest: boolean
+  hasEdgeDepth: boolean
+}
+
+// v9 (F51) — derive the six tracking-config fields from a pre-F51 exercise,
+// replacing the single `supportsAdditionalWeight` flag. Shared by the Dexie v9
+// upgrade and the import normaliser so they can't drift.
+//
+// This deliberately CORRECTS the F51 spec where that spec was self-inconsistent:
+//  • hasWeight — F51 said "= supportsAdditionalWeight", which would strip the
+//    weight input off every barbell lift (squat, bench, …). A weighted move is
+//    any reps-tracked exercise that isn't rehab/cardio, plus every loadable move
+//    and every hangboard exercise (load), regardless of tracking type.
+//  • weightLabel — 'load' for hangboard, 'added_load' for a bodyweight-plus-load
+//    move (the old flag), else 'weight'.
+//  • isBodyweight — added_load OR hangboard: both compute % as (BW + load) / BW.
+//  • supportsNegativeLoad — every bodyweight move, NOT hangboard-only: assisted
+//    pull-ups/dips need negative load exactly as assisted hangs do (A99).
+//  • hasIntraRest — the Abrahang protocol (work/rest phases within a set).
+//  • hasEdgeDepth — hangboard (edge size on the set row).
+export function deriveExerciseParams(e: {
+  supportsAdditionalWeight?: boolean
+  category?: string
+  trackingType?: string
+  hangboard?: { hangType?: string } | null
+}): ExerciseParams {
+  const isHangboard = e.category === 'hangboard'
+  const loadable = e.supportsAdditionalWeight === true
+  const weightLabel: WeightLabel = isHangboard ? 'load' : loadable ? 'added_load' : 'weight'
+  const isBodyweight = weightLabel === 'added_load' || isHangboard
+  const weightedByTracking =
+    e.trackingType === 'reps' && e.category !== 'rehab' && e.category !== 'cardio'
+  return {
+    hasWeight: isHangboard || loadable || weightedByTracking,
+    weightLabel,
+    isBodyweight,
+    supportsNegativeLoad: isBodyweight,
+    hasIntraRest: e.hangboard?.hangType === 'abrahang',
+    hasEdgeDepth: isHangboard,
+  }
+}

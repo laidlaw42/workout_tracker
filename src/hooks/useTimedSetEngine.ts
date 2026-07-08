@@ -151,7 +151,7 @@ export function useTimedSetEngine(params: TimedSetEngineParams): TimedSetEngine 
         loggedAt: Date.now(),
       })
       if (repsMet(ex.targetReps, data.actualReps)) {
-        const loadable = exById.get(ex.exerciseId)?.supportsAdditionalWeight
+        const loadable = exById.get(ex.exerciseId)?.isBodyweight
         const prValue = weightPrValue(loadable, data)
         if (prValue != null) {
           await checkAndSavePR({

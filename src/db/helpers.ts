@@ -9,7 +9,12 @@ import { deriveSessionType, templateCategories } from '@/lib/templateCategories'
 import { templateExerciseFromExercise } from '@/lib/exerciseDefaults'
 import { clearAllActivePhases } from '@/lib/activePhase'
 import { repsMet, weightPrValue } from '@/lib/pr'
-import { categoryForTracking, legacyTemplateToCategories, normaliseBoardVenue } from '@/lib/migrations'
+import {
+  categoryForTracking,
+  deriveExerciseParams,
+  legacyTemplateToCategories,
+  normaliseBoardVenue,
+} from '@/lib/migrations'
 import type {
   CardioActivityType,
   ClimbingRoute,
@@ -44,9 +49,16 @@ async function run<T>(label: string, fn: () => Promise<T>): Promise<T> {
 // A pre-A36 backup may lack `category`; derive it on import so imported exercises
 // aren't filtered out of pickers/progress (distance → cardio, else strength).
 function withCategory(e: Exercise): Exercise {
-  return (e as { category?: string }).category
-    ? e
-    : { ...e, category: categoryForTracking(e.trackingType) }
+  const raw = e as Exercise & { hasWeight?: boolean; supportsAdditionalWeight?: boolean }
+  const category = raw.category ?? categoryForTracking(e.trackingType)
+  // Pre-F51 backup: no `hasWeight` field. Derive the six tracking-config fields
+  // (dropping the retired flag) with the same logic the v9 upgrade uses (F51).
+  if (raw.hasWeight === undefined) {
+    const next = { ...raw, category, ...deriveExerciseParams({ ...raw, category }) }
+    delete next.supportsAdditionalWeight
+    return next
+  }
+  return raw.category ? e : { ...e, category }
 }
 
 // A94/F46 — a pre-v8 backup's templates carry the legacy single `type` and no
@@ -1277,7 +1289,7 @@ async function redetectPRs(
 ): Promise<void> {
   // Exercises whose load lives in additionalWeightKg (pull-up, dip, …).
   const loadable = new Set(
-    (await db.exercises.toArray()).filter((e) => e.supportsAdditionalWeight).map((e) => e.id),
+    (await db.exercises.toArray()).filter((e) => e.isBodyweight).map((e) => e.id),
   )
   for (const s of newSets) {
     if (s.skipped) continue

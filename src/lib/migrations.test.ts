@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { categoryForTracking, legacyTemplateToCategories, normaliseBoardVenue } from './migrations'
+import {
+  categoryForTracking,
+  deriveExerciseParams,
+  legacyTemplateToCategories,
+  normaliseBoardVenue,
+} from './migrations'
 
 describe('categoryForTracking', () => {
   it('distance is cardio, everything else strength', () => {
@@ -54,5 +59,78 @@ describe('legacyTemplateToCategories', () => {
     expect(
       legacyTemplateToCategories({ type: 'strength', exercises: [{ exerciseId: 'zzz' }] }, exCat),
     ).toEqual(['strength'])
+  })
+})
+
+describe('deriveExerciseParams (F51 v9)', () => {
+  it('a plain barbell lift keeps its weight input (F51 spec would have stripped it)', () => {
+    expect(deriveExerciseParams({ trackingType: 'reps', category: 'strength' })).toEqual({
+      hasWeight: true,
+      weightLabel: 'weight',
+      isBodyweight: false,
+      supportsNegativeLoad: false,
+      hasIntraRest: false,
+      hasEdgeDepth: false,
+    })
+  })
+  it('a bodyweight-loadable move gets added_load + assisted (negative) load', () => {
+    expect(
+      deriveExerciseParams({
+        trackingType: 'reps',
+        category: 'strength',
+        supportsAdditionalWeight: true,
+      }),
+    ).toEqual({
+      hasWeight: true,
+      weightLabel: 'added_load',
+      isBodyweight: true,
+      supportsNegativeLoad: true, // assisted pull-ups (A99) — NOT hangboard-only
+      hasIntraRest: false,
+      hasEdgeDepth: false,
+    })
+  })
+  it('a rehab reps move tracks no weight', () => {
+    expect(deriveExerciseParams({ trackingType: 'reps', category: 'rehab' })).toMatchObject({
+      hasWeight: false,
+      weightLabel: 'weight',
+    })
+  })
+  it('a cardio distance move tracks no weight', () => {
+    expect(deriveExerciseParams({ trackingType: 'distance', category: 'cardio' })).toMatchObject({
+      hasWeight: false,
+    })
+  })
+  it('a bodyweight hold (plank) has no weight; a loadable hold does', () => {
+    expect(deriveExerciseParams({ trackingType: 'duration', category: 'strength' })).toMatchObject({
+      hasWeight: false,
+    })
+    expect(
+      deriveExerciseParams({
+        trackingType: 'duration',
+        category: 'climbing',
+        supportsAdditionalWeight: true,
+      }),
+    ).toMatchObject({ hasWeight: true, weightLabel: 'added_load', isBodyweight: true })
+  })
+  it('a hangboard exercise gets load + edge depth + bodyweight %', () => {
+    expect(
+      deriveExerciseParams({ trackingType: 'duration', category: 'hangboard' }),
+    ).toMatchObject({
+      hasWeight: true,
+      weightLabel: 'load',
+      isBodyweight: true,
+      supportsNegativeLoad: true,
+      hasEdgeDepth: true,
+      hasIntraRest: false,
+    })
+  })
+  it('an Abrahang hangboard protocol enables intra-rest', () => {
+    expect(
+      deriveExerciseParams({
+        trackingType: 'duration',
+        category: 'hangboard',
+        hangboard: { hangType: 'abrahang' },
+      }),
+    ).toMatchObject({ hasIntraRest: true })
   })
 })

@@ -1,4 +1,5 @@
 import { db } from './db'
+import { deriveExerciseParams } from '@/lib/migrations'
 import type {
   Exercise,
   ExerciseCategory,
@@ -89,6 +90,8 @@ interface ExerciseSeed {
   name: string
   muscleGroups: string[]
   trackingType: TrackingType
+  // Seed-only intent: a bodyweight-plus-load movement (pull-up, dip, …). Never
+  // stored on the record — seedToExercise derives the F51 config from it (F51).
   supportsAdditionalWeight?: boolean
   // Explicit category (A36). Optional here — omit it and it's derived from
   // trackingType (distance → cardio, else strength). A42's rehab seeds set it.
@@ -101,6 +104,24 @@ interface ExerciseSeed {
 // Category for a seeded exercise: explicit if given, else derived (A36).
 function seedCategory(e: ExerciseSeed): ExerciseCategory {
   return e.category ?? (e.trackingType === 'distance' ? 'cardio' : 'strength')
+}
+
+// Build an Exercise record from a seed. Derives the six F51 tracking-config fields
+// (deriveExerciseParams — the SAME logic the v9 upgrade and import path use) and
+// drops the seed-only `supportsAdditionalWeight` intent so it never lands on a row.
+function seedToExercise(e: ExerciseSeed, now: number): Exercise {
+  const category = seedCategory(e)
+  return {
+    id: e.id,
+    name: e.name,
+    category,
+    muscleGroups: e.muscleGroups,
+    trackingType: e.trackingType,
+    tags: [],
+    createdAt: now,
+    hangboard: e.hangboard,
+    ...deriveExerciseParams({ ...e, category }),
+  }
 }
 
 const EXERCISES: ExerciseSeed[] = [
@@ -637,7 +658,7 @@ export async function seedIfNeeded(): Promise<void> {
       const haveEx = new Set((await db.exercises.toArray()).map((e) => e.id))
       const toInsert = unseededEx
         .filter((e) => !haveEx.has(e.id))
-        .map<Exercise>((e) => ({ ...e, category: seedCategory(e), tags: [], createdAt: now }))
+        .map((e) => seedToExercise(e, now))
       if (toInsert.length) await db.exercises.bulkPut(toInsert)
       for (const e of unseededEx) seededEx.add(e.id)
       await db.meta.put({ key: 'seededExerciseIds', value: [...seededEx] })
@@ -652,16 +673,8 @@ export async function seedIfNeeded(): Promise<void> {
       await db.meta.put({ key: 'exerciseTagsBackfilled', value: true })
     }
 
-    // Backfill the bodyweight-loadable flag onto built-ins that were seeded
-    // before the field existed (e.g. Pull-up, Chest dip).
-    if (!(await getMeta<boolean>('additionalWeightBackfilled'))) {
-      for (const e of EXERCISES) {
-        if (e.supportsAdditionalWeight) {
-          await db.exercises.update(e.id, { supportsAdditionalWeight: true })
-        }
-      }
-      await db.meta.put({ key: 'additionalWeightBackfilled', value: true })
-    }
+    // (The pre-F51 supportsAdditionalWeight backfill was retired: the v9 Dexie
+    // upgrade derives the tracking-config fields for every existing exercise.)
 
     // Seed built-in templates once each (never resurrect user-deleted ones).
     const seededIds = (await getMeta<string[]>('seededTemplateIds')) ?? []
@@ -700,12 +713,7 @@ export async function restoreDefaults(): Promise<void> {
     const now = Date.now()
 
     const haveEx = new Set((await db.exercises.toArray()).map((e) => e.id))
-    const exToAdd = EXERCISES.filter((e) => !haveEx.has(e.id)).map<Exercise>((e) => ({
-      ...e,
-      category: seedCategory(e),
-      tags: [],
-      createdAt: now,
-    }))
+    const exToAdd = EXERCISES.filter((e) => !haveEx.has(e.id)).map((e) => seedToExercise(e, now))
     if (exToAdd.length) await db.exercises.bulkPut(exToAdd)
 
     const haveTpl = new Set((await db.templates.toArray()).map((t) => t.id))

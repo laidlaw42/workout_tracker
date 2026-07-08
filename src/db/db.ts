@@ -1,5 +1,9 @@
 import Dexie, { type Table } from 'dexie'
-import { categoryForTracking, legacyTemplateToCategories } from '@/lib/migrations'
+import {
+  categoryForTracking,
+  deriveExerciseParams,
+  legacyTemplateToCategories,
+} from '@/lib/migrations'
 import type {
   Exercise,
   WorkoutTemplate,
@@ -151,6 +155,27 @@ export class WorkoutDB extends Dexie {
             },
           )
       })
+    // v9 (F51): replace the single `supportsAdditionalWeight` flag with the six
+    // per-exercise tracking-config fields. Derive them from existing data (shared
+    // with the import path via deriveExerciseParams) and drop the old flag. Only
+    // the exercises table is touched; per-record try/catch means one bad row is
+    // logged and skipped, never aborting the upgrade.
+    this.version(9).upgrade(async (tx) => {
+      await tx
+        .table('exercises')
+        .toCollection()
+        .modify((e: Record<string, unknown> & { id?: string }) => {
+          try {
+            Object.assign(
+              e,
+              deriveExerciseParams(e as Parameters<typeof deriveExerciseParams>[0]),
+            )
+            delete e.supportsAdditionalWeight
+          } catch (err) {
+            console.error('F51 exercise migration failed for record', e.id, err)
+          }
+        })
+    })
   }
 }
 
