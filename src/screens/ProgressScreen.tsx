@@ -1,17 +1,7 @@
 import { useMemo, useState } from 'react'
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
 import { LineChart as LineIcon } from 'lucide-react'
+import { LineChart } from '@/components/charts/LineChart'
+import { HBarChart } from '@/components/charts/HBarChart'
 import { useLiveQuery } from '@/hooks/useDb'
 import {
   getAllExercises,
@@ -37,9 +27,6 @@ import { formatPace } from '@/lib/formatDuration'
 import { CLIMB_CHARACTER_LABEL, isCleanTick, vGradeFromIndex, vGradeIndex } from '@/lib/climbing'
 import { gradeToColor, vGradeToColor } from '@/lib/gradeColors'
 import type { CardioActivityType, ClimbingRoute, LoggedHang, LoggedSet } from '@/types'
-
-const AXIS_TICK = { fill: 'var(--muted-foreground)', fontSize: 11 }
-const GOLD = '#f59e0b'
 
 export default function ProgressScreen() {
   return (
@@ -79,16 +66,6 @@ export default function ProgressScreen() {
           <RehabTab />
         </TabsContent>
       </Tabs>
-    </div>
-  )
-}
-
-function ChartFrame({ children }: { children: React.ReactElement }) {
-  return (
-    <div className="h-[220px] w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        {children}
-      </ResponsiveContainer>
     </div>
   )
 }
@@ -159,23 +136,11 @@ function StrengthTab() {
       ) : data.length === 0 ? (
         <EmptyState icon={LineIcon} title="No data yet" subtitle="Log some sets to chart progress." />
       ) : (
-        <ChartFrame>
-          <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={false} />
-            {/* width 48 fits 3-digit weights + "kg" without clipping (F29). */}
-            <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} width={48} unit="kg" />
-            <Tooltip
-              contentStyle={{
-                background: 'var(--popover)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                color: 'var(--popover-foreground)',
-              }}
-            />
-            <Line type="monotone" dataKey="weight" stroke="var(--primary)" strokeWidth={2} dot />
-          </LineChart>
-        </ChartFrame>
+        <LineChart
+          data={data.map((d) => ({ label: d.date, value: d.weight }))}
+          formatTick={(v) => `${v}kg`}
+          formatValue={(v) => `${v} kg`}
+        />
       )}
 
       {prs && prs.length > 0 && (
@@ -277,23 +242,11 @@ function RehabTab() {
       ) : (
         <>
           <p className="text-sm text-muted-foreground">{metricLabel} per session</p>
-          <ChartFrame>
-            <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={false} />
-              <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} width={48} unit={unit} />
-              <Tooltip
-                formatter={(v) => `${Number(v)}${unit ? ' ' + unit : ' reps'}`}
-                contentStyle={{
-                  background: 'var(--popover)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 8,
-                  color: 'var(--popover-foreground)',
-                }}
-              />
-              <Line type="monotone" dataKey="value" stroke="var(--primary)" strokeWidth={2} dot />
-            </LineChart>
-          </ChartFrame>
+          <LineChart
+            data={data.map((d) => ({ label: d.date, value: d.value }))}
+            formatTick={(v) => `${v}${unit}`}
+            formatValue={(v) => `${v}${unit ? ' ' + unit : ' reps'}`}
+          />
         </>
       )}
     </div>
@@ -349,32 +302,11 @@ function CardioTab() {
       {data.length === 0 ? (
         <EmptyState icon={LineIcon} title="No data yet" subtitle="Log some cardio to chart trends." />
       ) : (
-        <ChartFrame>
-          <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={false} />
-            {/* width 48 fits pace MM:SS ("5:42") without clipping (F29). */}
-            <YAxis
-              tick={AXIS_TICK}
-              tickLine={false}
-              axisLine={false}
-              width={48}
-              tickFormatter={(v: number) => (metric === 'pace' ? formatPace(v).replace(' /km', '') : String(v))}
-            />
-            <Tooltip
-              formatter={(value) =>
-                metric === 'pace' ? formatPace(Number(value)) : `${Number(value)} km`
-              }
-              contentStyle={{
-                background: 'var(--popover)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                color: 'var(--popover-foreground)',
-              }}
-            />
-            <Line type="monotone" dataKey="value" stroke="var(--primary)" strokeWidth={2} dot />
-          </LineChart>
-        </ChartFrame>
+        <LineChart
+          data={data.map((d) => ({ label: d.date, value: d.value }))}
+          formatTick={(v) => (metric === 'pace' ? formatPace(v).replace(' /km', '') : String(v))}
+          formatValue={(v) => (metric === 'pace' ? formatPace(v) : `${v} km`)}
+        />
       )}
     </div>
   )
@@ -527,50 +459,21 @@ function ClimbingTab() {
       {data.length === 0 ? (
         <EmptyState icon={LineIcon} title="No sends yet" subtitle="Clean sends build your pyramid." />
       ) : (
-        <ChartFrame>
-          <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, bottom: 4, left: 8 }}>
-            <XAxis type="number" allowDecimals={false} tick={AXIS_TICK} tickLine={false} axisLine={false} />
-            {/* width 44 fits grade labels ("V10", "35") without clipping (F29). */}
-            <YAxis
-              type="category"
-              dataKey="grade"
-              tick={AXIS_TICK}
-              tickLine={false}
-              axisLine={false}
-              width={44}
-            />
-            <Tooltip
-              cursor={{ fill: 'var(--muted)' }}
-              contentStyle={{
-                background: 'var(--popover)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                color: 'var(--popover-foreground)',
-              }}
-            />
-            <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-              {data.map((row, i) => {
-                // Gym grades are not hue-mapped (F25) — render bars in a neutral
-                // colour, matching the neutral gym-grade pills elsewhere.
-                const color =
-                  effectiveMode === 'gym'
-                    ? 'var(--muted-foreground)'
-                    : boulder
-                      ? vGradeToColor(row.grade)
-                      : gradeToColor(Number(row.grade))
-                // Onsight / flash sends get a gold outline over their grade colour.
-                return (
-                  <Cell
-                    key={i}
-                    fill={color}
-                    stroke={row.gold ? GOLD : undefined}
-                    strokeWidth={row.gold ? 2 : 0}
-                  />
-                )
-              })}
-            </Bar>
-          </BarChart>
-        </ChartFrame>
+        <HBarChart
+          data={data.map((row) => ({
+            label: row.grade,
+            value: row.count,
+            // Gym grades are not hue-mapped (F25) — neutral colour, matching the
+            // neutral gym-grade pills elsewhere. Onsight/flash get a gold outline.
+            color:
+              effectiveMode === 'gym'
+                ? 'var(--muted-foreground)'
+                : boulder
+                  ? vGradeToColor(row.grade)
+                  : gradeToColor(Number(row.grade)),
+            outlined: row.gold,
+          }))}
+        />
       )}
 
       {(charCounts.length > 0 || styleCounts.length > 0) && (
@@ -583,30 +486,11 @@ function ClimbingTab() {
       {metresData.length > 0 && (
         <div className="space-y-2 pt-1">
           <p className="text-sm font-medium text-muted-foreground">Metres climbed per session</p>
-          <ChartFrame>
-            <LineChart data={metresData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-              <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={false} />
-              {/* width 44 fits metre totals ("120") without clipping (F29). */}
-              <YAxis
-                tick={AXIS_TICK}
-                tickLine={false}
-                axisLine={false}
-                width={44}
-                tickFormatter={(v: number) => `${v}m`}
-              />
-              <Tooltip
-                formatter={(value) => `${Number(value)} m`}
-                contentStyle={{
-                  background: 'var(--popover)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 8,
-                  color: 'var(--popover-foreground)',
-                }}
-              />
-              <Line type="monotone" dataKey="metres" stroke="var(--primary)" strokeWidth={2} dot />
-            </LineChart>
-          </ChartFrame>
+          <LineChart
+            data={metresData.map((d) => ({ label: d.date, value: d.metres }))}
+            formatTick={(v) => `${v}m`}
+            formatValue={(v) => `${v} m`}
+          />
         </div>
       )}
     </div>
@@ -688,24 +572,11 @@ function HangboardView() {
       ) : data.length === 0 ? (
         <EmptyState icon={LineIcon} title="No data yet" subtitle="Log some hangs to chart progress." />
       ) : (
-        <ChartFrame>
-          <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-            <XAxis dataKey="date" tick={AXIS_TICK} tickLine={false} axisLine={false} />
-            {/* width 48 fits "120s" / 3-digit weights + unit without clipping (F29). */}
-            <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} width={48} unit={unit} />
-            <Tooltip
-              formatter={(v) => `${Number(v)} ${unit}`}
-              contentStyle={{
-                background: 'var(--popover)',
-                border: '1px solid var(--border)',
-                borderRadius: 8,
-                color: 'var(--popover-foreground)',
-              }}
-            />
-            <Line type="monotone" dataKey="value" stroke="var(--primary)" strokeWidth={2} dot />
-          </LineChart>
-        </ChartFrame>
+        <LineChart
+          data={data.map((d) => ({ label: d.date, value: d.value }))}
+          formatTick={(v) => `${v}${unit}`}
+          formatValue={(v) => `${v} ${unit}`}
+        />
       )}
 
       {hangPRs.length > 0 && (

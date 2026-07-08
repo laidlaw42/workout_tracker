@@ -17,7 +17,8 @@ import HistoryScreen from '@/screens/HistoryScreen'
 import PlannerScreen from '@/screens/PlannerScreen'
 import SettingsScreen from '@/screens/SettingsScreen'
 
-// Charts (recharts) are heavy — split them out of the initial bundle.
+// Progress is chart-heavy and rarely the first screen — lazy-load it so its
+// charts stay out of the initial bundle.
 const ProgressScreen = lazy(() => import('@/screens/ProgressScreen'))
 
 // Immersive flows (active sessions, template detail/edit, settings) hide the nav.
