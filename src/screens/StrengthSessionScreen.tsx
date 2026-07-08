@@ -529,13 +529,15 @@ export default function StrengthSessionScreen() {
                 weightLabel={meta?.weightLabel}
                 isBodyweight={meta?.isBodyweight}
                 supportsNegativeLoad={meta?.supportsNegativeLoad}
+                hasEdgeDepth={meta?.hasEdgeDepth}
+                hasIntraRest={meta?.hasIntraRest}
                 distanceMode={distanceMode}
                 onLog={(d) => engine.logSet(ex, d)}
                 onAddSet={() => addSetTo(ex.uid)}
                 onRemoveSet={() => removeSet(ex.uid)}
                 onSwap={isCurrent ? () => setPickerOpen(true) : undefined}
                 onEdit={(u) => editExercise(ex.uid, u)}
-                onStartCountdown={() => engine.startTimedSet(ex)}
+                onStartCountdown={(input) => engine.startTimedSet(ex, input)}
                 countdown={
                   isCurrent && engine.precount.activeUid === ex.uid
                     ? { remaining: engine.precount.remaining, duration: engine.precount.duration, precount: true }

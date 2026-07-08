@@ -26,6 +26,12 @@ export interface WorkExercise {
   weight?: number // planned weight (kg) for remaining sets — pre-fills the set row (A31)
   distanceKm?: number // planned target distance (km) for a cardio row — pre-fills it (A98)
   restSeconds: number
+  // F51 — planned hangboard params for a timed row (edge, and for an intra-rest /
+  // Abrahang protocol the reps + intra-rest); pre-fill the row and drive an
+  // auto-advanced / resumed set that has no user-entered values.
+  edgeDepthMm?: number
+  intraRestSeconds?: number
+  abrahangReps?: number
   swappedFrom?: string
   skipped: boolean
 }
@@ -36,6 +42,10 @@ export interface LoggedSetInput {
   actualReps?: number
   durationSeconds?: number
   distanceKm?: number // cardio exercise in a mixed session (A66)
+  // F51 — hangboard fields captured on a timed (hang) set.
+  edgeDepthMm?: number
+  intraRestSeconds?: number
+  abrahangReps?: number
 }
 
 // Fields editable inline mid-session (A31) — applied to remaining unlogged sets.
@@ -57,6 +67,10 @@ interface Props {
   isBodyweight?: boolean
   /** F51 — allow negative (assisted) load values. */
   supportsNegativeLoad?: boolean
+  /** F51 — show an edge-depth (mm) input on a timed (hang) row. */
+  hasEdgeDepth?: boolean
+  /** F51 — show reps + intra-rest inputs on a timed row (Abrahang/repeater). */
+  hasIntraRest?: boolean
   /** Cardio exercise (A66): render the duration + distance row instead of reps. */
   distanceMode?: boolean
   onLog: (data: LoggedSetInput) => void
@@ -67,8 +81,8 @@ interface Props {
   onSwap?: () => void
   /** Edit target reps/duration, weight, rest for the remaining sets (A31). */
   onEdit?: (updates: ExerciseEdit) => void
-  /** Timed exercises: start the set countdown (session logs it at zero). */
-  onStartCountdown?: () => void
+  /** Timed exercises: start the set countdown with the captured load/edge/intra-rest. */
+  onStartCountdown?: (input: LoggedSetInput) => void
   countdown?: { remaining: number; duration: number; precount?: boolean } | null
 }
 
@@ -83,6 +97,8 @@ export function ExerciseCard({
   weightLabel,
   isBodyweight,
   supportsNegativeLoad,
+  hasEdgeDepth,
+  hasIntraRest,
   distanceMode = false,
   onLog,
   onAddSet,
@@ -168,7 +184,7 @@ export function ExerciseCard({
                 {distanceMode
                   ? `${Math.round((s.durationSeconds ?? 0) / 60)} min${s.distanceKm != null ? ` · ${s.distanceKm} km` : ''}`
                   : s.durationSeconds != null
-                    ? `${s.durationSeconds}s`
+                    ? `${s.durationSeconds}s${s.additionalWeightKg || s.weightKg != null ? ` · ${setWeightLabel(s)}` : ''}${s.edgeDepthMm != null ? ` · ${s.edgeDepthMm}mm` : ''}`
                     : `${setWeightLabel(s)} × ${s.actualReps ?? '—'}`}
               </span>
             </div>
@@ -193,21 +209,19 @@ export function ExerciseCard({
                   phase={countdown.precount ? 'precount' : 'hold'}
                 />
               ) : (
-                <div className="flex items-center gap-2">
-                  <Button className="flex-1" onClick={onStartCountdown}>
-                    Start {exercise.durationSeconds}s hold
-                  </Button>
-                  {onRemoveSet && (
-                    <button
-                      type="button"
-                      aria-label="Remove set"
-                      onClick={onRemoveSet}
-                      className="flex size-10 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors active:bg-accent"
-                    >
-                      <Minus className="size-4" />
-                    </button>
-                  )}
-                </div>
+                <TimedSetRow
+                  key={`${currentSetNumber}-${exercise.durationSeconds ?? ''}-${exercise.weight ?? ''}`}
+                  exercise={exercise}
+                  prefill={prefill}
+                  hasWeight={hasWeight}
+                  weightLabel={weightLabel}
+                  isBodyweight={isBodyweight}
+                  supportsNegativeLoad={supportsNegativeLoad}
+                  hasEdgeDepth={hasEdgeDepth}
+                  hasIntraRest={hasIntraRest}
+                  onStart={(input) => onStartCountdown?.(input)}
+                  onRemove={onRemoveSet}
+                />
               )
             ) : (
               // Key on the set number + editable targets so advancing a set and
@@ -504,6 +518,126 @@ function SetRow({
         )}
         <Button className="h-10 flex-1" onClick={attemptLog} disabled={reps.trim() === ''}>
           Log set
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// F51 — the timed (hold / hang) set row. Config-driven like SetRow: a load input
+// (bodyweight moves store into additionalWeightKg), an optional edge-depth input,
+// and — for an intra-rest protocol — reps + intra-rest. The captured values ride
+// the Start button into the countdown, which logs them when the hold completes.
+function TimedSetRow({
+  exercise,
+  prefill,
+  hasWeight = true,
+  weightLabel,
+  isBodyweight,
+  supportsNegativeLoad,
+  hasEdgeDepth,
+  hasIntraRest,
+  onStart,
+  onRemove,
+}: {
+  exercise: WorkExercise
+  prefill?: Pick<LoggedSet, 'weightKg' | 'additionalWeightKg' | 'actualReps'>
+  hasWeight?: boolean
+  weightLabel?: WeightLabel
+  isBodyweight?: boolean
+  supportsNegativeLoad?: boolean
+  hasEdgeDepth?: boolean
+  hasIntraRest?: boolean
+  onStart: (input: LoggedSetInput) => void
+  onRemove?: () => void
+}) {
+  const weightStep = getWeightStep()
+  const [load, setLoad] = useState(() =>
+    str(isBodyweight ? (exercise.weight ?? prefill?.additionalWeightKg) : (exercise.weight ?? prefill?.weightKg)),
+  )
+  const [edge, setEdge] = useState(() => str(exercise.edgeDepthMm))
+  const [reps, setReps] = useState(() => str(exercise.abrahangReps))
+  const [intra, setIntra] = useState(() => str(exercise.intraRestSeconds))
+
+  const num = (s: string) => (s.trim() === '' ? undefined : Number(s))
+  const bw = getBodyweight()
+  const loadNum = load.trim() === '' ? null : Number(load)
+  const pct =
+    !hasWeight || bw == null || loadNum == null || !Number.isFinite(loadNum)
+      ? null
+      : isBodyweight
+        ? loadNum !== 0
+          ? bodyweightLoadPct(loadNum)
+          : null
+        : loadNum > 0
+          ? Math.round((loadNum / bw) * 100)
+          : null
+
+  const repsN = hasIntraRest ? (num(reps) ?? 1) : 1
+  const startLabel =
+    repsN > 1 ? `Start ${repsN}×${exercise.durationSeconds}s` : `Start ${exercise.durationSeconds}s hold`
+
+  function start() {
+    const l = num(load)
+    const validLoad = l != null && !Number.isNaN(l)
+    onStart({
+      weightKg: validLoad && !isBodyweight ? l : undefined,
+      additionalWeightKg: validLoad && isBodyweight && l !== 0 ? l : undefined,
+      edgeDepthMm: hasEdgeDepth ? num(edge) : undefined,
+      abrahangReps: hasIntraRest ? num(reps) : undefined,
+      intraRestSeconds: hasIntraRest ? num(intra) : undefined,
+    })
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg border border-primary/40 bg-background p-3">
+      {hasWeight && (
+        <SetField label={loadFieldLabel(weightLabel, supportsNegativeLoad ?? false)}>
+          <NumberStepper
+            value={load}
+            ariaLabel="load"
+            step={weightStep}
+            min={supportsNegativeLoad ? -999 : 0}
+            inputMode="decimal"
+            placeholder={isBodyweight ? '0' : 'BW'}
+            onChange={setLoad}
+          />
+        </SetField>
+      )}
+      {pct != null && (
+        <p className="-mt-2 pr-1 text-right text-xs text-muted-foreground">{pct}% of bodyweight</p>
+      )}
+      {hasEdgeDepth && (
+        <SetField label="Edge (mm)">
+          <NumberStepper value={edge} ariaLabel="edge depth" min={0} placeholder="20" onChange={setEdge} />
+        </SetField>
+      )}
+      {hasIntraRest && (
+        <>
+          <SetField label="Reps">
+            <NumberStepper value={reps} ariaLabel="reps" min={1} placeholder="6" onChange={setReps} />
+          </SetField>
+          <SetField label="Intra-rest (s)">
+            <NumberStepper value={intra} ariaLabel="intra-rest" min={0} placeholder="3" onChange={setIntra} />
+          </SetField>
+          <p className="-mt-1 pr-1 text-right text-xs text-muted-foreground">
+            Rest between reps within a set.
+          </p>
+        </>
+      )}
+      <div className="flex gap-2">
+        {onRemove && (
+          <button
+            type="button"
+            aria-label="Remove set"
+            onClick={onRemove}
+            className="flex size-10 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors active:bg-accent"
+          >
+            <Minus className="size-4" />
+          </button>
+        )}
+        <Button className="h-10 flex-1" onClick={start}>
+          {startLabel}
         </Button>
       </div>
     </div>

@@ -710,7 +710,9 @@ function mixedSetLabel(s: LoggedSet, ex?: Exercise): string {
     return s.distanceKm != null ? `${min} min · ${s.distanceKm} km` : `${min} min`
   }
   if (ex?.trackingType === 'duration' || (s.durationSeconds != null && s.actualReps == null)) {
-    return `${s.durationSeconds ?? 0}s`
+    const load = s.additionalWeightKg || s.weightKg != null ? ` · ${setWeightLabel(s)}` : ''
+    const edge = s.edgeDepthMm != null ? ` · ${s.edgeDepthMm}mm` : ''
+    return `${s.durationSeconds ?? 0}s${load}${edge}`
   }
   return `${setWeightLabel(s)} × ${s.actualReps ?? '—'}`
 }

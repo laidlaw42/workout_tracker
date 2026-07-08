@@ -51,7 +51,7 @@ export interface TimedSetEngine {
   /** Current Abrahang phase label ('Hang' | 'Rest'), else null (A37). */
   abrahangLabel: string | null
   logSet: (ex: WorkExercise, data: LoggedSetInput) => Promise<void>
-  startTimedSet: (ex: WorkExercise) => void
+  startTimedSet: (ex: WorkExercise, input?: LoggedSetInput) => void
   logHang: (hs: HangboardSet, opts?: { abrahangReps?: number }) => Promise<void>
   startHang: (hs: HangboardSet) => void
   /** Cancel the active pre-count/countdown/rest and drop the persisted phase —
@@ -146,13 +146,16 @@ export function useTimedSetEngine(params: TimedSetEngineParams): TimedSetEngine 
         additionalWeightKg: data.additionalWeightKg,
         durationSeconds: data.durationSeconds,
         distanceKm: data.distanceKm, // cardio exercise in a mixed session (A66)
+        edgeDepthMm: data.edgeDepthMm, // F51 — hangboard set fields
+        intraRestSeconds: data.intraRestSeconds,
+        abrahangReps: data.abrahangReps,
         skipped: false,
         swappedFrom: ex.swappedFrom,
         loggedAt: Date.now(),
       })
+      const meta = exById.get(ex.exerciseId)
       if (repsMet(ex.targetReps, data.actualReps)) {
-        const loadable = exById.get(ex.exerciseId)?.isBodyweight
-        const prValue = weightPrValue(loadable, data)
+        const prValue = weightPrValue(meta?.isBodyweight, data)
         if (prValue != null) {
           await checkAndSavePR({
             exerciseId: ex.exerciseId,
@@ -164,6 +167,19 @@ export function useTimedSetEngine(params: TimedSetEngineParams): TimedSetEngine 
             achievedAt: Date.now(),
           })
         }
+      }
+      // F51 — a duration exercise (hang, plank, …) records a longest-hold PR. Keyed
+      // by exerciseName like every PR, so a grip's longest hang carries over.
+      if (meta?.trackingType === 'duration' && (data.durationSeconds ?? 0) > 0) {
+        await checkAndSavePR({
+          exerciseId: ex.exerciseId,
+          exerciseName: ex.exerciseName,
+          prType: 'duration',
+          value: data.durationSeconds!,
+          unit: 's',
+          sessionId: id,
+          achievedAt: Date.now(),
+        })
       }
       // Only a genuinely timed exercise (a hold) auto-advances its countdown —
       // a cardio bout has a durationSeconds but no countdown (A66).
@@ -181,17 +197,34 @@ export function useTimedSetEngine(params: TimedSetEngineParams): TimedSetEngine 
     }
   }
 
+  // The load/edge/intra-rest to log for a timed set that carries no user input
+  // (auto-advance / F48 resume): fall back to the exercise's planned values.
+  const plannedTimedInput = (ex: WorkExercise): LoggedSetInput => {
+    const bodyweight = exById.get(ex.exerciseId)?.isBodyweight
+    return {
+      weightKg: !bodyweight && ex.weight != null ? ex.weight : undefined,
+      additionalWeightKg: bodyweight && ex.weight != null && ex.weight !== 0 ? ex.weight : undefined,
+      edgeDepthMm: ex.edgeDepthMm,
+      abrahangReps: ex.abrahangReps,
+      intraRestSeconds: ex.intraRestSeconds,
+    }
+  }
+
   // Timed exercises: run the countdown, then log the set (which starts rest).
-  // Starting a set dismisses any running rest timer immediately (A8).
-  function startTimedSet(ex: WorkExercise) {
+  // Starting a set dismisses any running rest timer immediately (A8). `input`
+  // carries the load/edge/intra-rest the user set on the row; auto-advance and
+  // F48 resume pass none and fall back to the planned values (F51).
+  function startTimedSet(ex: WorkExercise, input?: LoggedSetInput) {
     if (ex.durationSeconds == null) return
     resume() // starting a timed set lifts any pause (F19)
     rest.skip()
+    const data: LoggedSetInput = {
+      ...(input ?? plannedTimedInput(ex)),
+      durationSeconds: ex.durationSeconds,
+    }
     const run = () => {
       persistPhase('countdown', 'exercise', ex.exerciseId, ex.durationSeconds!)
-      countdown.start(ex.uid, ex.durationSeconds!, () =>
-        logSet(ex, { durationSeconds: ex.durationSeconds }),
-      )
+      countdown.start(ex.uid, ex.durationSeconds!, () => logSet(ex, data))
     }
     // Optional "Get ready" pre-count before the exercise countdown (A30).
     const pre = getPrecountSeconds()

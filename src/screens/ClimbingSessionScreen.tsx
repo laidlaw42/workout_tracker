@@ -547,12 +547,14 @@ export default function ClimbingSessionScreen() {
                   weightLabel={exById.get(ex.exerciseId)?.weightLabel}
                   isBodyweight={exById.get(ex.exerciseId)?.isBodyweight}
                   supportsNegativeLoad={exById.get(ex.exerciseId)?.supportsNegativeLoad}
+                  hasEdgeDepth={exById.get(ex.exerciseId)?.hasEdgeDepth}
+                  hasIntraRest={exById.get(ex.exerciseId)?.hasIntraRest}
                   onLog={(d) => engine.logSet(ex, d)}
                   onAddSet={() => addSetTo(ex.uid)}
                   onRemoveSet={() => removeSet(ex.uid)}
                   onSwap={isCurrent ? () => setPickerOpen(true) : undefined}
                   onEdit={(u) => editExercise(ex.uid, u)}
-                  onStartCountdown={() => engine.startTimedSet(ex)}
+                  onStartCountdown={(input) => engine.startTimedSet(ex, input)}
                   countdown={
                     isCurrent && engine.precount.activeUid === ex.uid
                       ? { remaining: engine.precount.remaining, duration: engine.precount.duration, precount: true }
