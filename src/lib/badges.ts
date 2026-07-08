@@ -139,13 +139,6 @@ export function badgesForTemplate(t: WorkoutTemplate): Badge[] {
   return badges
 }
 
-// Single representative badge (multi-category → Mixed) for compact one-badge spots.
-export function badgeForTemplate(t: WorkoutTemplate): Badge {
-  if (isHangboardOnlyTemplate(t)) return HANGBOARD(TONE.climbing)
-  const cats = templateCategories(t)
-  return cats.length > 1 ? MIXED : templateCategoryBadge(t, cats[0])
-}
-
 // Extra per-session info needed to pick a climbing/cardio subtype. Sessions don't
 // store this, so it's derived from their logged content (see deriveSessionKind).
 export interface SessionKind {

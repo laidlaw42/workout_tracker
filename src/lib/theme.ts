@@ -59,11 +59,6 @@ export const THEME_PREVIEWS: Record<string, [string, string, string]> = {
   'crimson-light': ['#fef2f2', '#dc2626', '#fecaca'],
 }
 
-/** Whether a stored theme id is still a valid, known theme. */
-export function isValidTheme(id: string | null | undefined): boolean {
-  return !!id && THEMES.some((t) => t.id === id)
-}
-
 /** Theme ids whose `.dark` class should be toggled on. Kept in sync with the
  *  pre-paint list in index.html. */
 export const DARK_THEME_IDS = THEMES.filter((t) => t.dark).map((t) => t.id)

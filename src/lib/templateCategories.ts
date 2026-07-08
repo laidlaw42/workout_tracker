@@ -6,14 +6,6 @@
 
 import type { DisciplineType, TemplateCategory, WorkoutTemplate } from '@/types'
 
-// The four selectable template categories, in the app-wide alphabetical order (A93).
-export const TEMPLATE_CATEGORY_OPTIONS: { value: TemplateCategory; label: string }[] = [
-  { value: 'cardio', label: 'Cardio' },
-  { value: 'climbing', label: 'Climbing' },
-  { value: 'rehab', label: 'Rehab' },
-  { value: 'strength', label: 'Strength' },
-]
-
 // A UI-only build category. 'hangboard' isn't a stored TemplateCategory (a
 // hangboard workout is filed under 'climbing' with hangboardSets), but the
 // workout builder offers it as its own pill so a pure hangboard workout can be
