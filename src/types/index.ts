@@ -145,9 +145,8 @@ export interface HangboardSet {
   order: number
 }
 
-// The tunable part of a hangboard protocol, without its per-instance id/order.
-// Used as an exercise's default hang config (Exercise.hangboard) and as the shape
-// the shared HangConfigFields editor operates on.
+// @deprecated (F51) — the tunable part of a HangboardSet, without its id/order.
+// Only referenced by the retained Exercise.hangboard field for legacy/backup reads.
 export type HangConfig = Omit<HangboardSet, 'id' | 'order'>
 
 export interface WorkoutTemplate {
