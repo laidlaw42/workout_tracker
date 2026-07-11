@@ -5,7 +5,6 @@ import { GRIP_TYPES } from '@/lib/climbing'
 import type {
   Exercise,
   ExerciseCategory,
-  HangboardSet,
   IntervalBlock,
   TemplateExercise,
   TrackingType,
@@ -103,9 +102,6 @@ interface ExerciseSeed {
   // Explicit category (A36). Optional here — omit it and it's derived from
   // trackingType (distance → cardio, else strength). A42's rehab seeds set it.
   category?: ExerciseCategory
-  // Hangboard protocol config (A73): present on category 'hangboard' exercises;
-  // adding one to a training session seeds a HangboardSet from it.
-  hangboard?: Omit<HangboardSet, 'id' | 'order'>
 }
 
 // Category for a seeded exercise: explicit if given, else derived (A36).
@@ -127,7 +123,6 @@ function seedToExercise(e: ExerciseSeed, now: number): Exercise {
     tags: [],
     notes: EXERCISE_DESCRIPTIONS[e.id],
     createdAt: now,
-    hangboard: e.hangboard,
     ...deriveExerciseParams({ ...e, category }),
   }
 }
