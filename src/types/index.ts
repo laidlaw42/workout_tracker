@@ -34,8 +34,9 @@ export type ExerciseCategory = 'strength' | 'cardio' | 'climbing' | 'rehab' | 'h
 // multi-category template *is* the mixed case) and 'rehab' is a first-class option.
 export type TemplateCategory = 'strength' | 'cardio' | 'climbing' | 'rehab'
 
-// theCrag tick types — bouldering subset
-export type BoulderTick = 'onsight' | 'flash' | 'send' | 'working' | 'repeat' | 'dab'
+// theCrag tick types — bouldering subset (TICK_TYPES.bouldering offers `attempt`
+// too, for a tried-but-not-topped problem).
+export type BoulderTick = 'onsight' | 'flash' | 'send' | 'working' | 'repeat' | 'attempt' | 'dab'
 
 // theCrag tick types — roped subset (top rope + lead)
 export type RopedTick =

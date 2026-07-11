@@ -60,6 +60,7 @@ export const TICK_TYPES = {
     { value: 'send',     label: 'Send',     desc: 'Clean, after attempts' },
     { value: 'working',  label: 'Working',  desc: 'Active project' },
     { value: 'repeat',   label: 'Repeat',   desc: 'Done it before' },
+    { value: 'attempt',  label: 'Attempt',  desc: 'Tried, did not top out' },
     { value: 'dab',      label: 'Dab',      desc: 'Touched ground / person' },
   ],
   top_rope: [
@@ -68,6 +69,7 @@ export const TICK_TYPES = {
     { value: 'clean',    label: 'Clean',    desc: 'No falls, after attempts' },
     { value: 'hang_dog', label: 'Hang dog', desc: 'Fell or rested, topped' },
     { value: 'attempt',  label: 'Attempt',  desc: 'Did not top out' },
+    { value: 'retreat',  label: 'Retreat',  desc: 'Lowered off / bailed' },
   ],
   lead: [
     { value: 'onsight',    label: 'Onsight',    desc: 'First try, no beta, led' },
@@ -91,9 +93,9 @@ export const CLEAN_TICKS: ClimbingTick[] = [
 
 ### Tick prestige order (highest first, for sorting)
 
-Bouldering: onsight > flash > send > repeat > dab > working
+Bouldering: onsight > flash > send > repeat > dab > working > attempt
 Lead: onsight > flash > redpoint > pink_point > hang_dog > attempt > retreat
-Top rope: onsight > flash > clean > hang_dog > attempt
+Top rope: onsight > flash > clean > hang_dog > attempt > retreat
 
 ---
 

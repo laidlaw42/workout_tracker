@@ -191,8 +191,8 @@ The `WorkoutSession` (`type: 'climbing'`) already exists before this screen load
 - "Save route" button; editing an existing route (tap a RouteCard) pre-fills and saves via `updateRoute`
 
 **Tick type options by style:**
-- Bouldering: Onsight, Flash, Send, Working, Repeat, Dab
-- Top rope: Onsight, Flash, Clean, Hang dog, Attempt
+- Bouldering: Onsight, Flash, Send, Working, Repeat, Attempt, Dab
+- Top rope: Onsight, Flash, Clean, Hang dog, Attempt, Retreat
 - Lead: Onsight, Flash, Redpoint, Pink point, Hang dog, Attempt, Retreat
 
 **Actions:**
