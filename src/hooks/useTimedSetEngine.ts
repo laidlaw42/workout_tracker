@@ -163,9 +163,7 @@ export function useTimedSetEngine(params: TimedSetEngineParams): TimedSetEngine 
       // Only a genuinely timed exercise (a hold) auto-advances its countdown —
       // a cardio bout has a durationSeconds but no countdown (A66).
       restTimedRef.current =
-        exById.get(ex.exerciseId)?.trackingType === 'duration'
-          ? { kind: 'exercise', uid: ex.uid }
-          : null
+        meta?.trackingType === 'duration' ? { kind: 'exercise', uid: ex.uid } : null
       rest.start(ex.restSeconds)
       // Persist the rest so a reload mid-rest resumes it and still auto-advances
       // (F48). Only for timed exercises — a reps rest has nothing to advance to.

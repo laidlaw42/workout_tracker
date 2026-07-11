@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Combine, Download, RotateCcw, Trash2, Upload } from 'lucide-react'
 import { clearAllData, exportAllData, importAllData, mergeData } from '@/db/helpers'
+import { backupFilename, downloadBackup } from '@/lib/backup'
 import { restoreDefaults } from '@/db/seed'
 import { Button } from '@/components/ui/button'
 import {
@@ -30,14 +31,9 @@ export function DataToolsSection() {
 
   async function handleExport() {
     try {
-      const json = await exportAllData()
-      const blob = new Blob([json], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `workout-tracker-backup-${new Date().toISOString().slice(0, 10)}.json`
-      a.click()
-      URL.revokeObjectURL(url)
+      // Same JSON + download path as "Back up now" (src/lib/backup) — one place
+      // owns the filename and blob/anchor plumbing.
+      downloadBackup(await exportAllData(), backupFilename())
     } catch {
       toast.error('Export failed')
     }
