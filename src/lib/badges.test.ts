@@ -4,6 +4,7 @@ import {
   badgesForSession,
   badgesForTemplate,
   deriveSessionKind,
+  hangSetPresence,
   normalizeVenue,
 } from './badges'
 import type { ClimbingRoute, WorkoutSession, WorkoutTemplate } from '@/types'
@@ -57,6 +58,42 @@ describe('deriveSessionKind', () => {
     })
     // hangs + sets stays generic (Mixed)
     expect(deriveSessionKind(sess({ type: 'mixed' }), { hasHang: true, hasSet: true })).toEqual({})
+  })
+})
+
+describe('hangSetPresence', () => {
+  const isHang = (id: string) => id.startsWith('ex_hang_')
+
+  it('flags hang-only sessions as hasHang && !hasSet', () => {
+    expect(hangSetPresence([{ exerciseId: 'ex_hang_half_crimp' }], isHang)).toEqual({
+      hasHang: true,
+      hasSet: false,
+    })
+  })
+
+  it('flags a non-hang set as hasSet only', () => {
+    expect(hangSetPresence([{ exerciseId: 'ex_squat' }], isHang)).toEqual({
+      hasHang: false,
+      hasSet: true,
+    })
+  })
+
+  it('a mix of hangs and other sets reports both', () => {
+    expect(
+      hangSetPresence([{ exerciseId: 'ex_hang_open_hand' }, { exerciseId: 'ex_pull_up' }], isHang),
+    ).toEqual({ hasHang: true, hasSet: true })
+  })
+
+  it('no sets reports neither', () => {
+    expect(hangSetPresence([], isHang)).toEqual({ hasHang: false, hasSet: false })
+  })
+
+  it('drives the Hangboard badge for a hang-only mixed session', () => {
+    const kind = deriveSessionKind(
+      sess({ type: 'mixed' }),
+      hangSetPresence([{ exerciseId: 'ex_hang_half_crimp' }], isHang),
+    )
+    expect(badgeForSession(sess({ type: 'mixed' }), kind).label).toBe('Hangboard')
   })
 })
 

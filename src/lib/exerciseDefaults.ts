@@ -33,7 +33,10 @@ export function resolveExerciseDefaults(ex: Exercise): ResolvedExerciseDefaults 
     sets: d?.sets ?? (distance ? FALLBACK.distanceSets : FALLBACK.sets),
     reps: timed || distance ? undefined : (d?.reps ?? FALLBACK.reps),
     durationSeconds: timed ? (d?.durationSeconds ?? FALLBACK.durationSeconds) : undefined,
-    weightKg: timed || distance ? undefined : d?.weightKg,
+    // The set row's single load field is fed by `weightKg`; a bodyweight-loadable
+    // exercise (the Load metric) saves its default in `loadKg`, so fall back to it
+    // — otherwise a saved default load is silently dropped when adding the exercise.
+    weightKg: timed || distance ? undefined : (d?.weightKg ?? d?.loadKg),
     distanceKm: distance ? d?.distanceKm : undefined,
     restSeconds: d?.restSeconds ?? FALLBACK.restSeconds,
     // F51 — hangboard grips carry an edge depth (holds only); no fallback, so a

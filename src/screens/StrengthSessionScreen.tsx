@@ -265,10 +265,13 @@ export default function StrengthSessionScreen() {
 
   function swapCurrent(ex: Exercise) {
     if (!currentEx) return
-    // A66 — swapping in a cardio/climbing exercise turns a strength session mixed,
-    // mirroring appendExercises. Reset the targets to the new exercise's kind so
-    // it renders in the right row variant.
-    if (session?.type === 'strength' && (ex.category === 'cardio' || ex.category === 'climbing')) {
+    // A66/A73 — swapping in a cardio/climbing/hangboard exercise turns a strength
+    // session mixed, mirroring appendExercises. Reset the targets to the new
+    // exercise's kind so it renders in the right row variant.
+    if (
+      session?.type === 'strength' &&
+      (ex.category === 'cardio' || ex.category === 'climbing' || ex.category === 'hangboard')
+    ) {
       void updateSession(id, { type: 'mixed' })
     }
     setWork((w) =>

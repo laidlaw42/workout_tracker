@@ -31,7 +31,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { RouteCard } from '@/components/RouteCard'
 import { TagInput } from '@/components/TagInput'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
-import { badgeForSession, deriveSessionKind, normalizeVenue } from '@/lib/badges'
+import { badgeForSession, deriveSessionKind, hangSetPresence, normalizeVenue } from '@/lib/badges'
 import { CLIMB_STYLE_ICONS, CLIMB_STYLE_TONE, routeGapSeconds } from '@/lib/climbing'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -224,8 +224,7 @@ export default function SessionDetailScreen() {
     session,
     deriveSessionKind(session, {
       routes,
-      hasHang: false,
-      hasSet: sets.length > 0,
+      ...hangSetPresence(sets, (exId) => exById.get(exId)?.category === 'hangboard'),
       cardioActivity: cardio?.activityType,
     }),
   )
@@ -388,6 +387,7 @@ export default function SessionDetailScreen() {
         {session.type === 'strength' && (
           <StrengthDetail
             sets={sets}
+            exById={exById}
             editing={editing}
             onAddExercise={() => setPickerOpen(true)}
             onAddSet={addSetToExercise}
@@ -406,6 +406,7 @@ export default function SessionDetailScreen() {
           <ClimbingDetail
             routes={routes}
             sets={sets}
+            exById={exById}
             editing={editing}
             venue={venue}
             sessionStartedAt={session.startedAt}
@@ -562,11 +563,13 @@ function groupByExercise(sets: LoggedSet[]): [string, string, LoggedSet[]][] {
 
 function StrengthDetail({
   sets,
+  exById,
   editing,
   onAddExercise,
   onAddSet,
 }: {
   sets: LoggedSet[]
+  exById: Map<string, Exercise>
   editing: boolean
   onAddExercise: () => void
   onAddSet: (exerciseId: string, exerciseName: string) => void
@@ -585,7 +588,7 @@ function StrengthDetail({
           <div key={exId} className="space-y-2 rounded-xl border border-border bg-card p-3">
             <p className="font-medium">{name}</p>
             {exSets.map((s) => (
-              <EditableSetRow key={s.id} set={s} />
+              <EditableSetRow key={s.id} set={s} isBodyweight={exById.get(exId)?.isBodyweight} />
             ))}
             <Button variant="ghost" size="sm" onClick={() => onAddSet(exId, name)}>
               <Plus className="size-4" /> Add set
@@ -639,24 +642,29 @@ function StrengthDetail({
   )
 }
 
-function EditableSetRow({ set }: { set: LoggedSet }) {
-  const [weight, setWeight] = useState(set.weightKg != null ? String(set.weightKg) : '')
+function EditableSetRow({ set, isBodyweight = false }: { set: LoggedSet; isBodyweight?: boolean }) {
+  // A bodyweight / hangboard move stores its load in additionalWeightKg (± assisted);
+  // a plain move in weightKg. Read and write whichever field this set actually uses,
+  // so the edit isn't silently dropped into the wrong field (and the label stays in
+  // sync). Bodyweight loads may be negative (assisted), so allow a leading '-'.
+  const initialLoad = isBodyweight ? set.additionalWeightKg : set.weightKg
+  const [weight, setWeight] = useState(initialLoad != null ? String(initialLoad) : '')
   const [reps, setReps] = useState(set.actualReps != null ? String(set.actualReps) : '')
 
-  const num = (v: string) => (v.trim() === '' ? undefined : Number(v))
+  const num = (v: string) => (v.trim() === '' || v === '-' ? undefined : Number(v))
 
   return (
     <div className="flex items-center gap-2">
       <span className="w-10 shrink-0 text-sm text-muted-foreground">Set {set.setNumber}</span>
       <Input
-        inputMode="decimal"
+        inputMode={isBodyweight ? 'text' : 'decimal'}
         className="h-9"
-        placeholder="kg"
+        placeholder={isBodyweight ? '± kg' : 'kg'}
         value={weight}
         onChange={(e) => {
-          const v = e.target.value.replace(/[^0-9.]/g, '')
+          const v = e.target.value.replace(isBodyweight ? /[^0-9.-]/g : /[^0-9.]/g, '')
           setWeight(v)
-          void updateSet(set.id, { weightKg: num(v) })
+          void updateSet(set.id, isBodyweight ? { additionalWeightKg: num(v) } : { weightKg: num(v) })
         }}
       />
       <Input
@@ -837,6 +845,7 @@ const DETAIL_STYLE_LABELS: Record<ClimbingStyle, string> = {
 function ClimbingDetail({
   routes,
   sets,
+  exById,
   editing,
   venue,
   sessionStartedAt,
@@ -848,6 +857,7 @@ function ClimbingDetail({
 }: {
   routes: ClimbingRoute[]
   sets: LoggedSet[]
+  exById: Map<string, Exercise>
   editing: boolean
   venue?: 'gym' | 'crag' | 'board'
   sessionStartedAt: number
@@ -878,7 +888,7 @@ function ClimbingDetail({
             <div key={exId} className="space-y-2 rounded-xl border border-border bg-card p-3">
               <p className="font-medium">{name}</p>
               {exSets.map((s) => (
-                <EditableSetRow key={s.id} set={s} />
+                <EditableSetRow key={s.id} set={s} isBodyweight={exById.get(exId)?.isBodyweight} />
               ))}
               <Button variant="ghost" size="sm" onClick={() => onAddSet(exId, name)}>
                 <Plus className="size-4" /> Add set

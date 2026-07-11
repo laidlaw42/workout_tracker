@@ -4,7 +4,7 @@ import { generateId } from '@/lib/id'
 import { normalizeTags } from '@/lib/tags'
 import { paletteColourForOrder } from '@/lib/tagColors'
 import { STYLE_LABELS, isCleanTick, vGradeIndex } from '@/lib/climbing'
-import { deriveSessionKind, normalizeVenue, type SessionKind } from '@/lib/badges'
+import { deriveSessionKind, hangSetPresence, normalizeVenue, type SessionKind } from '@/lib/badges'
 import { deriveSessionType, templateCategories } from '@/lib/templateCategories'
 import { templateExerciseFromExercise } from '@/lib/exerciseDefaults'
 import { clearAllActivePhases } from '@/lib/activePhase'
@@ -1010,38 +1010,42 @@ export async function describeSessions(
       }
     }
 
+    // F51 — a hang is a set for a hangboard-category exercise (the LoggedHang table
+    // is dead: nothing writes it, so it must not be read for hang detection). Load
+    // the hangboard exercise ids once for the sessions that need it.
+    const needHangDetection = climbing.length > 0 || mixed.length > 0
+    const hangExIds = needHangDetection
+      ? new Set((await db.exercises.where('category').equals('hangboard').toArray()).map((e) => e.id))
+      : new Set<string>()
+    const isHangExercise = (exerciseId: string) => hangExIds.has(exerciseId)
+
+    // Hang/non-hang set presence per session, from the sessionId-indexed sets.
+    async function hangPresenceBySession(ids: string[]) {
+      const sets = await db.sets.where('sessionId').anyOf(ids).toArray()
+      const bySession = new Map<string, LoggedSet[]>()
+      for (const s of sets) {
+        const arr = bySession.get(s.sessionId) ?? []
+        arr.push(s)
+        bySession.set(s.sessionId, arr)
+      }
+      return (id: string) => hangSetPresence(bySession.get(id) ?? [], isHangExercise)
+    }
+
     if (climbing.length) {
-      const ids = climbing.map((s) => s.id)
-      // hangs/sets have a standalone sessionId index; routes only a compound one,
-      // so fetch those per session (indexed range scans, not a full-table scan).
-      const [hangs, sets] = await Promise.all([
-        db.hangs.where('sessionId').anyOf(ids).toArray(),
-        db.sets.where('sessionId').anyOf(ids).toArray(),
-      ])
-      const hasHang = new Set(hangs.map((h) => h.sessionId))
-      const hasSet = new Set(sets.map((x) => x.sessionId))
+      const presence = await hangPresenceBySession(climbing.map((s) => s.id))
+      // routes only have a compound index, so fetch those per session.
       const routeLists = await Promise.all(climbing.map((s) => getRoutesForSession(s.id)))
       climbing.forEach((s, i) => {
-        out[s.id] = deriveSessionKind(s, {
-          routes: routeLists[i],
-          hasHang: hasHang.has(s.id),
-          hasSet: hasSet.has(s.id),
-        })
+        out[s.id] = deriveSessionKind(s, { routes: routeLists[i], ...presence(s.id) })
       })
     }
 
     // A73: mixed (training) sessions may contain hangs — a hang-only one reads as
-    // a Hangboard session, so load their hang/set presence too.
+    // a Hangboard session, so classify by their hang/set presence too.
     if (mixed.length) {
-      const ids = mixed.map((s) => s.id)
-      const [hangs, sets] = await Promise.all([
-        db.hangs.where('sessionId').anyOf(ids).toArray(),
-        db.sets.where('sessionId').anyOf(ids).toArray(),
-      ])
-      const hasHang = new Set(hangs.map((h) => h.sessionId))
-      const hasSet = new Set(sets.map((x) => x.sessionId))
+      const presence = await hangPresenceBySession(mixed.map((s) => s.id))
       for (const s of mixed) {
-        out[s.id] = deriveSessionKind(s, { hasHang: hasHang.has(s.id), hasSet: hasSet.has(s.id) })
+        out[s.id] = deriveSessionKind(s, presence(s.id))
       }
     }
 

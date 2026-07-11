@@ -228,8 +228,27 @@ function dominantStyle(routes: ClimbingRoute[]): ClimbingStyle {
   return best
 }
 
+// F51 — a session's hang presence, derived from its logged sets: a hang is a set
+// for a hangboard-category exercise (the LoggedHang table is dead post-F51 and must
+// NOT be read for this). `hasSet` counts only non-hang sets, so a hangboard-only
+// session reads as hasHang && !hasSet — the shape deriveSessionKind expects.
+export function hangSetPresence(
+  sets: readonly { exerciseId: string }[],
+  isHangExercise: (exerciseId: string) => boolean,
+): { hasHang: boolean; hasSet: boolean } {
+  let hasHang = false
+  let hasSet = false
+  for (const s of sets) {
+    if (isHangExercise(s.exerciseId)) hasHang = true
+    else hasSet = true
+  }
+  return { hasHang, hasSet }
+}
+
 // Classify a session from its already-loaded logged content. Priority: routes
-// (a climb session) → hangs (hangboard) → sets (climbing workout).
+// (a climb session) → hangs (hangboard) → sets (climbing workout). `hasHang` /
+// `hasSet` come from hangSetPresence (hangboard-category sets), never the dead
+// LoggedHang table.
 export function deriveSessionKind(
   session: WorkoutSession,
   data: { routes?: ClimbingRoute[]; hasHang?: boolean; hasSet?: boolean; cardioActivity?: CardioActivityType },

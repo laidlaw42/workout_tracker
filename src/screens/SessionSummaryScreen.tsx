@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import confetti from 'canvas-confetti'
 import { useLiveQuery } from '@/hooks/useDb'
 import { getConfettiEnabled } from '@/lib/prefs'
 import { getTheme, THEME_PREVIEWS } from '@/lib/theme'
 import {
+  getAllExercises,
   getCardioForSession,
   getPRsForSession,
   getRoutesForSession,
@@ -12,7 +13,7 @@ import {
   getSetsForSession,
 } from '@/db/helpers'
 import { DisciplineBadge } from '@/components/DisciplineBadge'
-import { badgeForSession, deriveSessionKind } from '@/lib/badges'
+import { badgeForSession, deriveSessionKind, hangSetPresence } from '@/lib/badges'
 import { PRBadge } from '@/components/PRBadge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -80,6 +81,10 @@ export default function SessionSummaryScreen() {
   const cardio = useLiveQuery(() => getCardioForSession(id), [id])
   const routes = useLiveQuery(() => getRoutesForSession(id), [id]) ?? []
   const prs = useLiveQuery(() => getPRsForSession(id), [id]) ?? []
+  // Exercise metadata — classify hangboard-category sets so a hang session badges
+  // as Hangboard (F51 — hangs are sets, not the dead LoggedHang table).
+  const exercises = useLiveQuery(() => getAllExercises(), []) ?? []
+  const exById = useMemo(() => new Map(exercises.map((e) => [e.id, e])), [exercises])
 
   // Fire the celebration once, when the session first loads (A41) — unless the
   // user turned it off in Settings.
@@ -112,8 +117,7 @@ export default function SessionSummaryScreen() {
     session,
     deriveSessionKind(session, {
       routes,
-      hasHang: false,
-      hasSet: sets.length > 0,
+      ...hangSetPresence(sets, (exId) => exById.get(exId)?.category === 'hangboard'),
       cardioActivity: cardio?.activityType,
     }),
   )

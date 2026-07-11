@@ -75,10 +75,14 @@ export default function ProgressScreen() {
 function bestWeightPerDay(sets: LoggedSet[]): { date: string; weight: number }[] {
   const byDay = new Map<string, { ts: number; weight: number }>()
   for (const s of sets) {
-    if (s.weightKg == null) continue
+    // Bodyweight-loadable lifts (pull-up, dip, …) store their load in
+    // additionalWeightKg, so chart that when there's no plain bar weight —
+    // otherwise those exercises would always read "No data yet".
+    const weight = s.weightKg ?? s.additionalWeightKg
+    if (weight == null) continue
     const key = dayKey(s.loggedAt)
     const cur = byDay.get(key)
-    if (!cur || s.weightKg > cur.weight) byDay.set(key, { ts: s.loggedAt, weight: s.weightKg })
+    if (!cur || weight > cur.weight) byDay.set(key, { ts: s.loggedAt, weight })
   }
   return [...byDay.values()]
     .sort((a, b) => a.ts - b.ts)

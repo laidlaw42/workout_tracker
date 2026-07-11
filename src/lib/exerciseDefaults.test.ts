@@ -64,6 +64,13 @@ describe('resolveExerciseDefaults — saved values', () => {
   it('drops an edge depth on a non-duration exercise', () => {
     expect(resolveExerciseDefaults(exercise('reps', { edgeDepthMm: 20 })).edgeDepthMm).toBeUndefined()
   })
+  it('uses the Load metric default (loadKg) when there is no weightKg', () => {
+    // A bodyweight-loadable move (weighted pull-up) saves its default in loadKg.
+    expect(resolveExerciseDefaults(exercise('reps', { loadKg: 10 })).weightKg).toBe(10)
+  })
+  it('prefers an explicit weightKg over loadKg', () => {
+    expect(resolveExerciseDefaults(exercise('reps', { weightKg: 60, loadKg: 10 })).weightKg).toBe(60)
+  })
 })
 
 describe('templateExerciseFromExercise', () => {
