@@ -358,7 +358,8 @@ function prLabel(pr: PersonalRecord): string {
     case 'grade':
       return `${pr.exerciseName} · ${pr.unit === 'vgrade' ? vGradeFromIndex(pr.value) : pr.value}`
     case 'duration':
-      return `${pr.exerciseName} · ${pr.value}s hang`
+      // Any duration exercise (hang, plank, L-sit, …) records a longest-hold PR.
+      return `${pr.exerciseName} · ${pr.value}s hold`
     default:
       return assertNever(pr.prType, 'PR type')
   }

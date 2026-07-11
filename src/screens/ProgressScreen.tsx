@@ -72,23 +72,27 @@ export default function ProgressScreen() {
 
 // --- Strength ---------------------------------------------------------------
 
-function bestWeightPerDay(sets: LoggedSet[]): { date: string; weight: number }[] {
-  const byDay = new Map<string, { ts: number; weight: number }>()
+// Best (max) value per day for a chosen per-set metric, oldest first. Weight
+// exercises pick the load (bodyweight-loadable lifts store it in
+// additionalWeightKg, so fall back to that — otherwise they'd read "No data
+// yet"); a hold (duration-tracked strength move, e.g. Plank) picks its longest hold.
+function bestPerDay(
+  sets: LoggedSet[],
+  pick: (s: LoggedSet) => number | undefined,
+): { date: string; value: number }[] {
+  const byDay = new Map<string, { ts: number; value: number }>()
   for (const s of sets) {
-    // Bodyweight-loadable lifts (pull-up, dip, …) store their load in
-    // additionalWeightKg, so chart that when there's no plain bar weight —
-    // otherwise those exercises would always read "No data yet".
-    const weight = s.weightKg ?? s.additionalWeightKg
-    if (weight == null) continue
+    const value = pick(s)
+    if (value == null) continue
     const key = dayKey(s.loggedAt)
     const cur = byDay.get(key)
-    if (!cur || weight > cur.weight) byDay.set(key, { ts: s.loggedAt, weight })
+    if (!cur || value > cur.value) byDay.set(key, { ts: s.loggedAt, value })
   }
   return [...byDay.values()]
     .sort((a, b) => a.ts - b.ts)
     .map((d) => ({
       date: new Date(d.ts).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }),
-      weight: d.weight,
+      value: d.value,
     }))
 }
 
@@ -118,7 +122,14 @@ function StrengthTab() {
     () => (selected ? getPRsForExercise(selected.name) : Promise.resolve([])),
     [selected?.name],
   )
-  const data = bestWeightPerDay(sets ?? [])
+  // A hold (duration-tracked strength move, e.g. Plank) charts its longest hold;
+  // everything else charts its best load. Without this a hold could never plot,
+  // since it carries no weight.
+  const metric: 'weight' | 'duration' = selected?.trackingType === 'duration' ? 'duration' : 'weight'
+  const unit = metric === 'duration' ? 's' : 'kg'
+  const data = bestPerDay(sets ?? [], (s) =>
+    metric === 'duration' ? s.durationSeconds : (s.weightKg ?? s.additionalWeightKg),
+  )
 
   return (
     <div className="space-y-4">
@@ -136,14 +147,14 @@ function StrengthTab() {
       </Select>
 
       {!exerciseId ? (
-        <EmptyState icon={LineIcon} title="Pick an exercise" subtitle="See your best weight over time." />
+        <EmptyState icon={LineIcon} title="Pick an exercise" subtitle="See your best set over time." />
       ) : data.length === 0 ? (
         <EmptyState icon={LineIcon} title="No data yet" subtitle="Log some sets to chart progress." />
       ) : (
         <LineChart
-          data={data.map((d) => ({ label: d.date, value: d.weight }))}
-          formatTick={(v) => `${v}kg`}
-          formatValue={(v) => `${v} kg`}
+          data={data.map((d) => ({ label: d.date, value: d.value }))}
+          formatTick={(v) => `${v}${unit}`}
+          formatValue={(v) => `${v} ${unit}`}
         />
       )}
 
